@@ -23,10 +23,10 @@ find_package(ROOT REQUIRED)
 #----------------------------------------------------------------------------
 # Find Tron
 #
-set(TRON_INCLUDE_DIR       $ENV{HOME}/tron/include)
-set(TRON_LIBRARY_DIR       $ENV{HOME}/tron/lib    )
-set(TRON_CXX_FLAGS         ""                     )
-set(TRON_LIBRARIES         tron                   )
+set(TRON_INCLUDE_DIR       ${CMAKE_SOURCE_DIR}/../tron/include)
+set(TRON_LIBRARY_DIR       ${CMAKE_SOURCE_DIR}/../tron/lib    )
+set(TRON_CXX_FLAGS         ""                                 )
+set(TRON_LIBRARIES         tron                               )
 
 #----------------------------------------------------------------------------
 # Locate include directories
