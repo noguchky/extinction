@@ -1,11 +1,28 @@
 #include <iostream>
 #include <fstream>
+#include <cstdio>
+#include <cstdlib>
+#include <cstddef>
+#include <sys/time.h>
+#include <csignal>
+#include <cstring>
+#include <ctime>
+#include <cerrno>
+#include <unistd.h>
+#include <mutex>
+#include <limits>
+#include <sys/inotify.h>
+#include <pthread.h>
 
 #include "Units.hh"
 #include "Detector.hh"
 #include "Kc705.hh"
-#include "TStyle.h"
+
+#include "TROOT.h"
 #include "TApplication.h"
+#include "TSystem.h"
+#include "TStyle.h"
+#include "TCanvas.h"
 #include "TFile.h"
 #include "TH1.h"
 #include "TH2.h"
@@ -14,320 +31,163 @@
 #include "ArgReader.hh"
 #include "AnaCoin.hh"
 
-Int_t main(Int_t argc, Char_t** argv) {
-  Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
-  args->AddArg<std::string>("Input"     ,                    "A rawdata filename");
-  args->AddArg<std::string>("Offset"    ,                    "A offset filename format");
-  args->AddOpt             ("Verbose"   , 'v', "verbose"   , "Output filled values");
-  args->AddOpt             ("Help"      , 'h', "help"      , "Show usage");
+namespace {
+  bool processing = false;
+  std::mutex filenameMutex;
+  std::string path;
+  std::string filename;
 
-  if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
-    args->ShowUsage();
-    return 0;
-  }
+  int fd, wd;
 
-  const std::string ifilename       = args->GetValue("Input");
-  const std::string ffilename       = args->GetValue("Offset");
+  Extinction::Kc705::Kc705Data data;
+  std::map<std::size_t, std::map<std::size_t, Extinction::Analyzer::AnaCoin::CoinInfo>> coinInfo;
+  std::map<std::size_t/*extCh*/, std::map<std::size_t/*index*/, Bool_t>> contains;
 
-  TApplication* app = new TApplication("app", nullptr, nullptr);
+  TCanvas* canvas;
 
-  std::cout << "=== Open Input File" << std::endl;
+  TPad* padBh1Tdc;
+  TPad* padBh2Tdc;
+  TPad* padExtTdc;
+  TPad* padHodTdc;
+  TPad* padTc1Tdc;
+  TPad* padTc2Tdc;
+
+  TPad* padHodHitMap;
+  TPad* padHodHitCnt;
+  TPad* padExtHitMap;
+  TPad* padExtHitCnt;
+
+  TPad* padMountain;
+  TPad* padTdcSync;
+  TPad* padHit;
+  TPad* padTotalHit;
+
+  Long64_t totalCoinCount = 0;
+
+  TH1* hExtTdcInSpill_Any;
+  TH1* hHodTdcInSpill_Any;
+  TH1** hTcTdcInSpill;
+  TH1** hBhTdcInSpill;
+  TH2* hExtHitMap;
+  TList* lExtBorderLine;
+  TH1* hExtEntryByCh;
+  TH2* hHodHitMap;
+  TList* lHodBorderLine;
+  TH1* hHodEntryByCh;
+  TH2* hExtMountain_Any;  
+  TH1* hExtTdcInSync_Any;
+  TGraphErrors* gHitInSpill;
+  TGraphErrors* gTotalHitInSpill;
+  // TGraphErrors* gExtinction;
+}
+
+Int_t updatePlots(const std::string& ifilename) {
+  using namespace Extinction;
+  using CoinOffset = Analyzer::AnaTimeOffset::CoinOffset;
+
+  std::cout << "=== Set Decoder" << std::endl;
+  Extinction::Kc705::Decoder decoder;
+  Extinction::Kc705::Packet_t packet;
+  const Double_t timePerTdc = data.GetTimePerTdc();
+
+  std::cout << "=== Initialzie History" << std::endl;
+  const Double_t lastThreshold = 100 * Extinction::nsec;
+  std::vector<Extinction::TdcData> lastExtData;
+  std::vector<Extinction::TdcData> lastHodData;
+  std::vector<Extinction::TdcData> lastTcData;
+  std::vector<Extinction::TdcData> lastBhData;
+  std::vector<Extinction::TdcData> lastMrSyncData;
+
+  std::cout << "=== Create Filler" << std::endl;
+  Long64_t coinCount = 0;
+  auto fillCoin =
+    [&](TdcData extData) {
+      const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
+      const Long64_t    tdc   = extData.Tdc;
+      const Double_t    time  = extData.Time;
+      Bool_t coincidence[CoinOffset::N];
+      std::vector<std::size_t> coinHodChs;
+      for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
+        const std::size_t i = bhCh + CoinOffset::BH;
+        if (contains[extCh][i]) {
+          coincidence[i] = false;
+          for (auto&& lastData : lastBhData) {
+            const Double_t dt    = lastData.Time - time;
+            const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
+            const Double_t sigma = 25.0 * nsec;
+            if (TMath::Abs(dt - mean) < sigma) {
+              coincidence[i] = true;
+              break;
+            }
+          }
+        } else {
+          coincidence[i] = true;
+        }
+      }
+      {
+        const std::size_t hodCh = 0;
+        const std::size_t i = hodCh + CoinOffset::Hod;
+        if (contains[extCh][i]) {
+          coincidence[i] = false;
+          for (auto&& lastData : lastHodData) {
+            if (lastData.Channel != Hodoscope::GlobalChannelOffset) {
+              continue;
+            } // TBD: for 20201217
+            const Double_t dt    = lastData.Time - time;
+            const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
+            const Double_t sigma = 25.0 * nsec;
+            if (TMath::Abs(dt - mean) < sigma) {
+              coincidence[i] = true;
+              coinHodChs.push_back(Hodoscope::GetChannel(lastData.Channel));
+              break;
+            }
+          }
+        } else {
+          coincidence[i] = true;
+        }
+      }
+      for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
+        const std::size_t i = tcCh + CoinOffset::TC;
+        if (contains[extCh][i]) {
+          coincidence[i] = false;
+          for (auto&& lastData : lastTcData) {
+            const Double_t dt    = lastData.Time - time;
+            const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
+            const Double_t sigma = 25.0 * nsec;
+            if (TMath::Abs(dt - mean) < sigma) {
+              coincidence[i] = true;
+              break;
+            }
+          }
+        } else {
+          coincidence[i] = true;
+        }
+      }
+
+      if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
+        for (std::size_t n = lastMrSyncData.size(), i = n; i != 0; --i) {
+          auto lastData = lastMrSyncData[i];
+          if (lastData.Channel == extData.MrSyncChannel) {
+            auto syncTdc = lastData.Tdc;
+            ++coinCount;
+            hExtTdcInSync_Any->Fill(tdc - syncTdc);
+            hExtMountain_Any ->Fill(tdc - syncTdc, time / msec);
+            break;
+          }
+        }
+      }
+    };
+
+  std::cout << "=== Open File" << std::endl;
   std::ifstream ifile(ifilename, std::ios::binary);
   if (!ifile) {
     std::cout << "[error] input file is not opened, " << ifilename << std::endl;
     return 1;
   }
 
-  std::cout << "=== Set Style" << std::endl;
-  gStyle->SetPalette(1);
-  gStyle->SetOptFit(1);
-
-  std::cout << "=== Set Decoder" << std::endl;
-  Extinction::Kc705::Decoder decoder;
-  Extinction::Kc705::Kc705Data data;
-  Extinction::Kc705::Packet_t packet;
-
-  std::cout << "=== Get Offset" << std::endl;
-  std::map<std::size_t, std::map<std::size_t, Extinction::Analyzer::AnaCoin::CoinInfo>> coinInfo;
-  for (std::size_t extCh = 0; extCh < Extinction::ExtinctionDetector::NofChannels; ++extCh) {
-    Extinction::Analyzer::AnaCoin::CoinInfo info;
-    std::ifstream ffile(Form(ffilename.data(), extCh));
-    if (ffile) {
-      while (info.Read(ffile)) {
-        coinInfo[extCh][info.Index] = info;
-      }
-    }
-  }
-  if (coinInfo.empty()) {
-    std::cout << "[error] offset file was not found" << std::endl;
-    exit(1);
-  }
-
-  TCanvas* canvas = new TCanvas();
-  std::vector<TPad*> pads;
-
-  const Double_t seg = 1.0 / 6.0;
-
-  TPad* padBh1Tdc = new TPad("PadBh1Tdc", "", 0 * seg, 5 * seg, 1 * seg, 6 * seg);
-  pads.push_back(padBh1Tdc);
-  TPad* padBh2Tdc = new TPad("PadBh2Tdc", "", 0 * seg, 4 * seg, 1 * seg, 5 * seg);
-  pads.push_back(padBh2Tdc);
-  TPad* padExtTdc = new TPad("PadExtTdc", "", 0 * seg, 3 * seg, 1 * seg, 4 * seg);
-  pads.push_back(padExtTdc);
-  TPad* padHodTdc = new TPad("PadHodTdc", "", 0 * seg, 2 * seg, 1 * seg, 3 * seg);
-  pads.push_back(padHodTdc);
-  TPad* padTc1Tdc = new TPad("PadTc1Tdc", "", 0 * seg, 1 * seg, 1 * seg, 2 * seg);
-  pads.push_back(padTc1Tdc);
-  TPad* padTc2Tdc = new TPad("PadTc2Tdc", "", 0 * seg, 0 * seg, 1 * seg, 1 * seg);
-  pads.push_back(padTc2Tdc);
-
-  TPad* padHodHitMap = new TPad("PadHodHitMap", "", 1 * seg, 5 * seg, 3 * seg, 6 * seg);
-  pads.push_back(padHodHitMap);
-  TPad* padHodHitCnt = new TPad("PadHodHitCnt", "", 1 * seg, 4 * seg, 3 * seg, 5 * seg);
-  pads.push_back(padHodHitCnt);
-  TPad* padExtHitMap = new TPad("PadExtHitMap", "", 1 * seg, 2 * seg, 3 * seg, 4 * seg);
-  pads.push_back(padExtHitMap);
-  TPad* padExtHitCnt = new TPad("PadExtHitCnt", "", 1 * seg, 0 * seg, 3 * seg, 2 * seg);
-  pads.push_back(padExtHitCnt);
-
-  TPad* padMountain = new TPad("PadMountain", "", 3 * seg, 4 * seg, 6 * seg, 6 * seg);
-  pads.push_back(padMountain);
-  TPad* padTdcSync  = new TPad("PadTdcSync" , "", 3 * seg, 2 * seg, 6 * seg, 4 * seg);
-  pads.push_back(padTdcSync);
-  TPad* padHit      = new TPad("padHit"     , "", 3 * seg, 1 * seg, 6 * seg, 2 * seg);
-  pads.push_back(padHit);
-  TPad* padTotalHit = new TPad("padTotalHit", "", 3 * seg, 0 * seg, 6 * seg, 1 * seg);
-  pads.push_back(padTotalHit);
-
-  padBh1Tdc->SetGrid(); padBh1Tdc->SetLogy();  
-  padBh2Tdc->SetGrid(); padBh2Tdc->SetLogy(); 
-  padExtTdc->SetGrid(); padExtTdc->SetLogy(); 
-  padHodTdc->SetGrid(); padHodTdc->SetLogy(); 
-  padTc1Tdc->SetGrid(); padTc1Tdc->SetLogy(); 
-  padTc2Tdc->SetGrid(); padTc2Tdc->SetLogy(); 
-
-  padHodHitCnt->SetGrid(); padHodHitCnt->SetLogy();
-  padExtHitCnt->SetGrid(); padExtHitCnt->SetLogy();
-
-  padMountain->SetGrid();
-  padTdcSync ->SetGrid(); padTdcSync ->SetLogy();
-  padHit     ->SetGrid(); padHit     ->SetLogy();
-  padTotalHit->SetGrid(); padTotalHit->SetLogy();
-
-  for (Int_t ipad = 0, npad = pads.size(); ipad < npad; ++ipad) {
-    canvas->cd();
-    pads[ipad]->Draw();
-    pads[ipad]->SetNumber(ipad + 1);
-  }
-
   {
-    using namespace Extinction;
-    using CoinOffset = Analyzer::AnaTimeOffset::CoinOffset;
-
-    std::cout << "=== Get TDC Information" << std::endl;
-    const std::string tdcName = data.GetName();
-    const Double_t    timePerTdc = data.GetTimePerTdc();
-
-    const Double_t  xminInSpill =    0; // [msec]
-    const Double_t  xmaxInSpill = 3000; // [msec]
-    const Int_t    xbinsInSpill =  300;
-
-    const Double_t  xminInSync  = (Int_t)(-700 * nsec / timePerTdc) - 0.5; // [count]
-    const Int_t    xbinsInSync  = (Int_t)(6600 * nsec / timePerTdc) / 10; // [count/10]
-    const Double_t  xmaxInSync  = xminInSync + xbinsInSync * 10; // [count]
-
-    std::cout << "=== Initialzie Coincidence Information" << std::endl;
-    std::map<std::size_t/*extCh*/, std::map<std::size_t/*index*/, Bool_t>> contains;
-    for (std::size_t extCh = 0; extCh < ExtinctionDetector::NofChannels; ++extCh) {
-      for (std::size_t index = 0; index < CoinOffset::N; ++index) {
-        contains[extCh][index] = false;
-      }
-    }
-    for (auto&& info : coinInfo) {
-      const std::size_t extCh = info.first;
-      for (auto&& subInfo : info.second) {
-        const std::size_t index = subInfo.first;
-        contains[extCh][index] = true;
-      }
-    }
-
-    std::cout << "=== Initialzie History" << std::endl;
-    const Double_t lastThreshold = 100 * nsec;
-    std::vector<Extinction::TdcData> lastExtData;
-    std::vector<Extinction::TdcData> lastHodData;
-    std::vector<Extinction::TdcData> lastTcData;
-    std::vector<Extinction::TdcData> lastBhData;
-    std::vector<Extinction::TdcData> lastMrSyncData;
-
-    std::cout << "=== Create hists" << std::endl;
-    // Extinction Detector TDC in spill
-    TH1* hExtTdcInSpill_Any = new TH1D("hExtTdcInSpill_Any",
-                                       Form("%s, Extinction Detector TDC in Spill;"
-                                            "Time [ms]", tdcName.data()),
-                                       xbinsInSpill, xminInSpill, xmaxInSpill);
-
-    // Hodoscope TDC in spill
-    TH1* hHodTdcInSpill_Any = new TH1D("hHodTdcInSpill_Any",
-                                       Form("%s, Hodoscope TDC in Spill;"
-                                            "Time [ms]", tdcName.data()),
-                                       xbinsInSpill, xminInSpill, xmaxInSpill);
-
-    // Timing Counter TDC in spill
-    TH1** hTcTdcInSpill = new TH1*[TimingCounter::NofChannels];
-    for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
-      hTcTdcInSpill[ch] = new TH1D(Form("hTcTdcInSpill_%03ld", ch),
-                                   Form("%s, Timing Counter %ld TDC in Spill;"
-                                        "Time [ms]", tdcName.data(), ch + 1),
-                                   xbinsInSpill, xminInSpill, xmaxInSpill);
-    }
-
-    // Beamline Hodoscope TDC in spill
-    TH1** hBhTdcInSpill = new TH1*[BeamlineHodoscope::NofChannels];
-    for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
-      hBhTdcInSpill[ch] = new TH1D(Form("hBhTdcInSpill_%03ld", ch),
-                                   Form("%s, BH%ld TDC in Spill;"
-                                        "Time [ms]", tdcName.data(), ch + 1),
-                                   xbinsInSpill, xminInSpill, xmaxInSpill);
-    }
-
-    // Extinction detector hit map
-    TH2* hExtHitMap = Extinction::ExtinctionDetector::CreateHitMap("hExtHitMap");
-    TList* lExtBorderLine = Extinction::ExtinctionDetector::CreateBorderLine();
-
-    // Extinction detector hit count
-    TH1* hExtEntryByCh = new TH1D("hExtEntryByCh",
-                                  Form("%s, Extinction Detector Entries by Channel;"
-                                       "Channel;"
-                                       "Entries", tdcName.data()),
-                                  ExtinctionDetector::NofChannels, 0.0 - 0.5, ExtinctionDetector::NofChannels - 0.5);
-
-    // Hodoscope hit map
-    TH2* hHodHitMap = Extinction::Hodoscope::CreateHitMap("hHodHitMap");
-    TList* lHodBorderLine = Extinction::Hodoscope::CreateBorderLine();
-
-    // Hodoscope hit count
-    TH1* hHodEntryByCh = new TH1D("hHodEntryByCh",
-                                  Form("%s, Hodoscope Entries by Channel;"
-                                       "Channel;"
-                                       "Entries", tdcName.data()),
-                                  Hodoscope::NofChannels, 0.0 - 0.5, Hodoscope::NofChannels - 0.5);
-
-    // Extinction Detector Mountain Plot (coincidence)
-    TH2* hExtMountain_Any = new TH2D("hExtMountain_Any",
-                                     Form("%s, Extinction Detector Mountain Plot;"
-                                          "TDC [count];"
-                                          "Time [ms]", tdcName.data()),
-                                     xbinsInSync / 2, xminInSync, xmaxInSync,
-                                     xbinsInSpill / 2, xminInSpill, xmaxInSpill);
-    hExtMountain_Any->SetStats(false);
-
-    // Extinction Detector TDC in sync (coincidence)
-    TH1* hExtTdcInSync_Any = new TH1D("hExtTdcInSync_Any",
-                                      Form("%s, Extinction Detector TDC in MR Sync;"
-                                           "TDC [count]", tdcName.data()),
-                                      xbinsInSync, xminInSync, xmaxInSync);
-
-    // Hit in spill (coincidence)
-    TGraphErrors* gHitInSpill = new TGraphErrors();
-    gHitInSpill->SetNameTitle("gHitInSpill",
-                              Form("%s, # of Hits in Spill;"
-                                   "Spill", tdcName.data()));
-
-    // Total hit in spill (coincidence)
-    TGraphErrors* gTotalHitInSpill = new TGraphErrors();
-    gTotalHitInSpill->SetNameTitle("gTotalHitInSpill",
-                                   Form("%s, # of Total Hits;"
-                                        "Spill", tdcName.data()));
-
-    // // Extinction
-    // TGraphErrors* gExtinction = new TGraphErrors();
-    // gExtinction->SetNameTitle("gExtinction",
-    //                           Form("%s, Extinction;"
-    //                                "Spill", tdcName.data()));
-
-    std::cout << "=== Create Filler" << std::endl;
-    Long64_t coinCount = 0;
-    auto fillCoin =
-      [&](TdcData extData) {
-        const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
-        const Long64_t    tdc   = extData.Tdc;
-        const Double_t    time  = extData.Time;
-        Bool_t coincidence[CoinOffset::N];
-        std::vector<std::size_t> coinHodChs;
-        for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
-          const std::size_t i = bhCh + CoinOffset::BH;
-          if (contains[extCh][i]) {
-            coincidence[i] = false;
-            for (auto&& lastData : lastBhData) {
-              const Double_t dt    = lastData.Time - time;
-              const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-              const Double_t sigma = 25.0 * nsec;
-              if (TMath::Abs(dt - mean) < sigma) {
-                coincidence[i] = true;
-                break;
-              }
-            }
-          } else {
-            coincidence[i] = true;
-          }
-        }
-        {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          if (contains[extCh][i]) {
-            coincidence[i] = false;
-            for (auto&& lastData : lastHodData) {
-              if (lastData.Channel != Hodoscope::GlobalChannelOffset) {
-                continue;
-              } // TBD: for 20201217
-              const Double_t dt    = lastData.Time - time;
-              const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-              const Double_t sigma = 25.0 * nsec;
-              if (TMath::Abs(dt - mean) < sigma) {
-                coincidence[i] = true;
-                coinHodChs.push_back(Hodoscope::GetChannel(lastData.Channel));
-                break;
-              }
-            }
-          } else {
-            coincidence[i] = true;
-          }
-        }
-        for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
-          const std::size_t i = tcCh + CoinOffset::TC;
-          if (contains[extCh][i]) {
-            coincidence[i] = false;
-            for (auto&& lastData : lastTcData) {
-              const Double_t dt    = lastData.Time - time;
-              const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-              const Double_t sigma = 25.0 * nsec;
-              if (TMath::Abs(dt - mean) < sigma) {
-                coincidence[i] = true;
-                break;
-              }
-            }
-          } else {
-            coincidence[i] = true;
-          }
-        }
-
-        if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-          for (std::size_t n = lastMrSyncData.size(), i = n; i != 0; --i) {
-            auto lastData = lastMrSyncData[i];
-            if (lastData.Channel == extData.MrSyncChannel) {
-              auto syncTdc = lastData.Tdc;
-              ++coinCount;
-              hExtTdcInSync_Any->Fill(tdc - syncTdc);
-              hExtMountain_Any ->Fill(tdc - syncTdc, time / msec);
-              break;
-            }
-          }
-        }
-      };
-
     std::cout << "=== Get Entry " << std::endl;
     std::size_t count = 0UL;
-    Long64_t totalCoinCount = 0;
     for (; decoder.Read(ifile, &packet); ++count) {
       if (count % 1000000UL == 0) {
         std::cout << ">> " << count << std::endl;
@@ -352,6 +212,8 @@ Int_t main(Int_t argc, Char_t** argv) {
         gHitInSpill->SetPointError(nhit, 0.0, TMath::Sqrt(coinCount));
 
         totalCoinCount += coinCount;
+        coinCount = 0;
+
         gTotalHitInSpill->SetPoint(nhit, nhit, totalCoinCount);
         gTotalHitInSpill->SetPointError(nhit, 0.0, TMath::Sqrt(totalCoinCount));
 
@@ -363,9 +225,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         //   (nhit, nhit,
         //    totalCoinCount ? TMath::Sqrt(TMath::Max(leakCount, 1.0)) / totalCoinCount : 0.0);
 
-
-        // Draw Hists
-        std::cout << "=== Create hists" << std::endl;
+        std::cout << "=== Draw hists" << std::endl;
         padBh1Tdc->cd();
         hBhTdcInSpill[0]->Draw();
 
@@ -417,7 +277,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
         canvas->Modified();
         canvas->Update();
-        canvas->WaitPrimitive();
+        // canvas->WaitPrimitive();
 
         // Crear hists
         hBhTdcInSpill[0]->Clear();
@@ -481,7 +341,6 @@ Int_t main(Int_t argc, Char_t** argv) {
                   if (contains[extCh][i]) {
                     const Double_t dt    = time - lastData.Time;
                     const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-                    // const Double_t sigma = 3.0 * coinInfo[extCh][i].FitSigma * timePerTdc;
                     const Double_t sigma = 25.0 * nsec;
                     if (TMath::Abs(dt - mean) < sigma) {
                       coinExtData.push_back(lastData);
@@ -559,7 +418,6 @@ Int_t main(Int_t argc, Char_t** argv) {
                 if (contains[extCh][i]) {
                   const Double_t dt    = time - lastData.Time;
                   const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-                  // const Double_t sigma = 3.0 * coinInfo[extCh][i].FitSigma * timePerTdc;
                   const Double_t sigma = 25.0 * nsec;
                   if (TMath::Abs(dt - mean) < sigma) {
                     coinExtData.push_back(lastData);
@@ -613,7 +471,380 @@ Int_t main(Int_t argc, Char_t** argv) {
   std::cout << "=== Close Files" << std::endl;
   ifile.close();
 
-  app->Run();
+  return 0;
+}
+
+void SignalHandler(int) {
+  static unsigned long msec_cnt = 0;
+
+  msec_cnt++;
+  if (gPad) {
+    // if (!(msec_cnt % 50)) {
+    //   printf("SignalHandler:%lu sec\n", (msec_cnt / 50));
+    {
+
+      // Check processing
+      if (processing) {
+        return;
+      }
+      processing = true;
+
+      // Get Filename
+      std::string ifilename;
+      {
+        std::lock_guard<std::mutex> lock(filenameMutex);
+        ifilename = filename;
+        filename = "";
+      }
+      if (ifilename.empty()) {
+        processing = false;
+        return;
+      }
+
+      try {
+        // Update hist
+        std::cout << "[info] start modify plots, " << ifilename << std::endl;
+        updatePlots(path + "/" + ifilename);
+        processing = false;
+      } catch (...) {
+        gSystem->Exit(1);
+      }
+
+    }
+  } else {
+    gSystem->Exit(1);
+  }
+}
+
+void* monitorWritten(void*) {
+  int i, aux = 0, ret;
+  constexpr int BufferSize = 65536;
+  char buffer[BufferSize];
+
+  while (true) {
+    // Read events
+    ret = read(fd, buffer + aux, BufferSize - aux);
+    if (ret == -1) {
+      if (ret == -EINTR) {
+        continue;
+      }
+      perror("read");
+      exit(EXIT_FAILURE);
+    }
+    ret += aux;
+
+    // Read size check
+    if (ret < (int)sizeof(inotify_event)) {
+      fprintf(stderr, "short of red bytes\n");
+      exit(EXIT_FAILURE);
+    }
+
+    for (i = 0; i < ret;) {
+      inotify_event* inotify_p;
+      inotify_p = (inotify_event*)(buffer + i);
+
+      if (ret < i + (int)offsetof(inotify_event, name)) {
+        // Get tail at next read
+        aux = ret - i;
+        memmove(buffer, buffer + i, aux);
+        break;
+      }
+
+      int size = sizeof(inotify_event) + inotify_p->len;
+      if (ret < i + size) {
+        // Get tail at next read
+        aux = ret - i;
+        memmove(buffer, buffer + i, aux);
+        break;
+      }
+
+      // File opened for writing was closed (*).
+      if (inotify_p->mask & IN_CLOSE_WRITE ||
+          inotify_p->mask & IN_MOVED_TO) {
+        std::cout << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
+        std::lock_guard<std::mutex> lock(filenameMutex);
+        filename = inotify_p->name;
+      }
+      i += size;
+    }
+  }
+
+  // Remove monitor
+  {
+    int ret = inotify_rm_watch(fd, wd);
+    if (ret == -1) {
+      perror("inotify_rm_watch");
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  close(fd);
+
+  return 0;
+}
+
+Int_t main(Int_t argc, Char_t** argv) {
+  Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
+  args->AddArg<std::string>("Directory" ,                    "A rawdata directory");
+  args->AddArg<std::string>("Offset"    ,                    "A offset filename format");
+  args->AddOpt             ("Help"      , 'h', "help"      , "Show usage");
+
+  if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
+    args->ShowUsage();
+    return 0;
+  }
+
+  const std::string directory = args->GetValue("Directory");
+  const std::string ffilename = args->GetValue("Offset");
+  path = directory;
+
+  std::cout << "=== Initialize Application" << std::endl;
+  TApplication* app = new TApplication("monitor", nullptr, nullptr);
+
+  std::cout << "=== Set Style" << std::endl;
+  gStyle->SetPalette(1);
+  gStyle->SetOptFit(1);
+
+  std::cout << "=== Get Offset" << std::endl;
+  for (std::size_t extCh = 0; extCh < Extinction::ExtinctionDetector::NofChannels; ++extCh) {
+    Extinction::Analyzer::AnaCoin::CoinInfo info;
+    std::ifstream ffile(Form(ffilename.data(), extCh));
+    if (ffile) {
+      while (info.Read(ffile)) {
+        coinInfo[extCh][info.Index] = info;
+      }
+    }
+  }
+  if (coinInfo.empty()) {
+    std::cout << "[error] offset file was not found" << std::endl;
+    exit(1);
+  }
+
+  std::cout << "=== Initialize Canvas" << std::endl;
+  canvas = new TCanvas("c1", "KC705 | Semi-online Monitor", 1600, 1200);
+  std::vector<TPad*> pads;
+
+  const Double_t seg = 1.0 / 6.0;
+
+  padBh1Tdc = new TPad("PadBh1Tdc", "", 0 * seg, 5 * seg, 1 * seg, 6 * seg);
+  pads.push_back(padBh1Tdc);
+  padBh2Tdc = new TPad("PadBh2Tdc", "", 0 * seg, 4 * seg, 1 * seg, 5 * seg);
+  pads.push_back(padBh2Tdc);
+  padExtTdc = new TPad("PadExtTdc", "", 0 * seg, 3 * seg, 1 * seg, 4 * seg);
+  pads.push_back(padExtTdc);
+  padHodTdc = new TPad("PadHodTdc", "", 0 * seg, 2 * seg, 1 * seg, 3 * seg);
+  pads.push_back(padHodTdc);
+  padTc1Tdc = new TPad("PadTc1Tdc", "", 0 * seg, 1 * seg, 1 * seg, 2 * seg);
+  pads.push_back(padTc1Tdc);
+  padTc2Tdc = new TPad("PadTc2Tdc", "", 0 * seg, 0 * seg, 1 * seg, 1 * seg);
+  pads.push_back(padTc2Tdc);
+
+  padHodHitMap = new TPad("PadHodHitMap", "", 1 * seg, 5 * seg, 3 * seg, 6 * seg);
+  pads.push_back(padHodHitMap);
+  padHodHitCnt = new TPad("PadHodHitCnt", "", 1 * seg, 4 * seg, 3 * seg, 5 * seg);
+  pads.push_back(padHodHitCnt);
+  padExtHitMap = new TPad("PadExtHitMap", "", 1 * seg, 2 * seg, 3 * seg, 4 * seg);
+  pads.push_back(padExtHitMap);
+  padExtHitCnt = new TPad("PadExtHitCnt", "", 1 * seg, 0 * seg, 3 * seg, 2 * seg);
+  pads.push_back(padExtHitCnt);
+
+  padMountain = new TPad("PadMountain", "", 3 * seg, 4 * seg, 6 * seg, 6 * seg);
+  pads.push_back(padMountain);
+  padTdcSync  = new TPad("PadTdcSync" , "", 3 * seg, 2 * seg, 6 * seg, 4 * seg);
+  pads.push_back(padTdcSync);
+  padHit      = new TPad("padHit"     , "", 3 * seg, 1 * seg, 6 * seg, 2 * seg);
+  pads.push_back(padHit);
+  padTotalHit = new TPad("padTotalHit", "", 3 * seg, 0 * seg, 6 * seg, 1 * seg);
+  pads.push_back(padTotalHit);
+
+  padBh1Tdc->SetGrid(); padBh1Tdc->SetLogy();  
+  padBh2Tdc->SetGrid(); padBh2Tdc->SetLogy(); 
+  padExtTdc->SetGrid(); padExtTdc->SetLogy(); 
+  padHodTdc->SetGrid(); padHodTdc->SetLogy(); 
+  padTc1Tdc->SetGrid(); padTc1Tdc->SetLogy(); 
+  padTc2Tdc->SetGrid(); padTc2Tdc->SetLogy(); 
+
+  padHodHitCnt->SetGrid(); padHodHitCnt->SetLogy();
+  padExtHitCnt->SetGrid(); padExtHitCnt->SetLogy();
+
+  padMountain->SetGrid();
+  padTdcSync ->SetGrid(); padTdcSync ->SetLogy();
+  padHit     ->SetGrid(); padHit     ->SetLogy();
+  padTotalHit->SetGrid(); padTotalHit->SetLogy();
+
+  for (Int_t ipad = 0, npad = pads.size(); ipad < npad; ++ipad) {
+    canvas->cd();
+    pads[ipad]->Draw();
+    pads[ipad]->SetNumber(ipad + 1);
+  }
+
+  {
+    using namespace Extinction;
+    using CoinOffset = Analyzer::AnaTimeOffset::CoinOffset;
+
+    std::cout << "=== Get TDC Information" << std::endl;
+    const std::string tdcName    = data.GetName();
+    const Double_t    timePerTdc = data.GetTimePerTdc();
+
+    const Double_t  xminInSpill =    0; // [msec]
+    const Double_t  xmaxInSpill = 3000; // [msec]
+    const Int_t    xbinsInSpill =   50;
+
+    const Double_t  xminInSync  = (Int_t)(-700 * nsec / timePerTdc) - 0.5; // [count]
+    const Int_t    xbinsInSync0 = (Int_t)(6600 * nsec / timePerTdc) / 20; // [count/10]
+    const Int_t    xbinsInSync  = xbinsInSync0 < 200 ? xbinsInSync0 : xbinsInSync0 / 4;
+    const Double_t  xmaxInSync  = xbinsInSync0 < 200 ? xminInSync + xbinsInSync * 20 : xminInSync + xbinsInSync * 80; // [count]
+
+    std::cout << "=== Initialzie Coincidence Information" << std::endl;
+    for (std::size_t extCh = 0; extCh < ExtinctionDetector::NofChannels; ++extCh) {
+      for (std::size_t index = 0; index < CoinOffset::N; ++index) {
+        contains[extCh][index] = false;
+      }
+    }
+    for (auto&& info : coinInfo) {
+      const std::size_t extCh = info.first;
+      for (auto&& subInfo : info.second) {
+        const std::size_t index = subInfo.first;
+        contains[extCh][index] = true;
+      }
+    }
+
+    std::cout << "=== Create hists" << std::endl;
+    // Extinction Detector TDC in spill
+    hExtTdcInSpill_Any = new TH1D("hExtTdcInSpill_Any",
+                                  Form("%s, Extinction Detector TDC in Spill;"
+                                       "Time [ms]", tdcName.data()),
+                                  xbinsInSpill, xminInSpill, xmaxInSpill);
+
+    // Hodoscope TDC in spill
+    hHodTdcInSpill_Any = new TH1D("hHodTdcInSpill_Any",
+                                  Form("%s, Hodoscope TDC in Spill;"
+                                       "Time [ms]", tdcName.data()),
+                                  xbinsInSpill, xminInSpill, xmaxInSpill);
+
+    // Timing Counter TDC in spill
+    hTcTdcInSpill = new TH1*[TimingCounter::NofChannels];
+    for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
+      hTcTdcInSpill[ch] = new TH1D(Form("hTcTdcInSpill_%03ld", ch),
+                                   Form("%s, Timing Counter %ld TDC in Spill;"
+                                        "Time [ms]", tdcName.data(), ch + 1),
+                                   xbinsInSpill, xminInSpill, xmaxInSpill);
+    }
+
+    // Beamline Hodoscope TDC in spill
+    hBhTdcInSpill = new TH1*[BeamlineHodoscope::NofChannels];
+    for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+      hBhTdcInSpill[ch] = new TH1D(Form("hBhTdcInSpill_%03ld", ch),
+                                   Form("%s, BH%ld TDC in Spill;"
+                                        "Time [ms]", tdcName.data(), ch + 1),
+                                   xbinsInSpill, xminInSpill, xmaxInSpill);
+    }
+
+    // Extinction detector hit map
+    hExtHitMap     = Extinction::ExtinctionDetector::CreateHitMap("hExtHitMap");
+    lExtBorderLine = Extinction::ExtinctionDetector::CreateBorderLine();
+
+    // Extinction detector hit count
+    hExtEntryByCh = new TH1D("hExtEntryByCh",
+                             Form("%s, Extinction Detector Entries by Channel;"
+                                  "Channel;"
+                                  "Entries", tdcName.data()),
+                             ExtinctionDetector::NofChannels, 0.0 - 0.5, ExtinctionDetector::NofChannels - 0.5);
+
+    // Hodoscope hit map
+    hHodHitMap     = Extinction::Hodoscope::CreateHitMap("hHodHitMap");
+    lHodBorderLine = Extinction::Hodoscope::CreateBorderLine();
+
+    // Hodoscope hit count
+    hHodEntryByCh = new TH1D("hHodEntryByCh",
+                             Form("%s, Hodoscope Entries by Channel;"
+                                  "Channel;"
+                                  "Entries", tdcName.data()),
+                             Hodoscope::NofChannels, 0.0 - 0.5, Hodoscope::NofChannels - 0.5);
+
+    // Extinction Detector Mountain Plot (coincidence)
+    hExtMountain_Any = new TH2D("hExtMountain_Any",
+                                Form("%s, Extinction Detector Mountain Plot;"
+                                     "TDC [count];"
+                                     "Time [ms]", tdcName.data()),
+                                xbinsInSync / 2, xminInSync, xmaxInSync,
+                                xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+    hExtMountain_Any->SetStats(false);
+
+    // Extinction Detector TDC in sync (coincidence)
+    hExtTdcInSync_Any = new TH1D("hExtTdcInSync_Any",
+                                 Form("%s, Extinction Detector TDC in MR Sync;"
+                                      "TDC [count]", tdcName.data()),
+                                 xbinsInSync, xminInSync, xmaxInSync);
+
+    // Hit in spill (coincidence)
+    gHitInSpill = new TGraphErrors();
+    gHitInSpill->SetNameTitle("gHitInSpill",
+                              Form("%s, # of Hits in Spill;"
+                                   "Spill", tdcName.data()));
+    gHitInSpill->SetMarkerStyle(kOpenSquare);
+
+    // Total hit in spill (coincidence)
+    gTotalHitInSpill = new TGraphErrors();
+    gTotalHitInSpill->SetNameTitle("gTotalHitInSpill",
+                                   Form("%s, # of Total Hits;"
+                                        "Spill", tdcName.data()));
+    gTotalHitInSpill->SetMarkerStyle(kOpenSquare);
+
+    // // Extinction
+    // gExtinction = new TGraphErrors();
+    // gExtinction->SetNameTitle("gExtinction",
+    //                           Form("%s, Extinction;"
+    //                                "Spill", tdcName.data()));
+  }
+
+  std::cout << "Set signal handler" << std::endl;
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+
+  action.sa_handler = SignalHandler;
+  action.sa_flags = SA_RESTART;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGALRM, &action, nullptr) < 0) {
+    perror("sigaction error");
+    exit(1);
+  }
+
+  std::cout << "Set intarval timer" << std::endl;
+  itimerval timer;
+  timer.it_value.tv_sec = 0;
+  timer.it_value.tv_usec = 20000; // = 20 ms
+  timer.it_interval.tv_sec = 0;
+  timer.it_interval.tv_usec = 20000;
+  if (setitimer(ITIMER_REAL, &timer, nullptr) < 0) {
+    // perror("setitimer error");
+    std::cerr << "[error] setitimer error" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  // Initialize inotify
+  fd = inotify_init();
+  if (fd == -1) {
+    std::cerr << "[error] inotify initialize error" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  // Add monitor directory
+  wd = inotify_add_watch(fd, directory.data(),  IN_ALL_EVENTS);
+  if (wd < 0) {
+    // perror("inotify_add_watch");
+    std::cerr << "[error] directory was not opened, " << directory << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  std::cout << "Set write monitor" << std::endl;
+  pthread_t pthread;
+  if (pthread_create(&pthread, nullptr, &monitorWritten, nullptr)) {
+    std::cerr << "[error] pthread_create error" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  app->Run(true);
 
   return 0;
 }
