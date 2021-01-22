@@ -2,15 +2,20 @@
 #define Extinction_AnaDark_hh
 
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <vector>
 #include "Units.hh"
 #include "Utility.hh"
 #include "Detector.hh"
 #include "Tdc.hh"
+#include "TFile.h"
 #include "TTree.h"
 #include "TCanvas.h"
 #include "TH1.h"
 #include "TH2.h"
+#include "TGraph.h"
 
 namespace Extinction {
 

@@ -2,6 +2,7 @@
 #define Extinction_Tdc_hh
 
 #include <vector>
+#include "TTree.h"
 
 namespace Extinction {
 

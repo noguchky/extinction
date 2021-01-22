@@ -7,6 +7,7 @@
 #include "Utility.hh"
 #include "Detector.hh"
 #include "Tdc.hh"
+#include "TFile.h"
 #include "TTree.h"
 #include "TCanvas.h"
 #include "TH1.h"
