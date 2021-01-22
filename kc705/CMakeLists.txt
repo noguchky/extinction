@@ -9,6 +9,10 @@ project(kc705)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # message(STATUS "CMAKE_EXPORT_COMPILE_COMMANDS = ${CMAKE_EXPORT_COMPILE_COMMANDS}")
 
+if(UNIX AND NOT APPLE)
+  set(LINUX TRUE)
+endif()
+  
 #----------------------------------------------------------------------------
 # Find CERN/ROOT
 #
@@ -58,23 +62,27 @@ link_directories(${TRON_LIBRARY_DIR})
 add_executable(daq     src/daq.cc     ${headers})
 add_executable(decoder src/decoder.cc ${headers})
 add_executable(checker src/checker.cc ${headers})
-add_executable(monitor src/monitor.cc ${headers})
 add_executable(anaRaw  src/anaRaw.cc  ${headers})
 add_executable(anaTree src/anaBeam.cc ${headers})
 add_executable(anaBeam src/anaBeam.cc ${headers})
 add_executable(anaCoin src/anaCoin.cc ${headers})
 add_executable(anaDark src/anaDark.cc ${headers})
+if(LINUX)
+  add_executable(monitor src/monitor.cc ${headers})
+endif()
 
 # Add link libraries
 target_link_libraries(daq     ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(decoder ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(checker ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
-target_link_libraries(monitor ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaRaw  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaTree ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaBeam ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaCoin ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaDark ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+if(LINUX)
+  target_link_libraries(monitor ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+endif()
 
 #----------------------------------------------------------------------------
 # Add install directories
@@ -83,9 +91,11 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install(TARGETS daq     DESTINATION .)
 install(TARGETS decoder DESTINATION .)
 install(TARGETS checker DESTINATION .)
-install(TARGETS monitor DESTINATION .)
 install(TARGETS anaRaw  DESTINATION .)
 install(TARGETS anaTree DESTINATION .)
 install(TARGETS anaBeam DESTINATION .)
 install(TARGETS anaCoin DESTINATION .)
 install(TARGETS anaDark DESTINATION .)
+if(LINUX)
+  install(TARGETS monitor DESTINATION .)
+endif()
