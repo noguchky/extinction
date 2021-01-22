@@ -38,7 +38,8 @@ namespace Extinction {
     };
 
     inline Bool_t Contains(std::size_t globalChannel) {
-      return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
+      // return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
+      return globalChannel < GlobalChannelOffset + NofChannels;
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
@@ -49,9 +50,10 @@ namespace Extinction {
     }
 
     inline Int_t GetType(std::size_t channel) {
-      if        (channel < ChannelOffset::Center   ) {
-        return -1;
-      } else if (channel < ChannelOffset::TopBottom) {
+      // if        (channel < ChannelOffset::Center   ) {
+      //   return -1;
+      // } else
+      if (channel < ChannelOffset::TopBottom) {
         return ChannelType::Center;
       } else if (channel < ChannelOffset::LeftRight) {
         return ChannelType::TopBottom;
@@ -111,7 +113,7 @@ namespace Extinction {
       return hist;
     }
 
-    inline TList* CreateBorderLine(Color_t color = kBlack, Style_t style = kBlack, Width_t width = 2) {
+    inline TList* CreateBorderLine(Color_t color = kBlack, Style_t style = kSolid, Width_t width = 2) {
       TList* list = new TList();
       auto newLine =
         [&](Double_t x1, Double_t y1, Double_t x2, Double_t y2) {
@@ -266,7 +268,7 @@ namespace Extinction {
       return hist;
     }
 
-    inline TList* CreateBorderLine(Color_t color = kBlack, Style_t style = kBlack, Width_t width = 2) {
+    inline TList* CreateBorderLine(Color_t color = kBlack, Style_t style = kSolid, Width_t width = 2) {
       TList* list = new TList();
       auto newLine =
         [&](Double_t x1, Double_t y1, Double_t x2, Double_t y2) {
