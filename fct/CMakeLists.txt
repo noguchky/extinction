@@ -9,6 +9,10 @@ project(fct)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # message(STATUS "CMAKE_EXPORT_COMPILE_COMMANDS = ${CMAKE_EXPORT_COMPILE_COMMANDS}")
 
+if(UNIX AND NOT APPLE)
+  set(LINUX TRUE)
+endif()
+
 #----------------------------------------------------------------------------
 # Find CERN/ROOT
 #
@@ -57,10 +61,16 @@ link_directories(${TRON_LIBRARY_DIR})
 # Add the executable
 add_executable(anaRaw  src/anaRaw.cc  ${headers})
 add_executable(anaBeam src/anaBeam.cc ${headers})
+if(LINUX)
+  add_executable(monitor src/monitor.cc ${headers})
+endif()
 
 # Add link libraries
 target_link_libraries(anaRaw  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaBeam ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+if(LINUX)
+  target_link_libraries(monitor ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+endif()
 
 #----------------------------------------------------------------------------
 # Add install directories
@@ -68,3 +78,6 @@ target_link_libraries(anaBeam ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install(TARGETS anaRaw  DESTINATION .)
 install(TARGETS anaBeam DESTINATION .)
+if(LINUX)
+  install(TARGETS monitor DESTINATION .)
+endif()
