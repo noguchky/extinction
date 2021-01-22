@@ -280,18 +280,18 @@ Int_t updatePlots(const std::string& ifilename) {
         // canvas->WaitPrimitive();
 
         // Crear hists
-        hBhTdcInSpill[0]->Clear();
-        hBhTdcInSpill[1]->Clear();
-        hHodTdcInSpill_Any->Clear();
-        hExtTdcInSpill_Any->Clear();
-        hTcTdcInSpill[0]->Clear();
-        hTcTdcInSpill[1]->Clear();
-        hHodHitMap->Clear();
-        hHodEntryByCh->Clear();
-        hExtHitMap->Clear();
-        hExtEntryByCh->Clear();
-        hExtMountain_Any->Clear();
-        hExtTdcInSync_Any->Clear();
+        hBhTdcInSpill[0]->Reset();
+        hBhTdcInSpill[1]->Reset();
+        hHodTdcInSpill_Any->Reset();
+        hExtTdcInSpill_Any->Reset();
+        hTcTdcInSpill[0]->Reset();
+        hTcTdcInSpill[1]->Reset();
+        hHodHitMap->Reset();
+        hHodEntryByCh->Reset();
+        hExtHitMap->Reset();
+        hExtEntryByCh->Reset();
+        hExtMountain_Any->Reset();
+        hExtTdcInSync_Any->Reset();
         
       } else {
         std::vector<TdcData> tdcData = decoder.Data.GetTdcData();
