@@ -37,6 +37,8 @@ namespace {
   std::string path;
   std::string filename;
 
+  bool exiting = false;
+
   int fd, wd;
 
   Extinction::Fct::FctData data;
@@ -85,6 +87,10 @@ namespace {
 Int_t updatePlots(const std::string& ifilename) {
   using namespace Extinction;
   using CoinOffset = Analyzer::AnaTimeOffset::CoinOffset;
+
+  if (exiting) {
+    return 0;
+  }
 
   std::cout << "=== Set Decoder" << std::endl;
   Extinction::Fct::Decoder decoder;
@@ -186,295 +192,301 @@ Int_t updatePlots(const std::string& ifilename) {
     return 1;
   }
 
-  const //         Long64_t spilllimit = 200;
-//   {
-//     std::cout << "=== Get Entry " << std::endl;
-//     std::size_t count = 0UL;
-//     for (; decoder.Read(ifile, &packet); ++count) {
-//       if (count % 1000000UL == 0) {
-//         std::cout << ">> " << count << std::endl;
-//       }
+  const Long64_t spilllimit = 200;
+  {
+    std::cout << "=== Get Entry " << std::endl;
+    std::size_t count = 0UL;
+    for (; decoder.Read(ifile, &packet); ++count) {
+      if (exiting) {
+        return 0;
+      }
+      
+      if (count % 1000000UL == 0) {
+        std::cout << ">> " << count << std::endl;
+      }
 
-//       if (decoder.Data.Type == Extinction::Fct::DataType::Header) {
-//         std::cout << "[info] detect header" << std::endl;
+      if (decoder.Data.Type == Extinction::Fct::DataType::Header) {
+        std::cout << "[info] detect header" << std::endl;
 
-//       } else if (decoder.Data.Type == Extinction::Fct::DataType::GateStart) {
-//         std::cout << "[info] begin of spill " << decoder.Data.Spill << std::endl;
+      } else if (decoder.Data.Type == Extinction::Fct::DataType::GateStart) {
+        std::cout << "[info] begin of spill " << decoder.Data.Spill << std::endl;
 
-//         // Crear hists
-//         hBhTdcInSpill[0]->Reset();
-//         hBhTdcInSpill[1]->Reset();
-//         hHodTdcInSpill_Any->Reset();
-//         hExtTdcInSpill_Any->Reset();
-//         hTcTdcInSpill[0]->Reset();
-//         hTcTdcInSpill[1]->Reset();
-//         hHodHitMap->Reset();
-//         hHodEntryByCh->Reset();
-//         hExtHitMap->Reset();
-//         hExtEntryByCh->Reset();
-//         hExtMountain_Any->Reset();
-//         hExtTdcInSync_Any->Reset();
+        // Crear hists
+        hBhTdcInSpill[0]->Reset();
+        hBhTdcInSpill[1]->Reset();
+        hHodTdcInSpill_Any->Reset();
+        hExtTdcInSpill_Any->Reset();
+        hTcTdcInSpill[0]->Reset();
+        hTcTdcInSpill[1]->Reset();
+        hHodHitMap->Reset();
+        hHodEntryByCh->Reset();
+        hExtHitMap->Reset();
+        hExtEntryByCh->Reset();
+        hExtMountain_Any->Reset();
+        hExtTdcInSync_Any->Reset();
 
-//       } else if (decoder.Data.Type == Extinction::Fct::DataType::GateEnd) {
-//         std::cout << "[info] end of spill " << decoder.Data.Spill << std::endl;
-//         lastExtData.clear();
-//         lastHodData.clear();
-//         lastTcData.clear();
-//         lastBhData.clear();
-//         lastMrSyncData.clear();
+      } else if (decoder.Data.Type == Extinction::Fct::DataType::GateEnd) {
+        std::cout << "[info] end of spill " << decoder.Data.Spill << std::endl;
+        lastExtData.clear();
+        lastHodData.clear();
+        lastTcData.clear();
+        lastBhData.clear();
+        lastMrSyncData.clear();
 
-//         // const Int_t nhit = gHitInSpill->GetN();
-//         // gHitInSpill->SetPoint(nhit, nhit, coinCount);
-//         // gHitInSpill->SetPointError(nhit, 0.0, TMath::Sqrt(coinCount));
+        totalCoinCount += coinCount;
+        gHitInSpill->SetPoint(ispill % spilllimit, ispill, coinCount);
+        gHitInSpill->SetPointError(ispill % spilllimit, 0.0, TMath::Sqrt(coinCount));
+        gTotalHitInSpill->SetPoint(ispill % spilllimit, ispill, totalCoinCount);
+        gTotalHitInSpill->SetPointError(ispill % spilllimit, 0.0, TMath::Sqrt(totalCoinCount));
+        ++ispill;
+        coinCount = 0;
 
-//         // totalCoinCount += coinCount;
-//         // coinCount = 0;
+        // const Double_t leakCount = ***;
+        // gExtinction->SetPoint
+        //   (nhit, nhit,
+        //    totalCoinCount ?                        leakCount        / totalCoinCount : 0.0);
+        // gExtinction->SetPointError
+        //   (nhit, nhit,
+        //    totalCoinCount ? TMath::Sqrt(TMath::Max(leakCount, 1.0)) / totalCoinCount : 0.0);
 
-//         // gTotalHitInSpill->SetPoint(nhit, nhit, totalCoinCount);
-//         // gTotalHitInSpill->SetPointError(nhit, 0.0, TMath::Sqrt(totalCoinCount));
-        
-//         ++ispill;
-//         gHitInSpill->SetPoint(ispill % spilllimit, ispill, coinCount);
-//         gHitInSpill->SetPointError(ispill % spilllimit, 0.0, TMath::Sqrt(coinCount));
+        std::cout << "=== Draw hists" << std::endl;
+        Int_t padnumber = 0;
+        // padBh1Tdc->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hBhTdcInSpill[0]->Draw();
 
-//         totalCoinCount += coinCount;
-//         coinCount = 0;
+        // padBh2Tdc->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hBhTdcInSpill[1]->Draw();
 
-//         gTotalHitInSpill->SetPoint(ispill % spilllimit, ispill, totalCoinCount);
-//         gTotalHitInSpill->SetPointError(ispill % spilllimit, 0.0, TMath::Sqrt(totalCoinCount));
+        // padHodTdc->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hHodTdcInSpill_Any->Draw();
 
-        
-//         // const Double_t leakCount = ***;
-//         // gExtinction->SetPoint
-//         //   (nhit, nhit,
-//         //    totalCoinCount ?                        leakCount        / totalCoinCount : 0.0);
-//         // gExtinction->SetPointError
-//         //   (nhit, nhit,
-//         //    totalCoinCount ? TMath::Sqrt(TMath::Max(leakCount, 1.0)) / totalCoinCount : 0.0);
+        // padExtTdc->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hExtTdcInSpill_Any->Draw();
 
-//         std::cout << "=== Draw hists" << std::endl;
-//         padBh1Tdc->cd();
-//         hBhTdcInSpill[0]->Draw();
+        // padTc1Tdc->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hTcTdcInSpill[0]->Draw();
 
-//         padBh2Tdc->cd();
-//         hBhTdcInSpill[1]->Draw();
-
-//         padHodTdc->cd();
-//         hHodTdcInSpill_Any->Draw();
-
-//         padExtTdc->cd();
-//         hExtTdcInSpill_Any->Draw();
-
-//         padTc1Tdc->cd();
-//         hTcTdcInSpill[0]->Draw();
-
-//         padTc2Tdc->cd();
-//         hTcTdcInSpill[1]->Draw();
+        // padTc2Tdc->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hTcTdcInSpill[1]->Draw();
 
         
-//         padHodHitMap->cd();
-//         hHodHitMap->Draw("col");
-//         lHodBorderLine->Draw();
+        // padHodHitMap->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hHodHitMap->Draw("col");
+        lHodBorderLine->Draw();
 
-//         padHodHitCnt->cd();
-//         hHodEntryByCh->Draw();
+        // padHodHitCnt->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hHodEntryByCh->Draw();
 
-//         padExtHitMap->cd();
-//         hExtHitMap->Draw("col");
-//         lExtBorderLine->Draw();
+        // padExtHitMap->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hExtHitMap->Draw("col");
+        lExtBorderLine->Draw();
 
-//         padExtHitCnt->cd();
-//         hExtEntryByCh->Draw();
+        // padExtHitCnt->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hExtEntryByCh->Draw();
 
-        
-//         padMountain->cd();
-//         hExtMountain_Any->Draw("colz");
 
-//         padTdcSync->cd();
-//         hExtTdcInSync_Any->Draw();
+        // padMountain->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hExtMountain_Any->Draw("colz");
 
-//         padHit->cd();
-//         gHitInSpill->Draw("AP");
+        // padTdcSync->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        hExtTdcInSync_Any->Draw();
 
-//         padTotalHit->cd();
-//         gTotalHitInSpill->Draw("AP");
+        // padHit->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        gHitInSpill->Draw("AP");
 
-//         // padExtinction->cd();
-//         // gExtinction->Draw("AP");
+        // padTotalHit->cd();
+        if (!canvas->cd(++padnumber)) return 0;
+        gTotalHitInSpill->Draw("AP");
 
-//         canvas->Modified();
-//         canvas->Update();
-//         // canvas->WaitPrimitive();
+        // padExtinction->cd();
+        // gExtinction->Draw("AP");
 
-//       } else {
-//         std::vector<TdcData> tdcData = decoder.Data.GetTdcData();
+        canvas->Modified();
+        canvas->Update();
+        // canvas->WaitPrimitive();
 
-//         for (auto&& data : tdcData) {
-//           const Int_t    globalChannel = data.Channel;
-//           const Double_t time          = data.Time;
+      } else {
+        std::vector<TdcData> tdcData = decoder.Data.GetTdcData();
 
-//           if (ExtinctionDetector::Contains(globalChannel)) {
-//             const Int_t ch = ExtinctionDetector::GetChannel(globalChannel);
+        for (auto&& data : tdcData) {
+          const Int_t    globalChannel = data.Channel;
+          const Double_t time          = data.Time;
 
-//             hExtEntryByCh     ->Fill(ch);
-//             ExtinctionDetector::Fill(hExtHitMap, ch);
-//             hExtTdcInSpill_Any->Fill(time / Extinction::msec);
+          if (ExtinctionDetector::Contains(globalChannel)) {
+            const Int_t ch = ExtinctionDetector::GetChannel(globalChannel);
 
-//             fillCoin(data);
+            hExtEntryByCh     ->Fill(ch);
+            ExtinctionDetector::Fill(hExtHitMap, ch);
+            hExtTdcInSpill_Any->Fill(time / Extinction::msec);
 
-//             for (std::size_t i = 0, n = lastExtData.size(); i < n; ++i) {
-//               if (TMath::Abs(time - lastExtData[0].Time) > lastThreshold) {
-//                 lastExtData.erase(lastExtData.begin());
-//               } else {
-//                 break;
-//               }
-//             }
-//             lastExtData.push_back(data);
-//             if (lastExtData.size() > 10000) {
-//               std::cerr << "[error] size of lastExtData reaches 10000" << std::endl;
-//               // exit(1);
-//               return 1;
-//             }
+            fillCoin(data);
 
-//           } else if (Hodoscope::Contains(globalChannel)) {
-//             const Int_t ch = Hodoscope::GetChannel(globalChannel);
+            for (std::size_t i = 0, n = lastExtData.size(); i < n; ++i) {
+              if (TMath::Abs(time - lastExtData[0].Time) > lastThreshold) {
+                lastExtData.erase(lastExtData.begin());
+              } else {
+                break;
+              }
+            }
+            lastExtData.push_back(data);
+            if (lastExtData.size() > 10000) {
+              std::cerr << "[error] size of lastExtData reaches 10000" << std::endl;
+              // exit(1);
+              return 1;
+            }
 
-//             hHodEntryByCh     ->Fill(ch);
-//             Hodoscope         ::Fill(hHodHitMap, ch);
-//             hHodTdcInSpill_Any->Fill(time / Extinction::msec);
+          } else if (Hodoscope::Contains(globalChannel)) {
+            const Int_t ch = Hodoscope::GetChannel(globalChannel);
 
-//             std::vector<TdcData> coinExtData;
-//             {
-//               const std::size_t hodCh = 0;
-//               const std::size_t i = hodCh + CoinOffset::Hod;
-//               if (globalChannel != Hodoscope::GlobalChannelOffset) { // TBD: for 20201217
-//                 // Nothing to do
-//               } else {
-//                 for (auto&& lastData : lastExtData) {
-//                   const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
-//                   if (contains[extCh][i]) {
-//                     const Double_t dt    = time - lastData.Time;
-//                     const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-//                     const Double_t sigma = 25.0 * nsec;
-//                     if (TMath::Abs(dt - mean) < sigma) {
-//                       coinExtData.push_back(lastData);
-//                     }
-//                   }
-//                 }
-//               }
-//             }
+            hHodEntryByCh     ->Fill(ch);
+            Hodoscope         ::Fill(hHodHitMap, ch);
+            hHodTdcInSpill_Any->Fill(time / Extinction::msec);
 
-//             lastHodData.push_back(data);
-//             for (auto&& extData : coinExtData) {
-//               fillCoin(extData);
-//             }
+            std::vector<TdcData> coinExtData;
+            {
+              const std::size_t hodCh = 0;
+              const std::size_t i = hodCh + CoinOffset::Hod;
+              if (globalChannel != Hodoscope::GlobalChannelOffset) { // TBD: for 20201217
+                // Nothing to do
+              } else {
+                for (auto&& lastData : lastExtData) {
+                  const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
+                  if (contains[extCh][i]) {
+                    const Double_t dt    = time - lastData.Time;
+                    const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
+                    const Double_t sigma = 25.0 * nsec;
+                    if (TMath::Abs(dt - mean) < sigma) {
+                      coinExtData.push_back(lastData);
+                    }
+                  }
+                }
+              }
+            }
 
-//             for (std::size_t i = 0, n = lastHodData.size(); i < n; ++i) {
-//               if (TMath::Abs(time - lastHodData[0].Time) > lastThreshold) {
-//                 lastHodData.erase(lastHodData.begin());
-//               } else {
-//                 break;
-//               }
-//             }
-//             if (lastHodData.size() > 10000) {
-//               std::cerr << "[error] size of lastHodData reaches 10000" << std::endl;
-//               // exit(1);
-//               return 1;
-//             }
+            lastHodData.push_back(data);
+            for (auto&& extData : coinExtData) {
+              fillCoin(extData);
+            }
 
-//           } else if (TimingCounter::Contains(globalChannel)) {
-//             const Int_t ch = TimingCounter::GetChannel(globalChannel);
+            for (std::size_t i = 0, n = lastHodData.size(); i < n; ++i) {
+              if (TMath::Abs(time - lastHodData[0].Time) > lastThreshold) {
+                lastHodData.erase(lastHodData.begin());
+              } else {
+                break;
+              }
+            }
+            if (lastHodData.size() > 10000) {
+              std::cerr << "[error] size of lastHodData reaches 10000" << std::endl;
+              // exit(1);
+              return 1;
+            }
 
-//             hTcTdcInSpill[ch]->Fill(time / Extinction::msec);
+          } else if (TimingCounter::Contains(globalChannel)) {
+            const Int_t ch = TimingCounter::GetChannel(globalChannel);
 
-//             std::vector<TdcData> coinExtData;
-//             {
-//               const std::size_t i = ch + CoinOffset::TC;
-//               for (auto&& lastData : lastExtData) {
-//                 const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
-//                 if (contains[extCh][i]) {
-//                   const Double_t dt    = time - lastData.Time;
-//                   const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-//                   const Double_t sigma = 25.0 * nsec;
-//                   if (TMath::Abs(dt - mean) < sigma) {
-//                     coinExtData.push_back(lastData);
-//                   }
-//                 }
-//               }
-//             }
+            hTcTdcInSpill[ch]->Fill(time / Extinction::msec);
 
-//             lastTcData.push_back(data);
-//             for (auto&& extData : coinExtData) {
-//               fillCoin(extData);
-//             }
+            std::vector<TdcData> coinExtData;
+            {
+              const std::size_t i = ch + CoinOffset::TC;
+              for (auto&& lastData : lastExtData) {
+                const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
+                if (contains[extCh][i]) {
+                  const Double_t dt    = time - lastData.Time;
+                  const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
+                  const Double_t sigma = 25.0 * nsec;
+                  if (TMath::Abs(dt - mean) < sigma) {
+                    coinExtData.push_back(lastData);
+                  }
+                }
+              }
+            }
 
-//             for (std::size_t i = 0, n = lastTcData.size(); i < n; ++i) {
-//               if (TMath::Abs(time - lastTcData[0].Time) > lastThreshold) {
-//                 lastTcData.erase(lastTcData.begin());
-//               } else {
-//                 break;
-//               }
-//             }
-//             if (lastTcData.size() > 10000) {
-//               std::cerr << "[error] size of lastTcData reaches 10000" << std::endl;
-//               // exit(1);
-//               return 1;
-//             }
+            lastTcData.push_back(data);
+            for (auto&& extData : coinExtData) {
+              fillCoin(extData);
+            }
 
-//           } else if (BeamlineHodoscope::Contains(globalChannel)) {
-//             const Int_t ch = BeamlineHodoscope::GetChannel(globalChannel);
+            for (std::size_t i = 0, n = lastTcData.size(); i < n; ++i) {
+              if (TMath::Abs(time - lastTcData[0].Time) > lastThreshold) {
+                lastTcData.erase(lastTcData.begin());
+              } else {
+                break;
+              }
+            }
+            if (lastTcData.size() > 10000) {
+              std::cerr << "[error] size of lastTcData reaches 10000" << std::endl;
+              // exit(1);
+              return 1;
+            }
 
-//             hBhTdcInSpill[ch]->Fill(time / Extinction::msec);
+          } else if (BeamlineHodoscope::Contains(globalChannel)) {
+            const Int_t ch = BeamlineHodoscope::GetChannel(globalChannel);
 
-//             std::vector<TdcData> coinExtData;
-//             {
-//               const std::size_t i = ch + CoinOffset::BH;
-//               for (auto&& lastData : lastExtData) {
-//                 const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
-//                 if (contains[extCh][i]) {
-//                   const Double_t dt    = time - lastData.Time;
-//                   const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-//                   const Double_t sigma = 25.0 * nsec;
-//                   if (TMath::Abs(dt - mean) < sigma) {
-//                     coinExtData.push_back(lastData);
-//                   }
-//                 }
-//               }
-//             }
+            hBhTdcInSpill[ch]->Fill(time / Extinction::msec);
 
-//             lastBhData.push_back(data);
-//             for (auto&& extData : coinExtData) {
-//               fillCoin(extData);
-//             }
+            std::vector<TdcData> coinExtData;
+            {
+              const std::size_t i = ch + CoinOffset::BH;
+              for (auto&& lastData : lastExtData) {
+                const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
+                if (contains[extCh][i]) {
+                  const Double_t dt    = time - lastData.Time;
+                  const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
+                  const Double_t sigma = 25.0 * nsec;
+                  if (TMath::Abs(dt - mean) < sigma) {
+                    coinExtData.push_back(lastData);
+                  }
+                }
+              }
+            }
 
-//             for (std::size_t i = 0, n = lastBhData.size(); i < n; ++i) {
-//               if (TMath::Abs(time - lastBhData[0].Time) > lastThreshold) {
-//                 lastBhData.erase(lastBhData.begin());
-//               } else {
-//                 break;
-//               }
-//             }
-//             if (lastBhData.size() > 10000) {
-//               std::cerr << "[error] size of lastBhData reaches 10000" << std::endl;
-//               // exit(1);
-//               return 1;
-//             }
+            lastBhData.push_back(data);
+            for (auto&& extData : coinExtData) {
+              fillCoin(extData);
+            }
 
-//           } else if (MrSync::Contains(globalChannel)) {
-//             Bool_t found = false;
-//             for (std::size_t n = lastMrSyncData.size(), i = n; i != 0; --i) {
-//               if (lastMrSyncData[i - 1].Channel == globalChannel) {
-//                 if (found) {
-//                   lastMrSyncData.erase(lastMrSyncData.begin() + i - 1);
-//                 } else {
-//                   // Save last one
-//                   found = true;
-//                 }
-//               }
-//             }
-//             lastMrSyncData.push_back(data);
-//             if (lastMrSyncData.size() > 10000) {
-//               std::cerr << "[error] size of lastMrSyncData reaches 10000" << std::endl;
+            for (std::size_t i = 0, n = lastBhData.size(); i < n; ++i) {
+              if (TMath::Abs(time - lastBhData[0].Time) > lastThreshold) {
+                lastBhData.erase(lastBhData.begin());
+              } else {
+                break;
+              }
+            }
+            if (lastBhData.size() > 10000) {
+              std::cerr << "[error] size of lastBhData reaches 10000" << std::endl;
+              // exit(1);
+              return 1;
+            }
+
+          } else if (MrSync::Contains(globalChannel)) {
+            Bool_t found = false;
+            for (std::size_t n = lastMrSyncData.size(), i = n; i != 0; --i) {
+              if (lastMrSyncData[i - 1].Channel == globalChannel) {
+                if (found) {
+                  lastMrSyncData.erase(lastMrSyncData.begin() + i - 1);
+                } else {
+                  // Save last one
+                  found = true;
+                }
+              }
+            }
+            lastMrSyncData.push_back(data);
+            if (lastMrSyncData.size() > 10000) {
+              std::cerr << "[error] size of lastMrSyncData reaches 10000" << std::endl;
               // exit(1);
               return 1;
             }
@@ -489,11 +501,18 @@ Int_t updatePlots(const std::string& ifilename) {
   std::cout << "=== Close Files" << std::endl;
   ifile.close();
 
+  canvas->Modified();
+  canvas->Update();
+  // canvas->WaitPrimitive();
+
   return 0;
 }
 
 void SignalHandler(int) {
   static unsigned long msec_cnt = 0;
+  if (exiting) {
+    return;
+  }
 
   msec_cnt++;
   if (gPad) {
@@ -525,12 +544,15 @@ void SignalHandler(int) {
         updatePlots(path + "/" + ifilename);
         processing = false;
       } catch (...) {
-        gSystem->Exit(1);
+        std::cerr << "[info] something error was detected" << std::endl;
+        gSystem->ExitLoop();
       }
 
     }
   } else {
-    gSystem->Exit(1);
+    std::cerr << "[info] canvas was closed" << std::endl;
+    exiting = true;
+    gSystem->ExitLoop();
   }
 }
 
@@ -539,7 +561,7 @@ void* monitorWritten(void*) {
   constexpr int BufferSize = 65536;
   char buffer[BufferSize];
 
-  while (true) {
+  while (!exiting) {
     // Read events
     ret = read(fd, buffer + aux, BufferSize - aux);
     if (ret == -1) {
@@ -579,7 +601,7 @@ void* monitorWritten(void*) {
       // File opened for writing was closed (*).
       if (inotify_p->mask & IN_CLOSE_WRITE ||
           inotify_p->mask & IN_MOVED_TO) {
-        std::cout << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
+        std::cerr << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
         std::lock_guard<std::mutex> lock(filenameMutex);
         filename = inotify_p->name;
       }
@@ -589,10 +611,12 @@ void* monitorWritten(void*) {
 
   // Remove monitor
   {
+    std::cerr << "[info] remove file monitor" << std::endl;
     int ret = inotify_rm_watch(fd, wd);
     if (ret == -1) {
       perror("inotify_rm_watch");
-      exit(EXIT_FAILURE);
+      // exit(EXIT_FAILURE);
+      return 0;
     }
   }
 
@@ -819,6 +843,77 @@ Int_t main(Int_t argc, Char_t** argv) {
     //                                "Spill", tdcName.data()));
   }
 
+  {
+    std::cout << "=== Draw hists" << std::endl;
+    Int_t padnumber = 0;
+    // padBh1Tdc->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hBhTdcInSpill[0]->Draw();
+
+    // padBh2Tdc->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hBhTdcInSpill[1]->Draw();
+
+    // padHodTdc->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hHodTdcInSpill_Any->Draw();
+
+    // padExtTdc->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hExtTdcInSpill_Any->Draw();
+
+    // padTc1Tdc->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hTcTdcInSpill[0]->Draw();
+
+    // padTc2Tdc->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hTcTdcInSpill[1]->Draw();
+
+        
+    // padHodHitMap->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hHodHitMap->Draw("col");
+    lHodBorderLine->Draw();
+
+    // padHodHitCnt->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hHodEntryByCh->Draw();
+
+    // padExtHitMap->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hExtHitMap->Draw("col");
+    lExtBorderLine->Draw();
+
+    // padExtHitCnt->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hExtEntryByCh->Draw();
+
+
+    // padMountain->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hExtMountain_Any->Draw("colz");
+
+    // padTdcSync->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    hExtTdcInSync_Any->Draw();
+
+    // padHit->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    gHitInSpill->Draw("AP");
+
+    // padTotalHit->cd();
+    if (!canvas->cd(++padnumber)) return 0;
+    gTotalHitInSpill->Draw("AP");
+
+    // padExtinction->cd();
+    // gExtinction->Draw("AP");
+
+    canvas->Modified();
+    canvas->Update();
+    // canvas->WaitPrimitive();
+  }
+
   std::cout << "Set signal handler" << std::endl;
   struct sigaction action;
   memset(&action, 0, sizeof(action));
@@ -851,6 +946,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   // Add monitor directory
+  std::cerr << "[info] add file monitor" << std::endl;
   wd = inotify_add_watch(fd, directory.data(),  IN_ALL_EVENTS);
   if (wd < 0) {
     // perror("inotify_add_watch");
@@ -866,6 +962,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   app->Run(true);
+  delete app; app = nullptr;
 
-  return 0;
+  exit(0);
 }
