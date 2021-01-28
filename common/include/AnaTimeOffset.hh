@@ -138,7 +138,7 @@ namespace Extinction {
             fGaussLinear->SetParLimits(2,            0.5 / TMath::Sqrt(12.0), hExtTdcCoinY[i]->GetNbinsX() * 0.3 );
             fGaussLinear->SetParameter(3, 0.5 * (firsty + lasty));
             fGaussLinear->SetParLimits(3, 0.0, maxy);
-            hExtTdcCoinY[i]->Fit(fGaussLinear, "Q", "goff");
+            hExtTdcCoinY[i]->Fit(fGaussLinear, "QI", "goff");
             const Double_t rSigma     = fGaussLinear->GetParameter(2);
             const Double_t rSigmaErr  = fGaussLinear->GetParError(2);
             const Double_t rOffset    = fGaussLinear->GetParameter(3);
@@ -149,7 +149,7 @@ namespace Extinction {
             fGaussLinear->SetParLimits(1, maxx - 0.1 * width, maxx + 0.1 * width);
             fGaussLinear->FixParameter(2, fGaussLinear->GetParameter(2));
             fGaussLinear->FixParameter(3, fGaussLinear->GetParameter(3));
-            hExtTdcCoinY[i]->Fit(fGaussLinear, "Q", "goff");
+            hExtTdcCoinY[i]->Fit(fGaussLinear, "QI", "goff");
             const Double_t rConst    = fGaussLinear->GetParameter(0);
             const Double_t rConstErr = fGaussLinear->GetParError(0);
             const Double_t rMean     = fGaussLinear->GetParameter(1);
@@ -160,7 +160,7 @@ namespace Extinction {
             fGaussLinear->SetParLimits(1, rMean   - 3.0 * rMeanErr  , rMean   + 3.0 * rMeanErr  );
             fGaussLinear->SetParLimits(2, rSigma  - 3.0 * rSigmaErr , rSigma  + 3.0 * rSigmaErr );
             fGaussLinear->SetParLimits(3, rOffset - 3.0 * rOffsetErr, rOffset + 3.0 * rOffsetErr);
-            hExtTdcCoinY[i]->Fit(fGaussLinear, "Q", "goff");
+            hExtTdcCoinY[i]->Fit(fGaussLinear, "QI", "goff");
             CoinInfo {
               i,
               maxx,
