@@ -56,7 +56,7 @@ namespace {
           std::cout << "Modify plots for " << ifilename << std::endl;
           monitor->UpdatePlots(path + "/" + ifilename);
         } catch (...) {
-          monitor->Closed();
+          monitor->Terminate();
         }
       }
 
@@ -65,7 +65,7 @@ namespace {
     } else {
       std::cerr << "[info] canvas was closed" << std::endl;
       exiting = true;
-      monitor->Closed();
+      monitor->Terminate();
     }
   }
 
@@ -154,12 +154,14 @@ Int_t main(Int_t argc, Char_t** argv) {
   const std::string ffilename = args->GetValue("Offset");
   path = directory;
 
-  std::cout << "=== Initialize Style" << std::endl;
+  std::cout << "--- Initialize style" << std::endl;
   gStyle->SetPalette(1);
   gStyle->SetOptStat(111111);
   gStyle->SetOptFit(1);
+  gStyle->SetNdivisions(505, "X");
+  gStyle->SetNdivisions(505, "Y");
 
-  std::cout << "=== Initialize Monitor Window" << std::endl;
+  std::cout << "--- Initialize monitor window" << std::endl;
   monitor = new Extinction::Fct::MonitorWindow();
 
   if (monitor->LoadOffset(ffilename) == 0) {
@@ -171,7 +173,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   monitor->InitializePlots();
   monitor->DrawPlots();
 
-  std::cout << "=== Set signal handler" << std::endl;
+  std::cout << "--- Set signal handler" << std::endl;
   struct sigaction action;
   memset(&action, 0, sizeof(action));
 
@@ -183,7 +185,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     exit(1);
   }
 
-  std::cout << "=== Set intarval timer" << std::endl;
+  std::cout << "--- Set intarval timer" << std::endl;
   itimerval timer;
   timer.it_value.tv_sec = 0;
   timer.it_value.tv_usec = 20000; // = 20 ms
@@ -210,14 +212,14 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   // Set write monitor
-  std::cout << "=== Set inotiry event listener" << std::endl;
+  std::cout << "--- Set inotiry event listener" << std::endl;
   pthread_t pthread;
   if (pthread_create(&pthread, nullptr, &InotiryEventListener, nullptr)) {
     std::cerr << "[error] pthread_create error" << std::endl;
     exit(EXIT_FAILURE);
   }
 
-  std::cout << "=== Start to run" << std::endl;
+  std::cout << "--- Start to run" << std::endl;
   monitor->Run();
   delete monitor;
 

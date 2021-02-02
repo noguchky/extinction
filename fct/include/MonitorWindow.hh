@@ -39,7 +39,7 @@ namespace Extinction {
       std::map<std::size_t/*extCh*/, std::map<std::size_t/*index*/, Bool_t>>    fContains;
 
       TApplication* fApplication;
-  
+
       TCanvas*      fCanvas;
 
       TPad*         fPadBh1Tdc;
@@ -57,8 +57,6 @@ namespace Extinction {
       TPad*         fPadMountain;
       TPad*         fPadTdcSync;
       TPad*         fPadHit;
-      // TPad*         fPadHitTotal;
-      // TPad*         fPadExtinction;
 
       TH1*          hExtTdcInSpill_Any;
       TH1*          hHodTdcInSpill_Any;
@@ -66,7 +64,7 @@ namespace Extinction {
       TH1**         hBhTdcInSpill;
       TH2*          hExtHitMap;
       TList*        lExtBorderLine;
-      TH1*          hExtEntryByCh;
+      // TH1*          hExtEntryByCh;
       TH1*          hExtEntryByChBottom;
       TH1*          hExtEntryByChCenter1;
       TH1*          hExtEntryByChCenter2;
@@ -77,12 +75,9 @@ namespace Extinction {
       TH2*          hExtMountain_Any;  
       TH1*          hExtTdcInSync_Any;
       TGraphErrors* gHitInSpill;
-      // TGraphErrors* gHitInSpillTotal;
-      // TGraphErrors* gExtinction;
 
-      Long64_t      fSpillCount     = 0;
-      Long64_t      fCoinCount      = 0;
-      // Long64_t      fCoinCountTotal = 0;
+      Long64_t      fSpillCount = 0;
+      Long64_t      fCoinCount  = 0;
 
       std::vector<TdcData> fLastExtData;
       std::vector<TdcData> fLastHodData;
@@ -90,7 +85,7 @@ namespace Extinction {
       std::vector<TdcData> fLastBhData;
       std::vector<TdcData> fLastMrSyncData;
 
-      Bool_t fIsClosed = false;
+      Bool_t fIsTerminated = false;
 
     public:
       MonitorWindow();
@@ -99,18 +94,18 @@ namespace Extinction {
       Int_t                LoadOffset(const std::string& ffilename);
       void                 InitializeWindow();
       void                 InitializePlots();
-  
+
       void                 DrawPlots();
 
       Int_t                UpdatePlots(const std::string& ifilename);
 
       inline void          Run() { fApplication->Run(true); }
 
-      inline void          Closed() {
-        fIsClosed = true;
+      inline void          Terminate() {
+        fIsTerminated = true;
         gSystem->ExitLoop();
       }
-      
+
     private:
       void                 ClearLastSpill();
       void                 FillCoincidence(TdcData& tdcData);
@@ -178,7 +173,6 @@ namespace Extinction {
       pads.push_back(fPadMountain  = new TPad("fPadMountain" , "", 3.0 * seg, 4.0 * seg, 6.0 * seg, 6.0 * seg));
       pads.push_back(fPadTdcSync   = new TPad("fPadTdcSync"  , "", 3.0 * seg, 2.0 * seg, 6.0 * seg, 4.0 * seg));
       pads.push_back(fPadHit       = new TPad("fPadHit"      , "", 3.0 * seg, 0.0 * seg, 6.0 * seg, 2.0 * seg));
-      // pads.push_back(fPadHitTotal  = new TPad("fPadHitTotal" , "", 3.0 * seg, 0.0 * seg, 6.0 * seg, 1.0 * seg));
 
       fPadBh1Tdc   ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadBh1Tdc   ->SetGrid(); fPadBh1Tdc   ->SetLogy();
       fPadBh2Tdc   ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadBh2Tdc   ->SetGrid(); fPadBh2Tdc   ->SetLogy();
@@ -193,7 +187,6 @@ namespace Extinction {
       fPadMountain ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadMountain ->SetGrid(); 
       fPadTdcSync  ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadTdcSync  ->SetGrid(); fPadTdcSync  ->SetLogy();
       fPadHit      ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadHit      ->SetGrid(); 
-      // fPadHitTotal ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadHitTotal ->SetGrid(); fPadHitTotal ->SetLogy();
 
       for (Int_t ipad = 0, npad = pads.size(); ipad < npad; ++ipad) {
         fCanvas->cd();
@@ -255,12 +248,12 @@ namespace Extinction {
       lExtBorderLine = ExtinctionDetector::CreateBorderLine(kBlack, kSolid, 1);
 
       // Extinction detector hit count
-      hExtEntryByCh = new TH1D("hExtEntryByCh",
-                               Form("%s, Extinction Detector Entries by Channel;"
-                                    "Channel;"
-                                    "", tdcName.data()),
-                               ExtinctionDetector::NofChannels, 0.0 - 0.5, ExtinctionDetector::NofChannels - 0.5);
-      hExtEntryByCh->SetStats(false);
+      // hExtEntryByCh = new TH1D("hExtEntryByCh",
+      //                          Form("%s, Extinction Detector Entries by Channel;"
+      //                               "Channel;"
+      //                               "", tdcName.data()),
+      //                          ExtinctionDetector::NofChannels, 0.0 - 0.5, ExtinctionDetector::NofChannels - 0.5);
+      // hExtEntryByCh->SetStats(false);
 
       hExtEntryByChBottom  = hExtHitMap->ProjectionX("hExtEntryByChBottom" , 1, 1);
       hExtEntryByChCenter1 = hExtHitMap->ProjectionX("hExtEntryByChCenter1", 2, 2);
@@ -309,19 +302,6 @@ namespace Extinction {
                                      "Spill", tdcName.data()));
       gHitInSpill->SetMarkerStyle(kPlus);
       gHitInSpill->SetMarkerColor(kBlue + 1);
-
-      // // Total hit in spill (coincidence)
-      // gHitInSpillTotal = new TGraphErrors();
-      // gHitInSpillTotal->SetNameTitle("gHitInSpillTotal",
-      //                                Form("%s, # of Total Hits;"
-      //                                     "Spill", tdcName.data()));
-      // gHitInSpillTotal->SetMarkerStyle(kOpenSquare);
-
-      // // Extinction
-      // gExtinction = new TGraphErrors();
-      // gExtinction->SetNameTitle("gExtinction",
-      //                           Form("%s, Extinction;"
-      //                                "Spill", tdcName.data()));
     }
 
     void MonitorWindow::DrawPlots() {
@@ -436,7 +416,7 @@ namespace Extinction {
       }
         
       if (fCanvas->cd(++padnumber)) {
-        hExtMountain_Any->Draw("colz");
+        hExtMountain_Any->Draw("col");
         hExtMountain_Any->GetXaxis()->SetLabelSize(0.05);
         hExtMountain_Any->GetYaxis()->SetLabelSize(0.05);
         hExtMountain_Any->GetXaxis()->SetTitleSize(0.05);
@@ -465,21 +445,8 @@ namespace Extinction {
         gHitInSpill->GetYaxis()->SetTitleOffset(0.5);
       }
 
-      // if (fCanvas->cd(++padnumber)) {
-      //   gHitInSpillTotal->Draw("AP");
-      //   gHitInSpillTotal->GetXaxis()->SetLabelSize(0.05);
-      //   gHitInSpillTotal->GetYaxis()->SetLabelSize(0.05);
-      // }
-
-      // if (fCanvas->cd(++padnumber)) {
-      //   gExtinction->Draw("AP");
-      //   gExtinction->GetXaxis()->SetLabelSize(0.05);
-      //   gExtinction->GetYaxis()->SetLabelSize(0.05);
-      // }
-
       fCanvas->Modified();
       fCanvas->Update();
-      // fCanvas->WaitPrimitive();
     }
 
     void MonitorWindow::ClearLastSpill() {
@@ -500,7 +467,7 @@ namespace Extinction {
       hHodHitMap        ->Reset();
       hHodEntryByCh     ->Reset();
       hExtHitMap        ->Reset();
-      hExtEntryByCh     ->Reset();
+      // hExtEntryByCh     ->Reset();
       hExtMountain_Any  ->Reset();
       hExtTdcInSync_Any ->Reset();
     }
@@ -644,10 +611,10 @@ namespace Extinction {
       {
         std::size_t count = 0UL;
         for (; decoder.Read(ifile, &packet); ++count) {
-          if (fIsClosed) {
+          if (fIsTerminated) {
             return 0;
           }
-          
+
           if (count % 1000000UL == 0) {
             std::cout << ">> " << count << std::endl;
           }
@@ -662,21 +629,10 @@ namespace Extinction {
           } else if (decoder.Data.Type == DataType::GateEnd) {
             std::cout << "[info] end of spill " << decoder.Data.Spill << std::endl;
 
-            // fCoinCountTotal += fCoinCount;
             const Int_t np = fSpillCount % kSpillLimit;
-            gHitInSpill     ->SetPoint     (np, fSpillCount,     fCoinCount      );
-            // gHitInSpill     ->SetPointError(np, 0.0, TMath::Sqrt(fCoinCount     ));
-            // gHitInSpillTotal->SetPoint     (np, fSpillCount,     fCoinCountTotal );
-            // gHitInSpillTotal->SetPointError(np, 0.0, TMath::Sqrt(fCoinCountTotal));
+            gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );
+            // gHitInSpill->SetPointError(np, 0.0, TMath::Sqrt(fCoinCount     ));
             ++fSpillCount;
-        
-            // const Double_t leakCount = ***;
-            // gExtinction->SetPoint
-            //   (nhit, nhit,
-            //    fCoinCountTotal ?                        leakCount        / fCoinCountTotal : 0.0);
-            // gExtinction->SetPointError
-            //   (nhit, nhit,
-            //    fCoinCountTotal ? TMath::Sqrt(TMath::Max(leakCount, 1.0)) / fCoinCountTotal : 0.0);
 
             for (Int_t xbin = 1, nbinsx = hExtHitMap->GetNbinsX(); xbin <= nbinsx; ++xbin) {
               hExtEntryByChBottom ->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 1));
@@ -697,7 +653,7 @@ namespace Extinction {
               if (ExtinctionDetector::Contains(globalChannel)) {
                 const Int_t ch = ExtinctionDetector::GetChannel(globalChannel);
 
-                hExtEntryByCh     ->Fill(ch);
+                // hExtEntryByCh     ->Fill(ch);
                 ExtinctionDetector::Fill(hExtHitMap, ch);
                 hExtTdcInSpill_Any->Fill(time / msec);
 
@@ -779,7 +735,7 @@ namespace Extinction {
     }
 
   }
-  
+
 }
 
 #endif
