@@ -262,10 +262,19 @@ namespace Extinction {
           return;
         }
 
-        Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
-        if ((Long64_t)Tdc < PreviousTdc[Channel]) {
-          PreviousCarry[Channel] = Carry;
+        // Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
+        // if ((Long64_t)Tdc < PreviousTdc[Channel]) {
+        //   PreviousCarry[Channel] = Carry;
+        //   Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
+        // }
+        if (PreviousTdc[Channel] == 0 || tdc < 0xF00000) {
+          Tdc = tdc + (PreviousCarry[Channel] = Carry) * 0x1000000;
+        } else {
           Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
+          if ((Long64_t)Tdc < PreviousTdc[Channel]) {
+            PreviousCarry[Channel] = Carry;
+            Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
+          }
         }
         PreviousTdc[Channel] = Tdc;
       }
