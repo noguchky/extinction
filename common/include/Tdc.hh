@@ -8,11 +8,13 @@ namespace Extinction {
 
   class TdcData {
   public:
-    Int_t    Spill;
-    Int_t    Channel;
-    Long64_t Tdc;
-    Double_t Time;
-    Int_t    MrSyncChannel;
+    Int_t     Spill;
+    Int_t     Channel;
+    Long64_t  Tdc;
+    Double_t  Time;
+    Int_t     MrSyncChannel;
+    Double_t  TimePerTdc;
+    Int_t     Board;
 
     TdcData() {
       Clear();
@@ -22,7 +24,9 @@ namespace Extinction {
         Channel      (data.Channel      ),
         Tdc          (data.Tdc          ),
         Time         (data.Time         ),
-        MrSyncChannel(data.MrSyncChannel) {
+        MrSyncChannel(data.MrSyncChannel),
+        TimePerTdc   (data.TimePerTdc   ),
+        Board        (data.Board        ) {
     }
     virtual ~TdcData() {
     }
@@ -33,6 +37,8 @@ namespace Extinction {
       Tdc           = data.Tdc;
       Time          = data.Time;
       MrSyncChannel = data.MrSyncChannel;
+      TimePerTdc    = data.TimePerTdc;
+      Board         = data.Board;
       return *this;
     }
 
@@ -42,19 +48,26 @@ namespace Extinction {
       Tdc           = 0;
       Time          = 0;
       MrSyncChannel = -2;
+      TimePerTdc    = 1.0;
+      Board         = 0;
     }
 
+    ULong64_t GetTdcTag() const {
+      return (Tdc < 0 || Channel < 0) ? 0 : (((ULong64_t)(Time / nsec)) * 1000ULL + Channel);
+    }
   };
 
   class ITdcDataProvider {
   public:
     virtual std::string          GetName() const = 0;
+    virtual void                 SetTimePerTdc(Double_t) = 0;
     virtual Double_t             GetTimePerTdc() const = 0;
     virtual void                 SetBranchAddress(TTree*) = 0;
     virtual Bool_t               IsData() const = 0;
     virtual Int_t                GetSpill() const = 0;
     virtual Double_t             GetTime() const = 0;
     virtual std::vector<TdcData> GetTdcData() const = 0;
+    virtual std::vector<TdcData> GetTdcData(Int_t) const = 0;
   };
 
 }

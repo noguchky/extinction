@@ -10,6 +10,9 @@
 #include "Tdc.hh"
 #include "Detector.hh"
 
+#include "ConfReader.hh"
+#include "String.hh"
+
 namespace Extinction {
 
   namespace Fct {
@@ -66,6 +69,55 @@ namespace Extinction {
         };
     }
 
+    namespace ChannelMapWithBoard {
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Ext;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Hod;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Tc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
+      std::map<Int_t/*global*/, Int_t/*board*/>               Board;
+
+      void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
+        for (auto&& board : boards) {
+          const std::string key = Form("ChannelMap.%d", board);
+          if (conf->Exists(key)) {
+            const std::vector<std::string> tuples = conf->GetValues(key);
+            for (auto&& tuple : tuples) {
+              const std::vector<std::string> elems = Tron::String::Split(tuple, ",");
+              if (elems.size() == 3) {
+                const Int_t       raw      = Tron::String::Convert<Int_t>(elems[0]);
+                const std::string detector =                              elems[1] ;
+                const Int_t       channel  = Tron::String::Convert<Int_t>(elems[2]);
+                if      (detector == "Ext"   ) {
+                  Ext   [board][raw] = channel;
+                  Board [channel + ExtinctionDetector::GlobalChannelOffset] = board;
+                } else if (detector == "Hod"   ) {
+                  Hod   [board][raw] = channel;
+                  Board [channel + Hodoscope         ::GlobalChannelOffset] = board;
+                } else if (detector == "Bh"    ) {
+                  Bh    [board][raw] = channel;
+                  Board [channel + BeamlineHodoscope ::GlobalChannelOffset] = board;
+                } else if (detector == "Tc"    ) {
+                  Tc    [board][raw] = channel;
+                  Board [channel + TimingCounter     ::GlobalChannelOffset] = board;
+             // } else if (detector == "MrP3"  ) {
+             //   MrP3  [board][raw] = channel;
+             //   Board [channel + MrP3              ::GlobalChannelOffset] = board;
+             // } else if (detector == "MrRf"  ) {
+             //   MrRf  [board][raw] = channel;
+             //   Board [channel + MrRf              ::GlobalChannelOffset] = board;
+                } else if (detector == "MrSync") {
+                  MrSync[board][raw] = channel;
+                  Board [channel + MrSync            ::GlobalChannelOffset] = board;
+                }
+              }
+            }
+          }
+            
+        }
+      }
+    }
+
     struct DataType {
       enum {
             None,
@@ -117,15 +169,17 @@ namespace Extinction {
     
     class FctData : public ITdcDataProvider {
     public:
-      Int_t Type;
-      Int_t Spill;
-      Int_t Channel;
-      Int_t DTime;   // ? ... currently, all data are filled with 0
-      Int_t Tdc;
-      Int_t Carry;
+      Int_t    Type;
+      Int_t    Spill;
+      Int_t    Channel;
+      Int_t    DTime;   // ? ... currently, all data are filled with 0
+      Int_t    Tdc;
+      Int_t    Carry;
 
-      Int_t  PreviousCarry[NofChannels];
-      UInt_t PreviousTdc  [NofChannels];
+      Double_t TimePerTdc = 7.5 * nsec;
+
+      Int_t    PreviousCarry[NofChannels];
+      UInt_t   PreviousTdc  [NofChannels];
 
       FctData() {
         Clear();
@@ -245,12 +299,15 @@ namespace Extinction {
         return ret;
       }
 
+      inline virtual void     SetTimePerTdc(Double_t timePerTdc) override {
+        TimePerTdc = timePerTdc;
+      }
       inline virtual Double_t GetTimePerTdc() const override {
-        return 7.5 * nsec;
+        return TimePerTdc;
       };
       
       inline virtual Double_t GetTime() const override {
-        return Tdc * GetTimePerTdc();
+        return Tdc * TimePerTdc;
       }
 
       inline void CreateBranch(TTree* tree) {
@@ -271,10 +328,10 @@ namespace Extinction {
       }
 
       inline void Show() const {
-        std::cout << "Spill = " << Spill  << ", " 
-                  << "Ch = " << Channel  << ", "
-                  << "TDC = " << Tdc  << ", "
-                  << "DTime = " << DTime << std::endl;
+        std::cout << "Spill = " << Spill   << ", " 
+                  << "Ch = "    << Channel << ", "
+                  << "TDC = "   << Tdc     << ", "
+                  << "DTime = " << DTime   << std::endl;
       }
 
       inline virtual std::string GetName() const override {
@@ -290,23 +347,59 @@ namespace Extinction {
       }
 
       inline virtual std::vector<TdcData> GetTdcData() const override {
+        using namespace ChannelMap;
         TdcData datum;
         datum.Spill         = Spill;
         datum.Tdc           = Tdc;
         datum.Time          = GetTime();
-        if (ChannelMap::MrSync.find(14) != ChannelMap::MrSync.end()) {
-          datum.MrSyncChannel = ChannelMap::MrSync.at(14) + MrSync::GlobalChannelOffset; // TBD
+        datum.TimePerTdc    = TimePerTdc;
+        datum.Board         = 1;
+        if (MrSync.find(14) != MrSync.end()) {
+          datum.MrSyncChannel = MrSync.at(14) + MrSync::GlobalChannelOffset; // TBD
         }
-        if        (ChannelMap::Ext   .find(Channel) != ChannelMap::Ext   .end()) {
-          datum.Channel     = ChannelMap::Ext   .at(Channel) + ExtinctionDetector::GlobalChannelOffset;
-        } else if (ChannelMap::Hod   .find(Channel) != ChannelMap::Hod   .end()) {
-          datum.Channel     = ChannelMap::Hod   .at(Channel) + Hodoscope         ::GlobalChannelOffset;
-        } else if (ChannelMap::Tc    .find(Channel) != ChannelMap::Tc    .end()) {
-          datum.Channel     = ChannelMap::Tc    .at(Channel) + TimingCounter     ::GlobalChannelOffset;
-        } else if (ChannelMap::Bh    .find(Channel) != ChannelMap::Bh    .end()) {
-          datum.Channel     = ChannelMap::Bh    .at(Channel) + BeamlineHodoscope ::GlobalChannelOffset;
-        } else if (ChannelMap::MrSync.find(Channel) != ChannelMap::MrSync.end()) {
-          datum.Channel     = ChannelMap::MrSync.at(Channel) + MrSync            ::GlobalChannelOffset;
+        if        (Ext   .find(Channel) != Ext   .end()) {
+          datum.Channel     = Ext   .at(Channel) + ExtinctionDetector::GlobalChannelOffset;
+        } else if (Hod   .find(Channel) != Hod   .end()) {
+          datum.Channel     = Hod   .at(Channel) + Hodoscope         ::GlobalChannelOffset;
+        } else if (Tc    .find(Channel) != Tc    .end()) {
+          datum.Channel     = Tc    .at(Channel) + TimingCounter     ::GlobalChannelOffset;
+        } else if (Bh    .find(Channel) != Bh    .end()) {
+          datum.Channel     = Bh    .at(Channel) + BeamlineHodoscope ::GlobalChannelOffset;
+        } else if (MrSync.find(Channel) != MrSync.end()) {
+          datum.Channel     = MrSync.at(Channel) + MrSync            ::GlobalChannelOffset;
+        }
+        return { datum };
+      }
+
+      inline virtual std::vector<TdcData> GetTdcData(int board) const override {
+        using namespace ChannelMapWithBoard;
+        TdcData datum;
+        datum.Spill         = Spill;
+        datum.Tdc           = Tdc;
+        datum.Time          = GetTime();
+        datum.TimePerTdc    = TimePerTdc;
+        datum.Board         = board;
+        typename decltype(MrSync      )::const_iterator itr1;
+        typename decltype(itr1->second)::const_iterator itr2;
+        if        ((itr1 = MrSync      .find(board  )) != Ext         .end() &&
+                   (itr2 = itr1->second.find(14     )) != itr1->second.end()) {
+          datum.MrSyncChannel = itr2->second + MrSync::GlobalChannelOffset;
+        }
+        if        ((itr1 = Ext         .find(board  )) != Ext         .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + ExtinctionDetector::GlobalChannelOffset;
+        } else if ((itr1 = Hod         .find(board  )) != Hod         .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + Hodoscope         ::GlobalChannelOffset;
+        } else if ((itr1 = Tc          .find(board  )) != Tc          .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + TimingCounter     ::GlobalChannelOffset;
+        } else if ((itr1 = Bh          .find(board  )) != Bh          .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + BeamlineHodoscope ::GlobalChannelOffset;
+        } else if ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + MrSync            ::GlobalChannelOffset;
         }
         return { datum };
       }
