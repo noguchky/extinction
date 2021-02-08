@@ -789,11 +789,11 @@ namespace Extinction {
           const Long64_t syncTdc = lastData.Tdc;
           const Long64_t    dtdc = tdc - syncTdc;
           if        (dtdc > +1.05 * fMrSyncInterval[board]) {
-            const Long64_t dtdc2 = std::fmod(dtdc2, fMrSyncInterval[board]);
+            const Long64_t dtdc2 = std::fmod(dtdc, fMrSyncInterval[board]);
             hExtTdcInSync_Any->Fill(dtdc2);
             hExtMountain_Any ->Fill(dtdc2, time / msec);
           } else if (dtdc < -0.05 * fMrSyncInterval[board]) {
-            const Long64_t dtdc2 = std::fmod(dtdc2, fMrSyncInterval[board]) + fMrSyncInterval[board];
+            const Long64_t dtdc2 = std::fmod(dtdc, fMrSyncInterval[board]) + fMrSyncInterval[board];
             hExtTdcInSync_Any->Fill(dtdc2);
             hExtMountain_Any ->Fill(dtdc2, time / msec);
           } else {
