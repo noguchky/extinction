@@ -11,6 +11,8 @@
 #include "Tdc.hh"
 #include "Detector.hh"
 
+#define KC705_FORMAT_VERSION 2
+
 namespace Extinction {
 
   namespace Kc705 {
@@ -105,16 +107,8 @@ namespace Extinction {
       }
       return bitCount;
     }
-    inline std::size_t GetBitWeight(Packet_t data) {
-      Double_t sum = 0.0, cnt = 0.0;
-      for (std::size_t bit = 0, bits = sizeof(Packet_t) * 8; bit < bits; ++bit) {
-        if (HasBit(data, bit)) {
-          sum += bit;
-          cnt += 1.0;
-        }
-      }
-      return sum / cnt;
-    }
+
+#if KC705_FORMAT_VERSION == 1
 
     /// Header
     // Format : Id[83:0], BoardId[3:0], Spill[15:0]
@@ -180,9 +174,8 @@ namespace Extinction {
     /// Footer
     // Format : EMCount[15:0], ????[23:0], Id[63:0]
     //          EE EE ?? ?? ?? II II II II II II II II
-    //         ^FF-FF
-    //     Id : __ __ __ __ __ AA AA AA AA AA AA AA AA
-    //                        ^FF-FF-FF-FF-FF-FF-FF-FF
+    //         ^FF-FF         ^FF-FF-FF-FF-FF-FF-FF-FF
+    //     Id :                AA-AA-AA-AA-AA-AA-AA-AA
     inline UShort_t GetEMCount(Packet_t data) {
       return pntohs(data);
     }
@@ -202,6 +195,81 @@ namespace Extinction {
         data[12] == 0xAAU;
     }
 
+#else
+
+    /// Header
+    // Format : Id1[31:0], Spill[15:0], Zero[3:0], BoardId[3:0], Id2[47:0]
+    //          II II II II SS SS 0B II II II II II II
+    //         ^FF-FF-FF-FF
+    //                     ^FF-FF
+    //                           ^FF
+    //                        ^**-**-FF-FF-FF-FF-FF-FF
+    //     Id : 01-23-45-67          01-23-45-67-89-AB
+    inline UInt_t GetHeaderId1(Packet_t data) {
+      return pntohl(data);
+    }
+    inline UShort_t GetSpill(Packet_t data) {
+      return pntohs(data + 4);
+    }
+    inline UChar_t GetBoardId(Packet_t data) {
+      return pntohc(data + 6) & 0x0FU;
+    }
+    inline ULong64_t GetHeaderId2(Packet_t data) {
+      return pntohll(data + 5) & 0x00FFFFFFU;
+    }
+    inline Bool_t IsHeader(Packet_t data) {
+      return GetHeaderId1(data) == 0x01234567U;
+    }
+    /// Data
+    // Format : MPPC[63:0], Sub[11:0], MR_SYNC, TDC[26:0]
+    //          MM MM MM MM MM MM MM MM SS SM TT TT TT
+    //         ^FF-FF-FF-FF-FF-FF-FF-FF
+    //                                 ^FF-F*
+    //                                    ^*8
+    //                                    ^*7-FF-FF-FF
+    inline ULong64_t GetMppcBit(Packet_t data) {
+      return pntohll(data);
+    }
+    inline UShort_t GetSubBit(Packet_t data) {
+      return pntohs(data + 8) >> 4;
+    }
+    inline Bool_t GetMrSync(Packet_t data) {
+      return (pntohc(data + 9) >> 3) & 0x01U;
+    }
+    inline UInt_t GetTdc(Packet_t data) {
+      return pntohl(data + 9) & 0x07FFFFFFU;
+    }
+    /// Footer
+    // Format : EMCount[15:0], ????[23:0], Id[63:0]
+    //          Id1[31:0], Spill[15:0], EMCount[15:0], WrCnt[31:0], Id2[1:0]
+    //          II II II II SS SS EE EE WW WW WW WW II
+    //         ^FF-FF-FF-FF
+    //                     ^FF-FF
+    //                           ^FF-FF
+    //                                 ^FF-FF-FF-FF
+    //                                             ^FF
+    //     Id : AA-AA-AA-AA                         AB
+    inline UInt_t GetFooterId1(Packet_t data) {
+      return pntohl(data);
+    }
+    // inline UShort_t GetSpill(Packet_t data) {
+    //   return pntohs(data + 4);
+    // } // the same as header
+    inline UShort_t GetEMCount(Packet_t data) {
+      return pntohs(data + 6);
+    }
+    inline UShort_t GetWRCount(Packet_t data) {
+      return pntohl(data + 8);
+    }
+    inline UInt_t GetFooterId2(Packet_t data) {
+      return pntohc(data + 12);
+    }
+    inline Bool_t IsFooter(Packet_t data) {
+      return GetFooterId1(data) == 0xAAAAAAAAULL;
+    }
+
+#endif
+
     class Kc705Data : public ITdcDataProvider {
     public:
       Char_t    Type;
@@ -218,6 +286,7 @@ namespace Extinction {
 
       // Footer
       UShort_t  EMCount;  // 16 bit
+      UShort_t  WRCount;  // 16 bit
 
       // Additional
       UInt_t    Overflow; // TrueTdc = Tdc + 0x8000000 * Overflow
@@ -234,6 +303,7 @@ namespace Extinction {
           MrSync  (data.MrSync  ),
           Tdc     (data.Tdc     ),
           EMCount (data.EMCount ),
+          WRCount (data.WRCount ),
           Overflow(data.Overflow) {
       }
       Kc705Data& operator=(const Kc705Data& data) {
@@ -245,6 +315,7 @@ namespace Extinction {
         MrSync   = data.MrSync;
         Tdc      = data.Tdc;
         EMCount  = data.EMCount;
+        WRCount  = data.WRCount;
         Overflow = data.Overflow;
         return *this;
       }
@@ -258,8 +329,67 @@ namespace Extinction {
         MrSync   = 0;
         Tdc      = 0;
         EMCount  = 0;
+        WRCount  = 0;
         Overflow = 0;
       }
+
+#if KC705_FORMAT_VERSION == 1
+
+      inline void SetDataAsHeader(Packet_t packet) {
+        Type     = DataType::Header;
+        BoardId  = GetBoardId(packet);
+        Spill    = Extinction::Kc705::GetSpill(packet);
+        MppcBit  = 0;
+        SubBit   = 0;
+        MrSync   = 0;
+        Tdc      = 0;
+        EMCount  = 0;
+        WRCount  = 0;
+        Overflow = 0;
+      }
+
+      inline void SetDataAsData(Packet_t packet) {
+        const UInt_t lastTdc = Tdc;
+        Type    = DataType::Data;
+        MppcBit = GetMppcBit(packet);
+        SubBit  = GetSubBit(packet);
+        MrSync  = GetMrSync(packet);
+        Tdc     = GetTdc(packet);
+        if (Tdc < lastTdc) { ++Overflow; }
+      }
+
+      inline void SetDataAsFooter(Packet_t packet) {
+        Type    = DataType::Footer;
+        const Int_t lastSpill = Spill;
+        Spill   = Extinction::::Kc705::GetSpill(packet);
+        if (Spill != lastSpill) {
+          std::cerr << "[warning] spill inconsistent" << std::endl;
+        }
+        MppcBit = 0;
+        SubBit  = 0;
+        MrSync  = 0;
+        Tdc     = 0;
+        EMCount = GetEMCount(packet);
+        WRCount = GetWRCount(packet);
+      }
+
+      inline void GetData(Packet_t& packet) const {
+        packet[ 0] = ((MppcBit >> 56) & 0xFFU);
+        packet[ 1] = ((MppcBit >> 48) & 0xFFU);
+        packet[ 2] = ((MppcBit >> 40) & 0xFFU);
+        packet[ 3] = ((MppcBit >> 32) & 0xFFU);
+        packet[ 4] = ((MppcBit >> 24) & 0xFFU);
+        packet[ 5] = ((MppcBit >> 16) & 0xFFU);
+        packet[ 6] = ((MppcBit >>  8) & 0xFFU);
+        packet[ 7] = ((MppcBit >>  0) & 0xFFU);
+        packet[ 8] = ((SubBit  >>  4) & 0xFFU);
+        packet[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x7FU);
+        packet[10] = ((Tdc     >> 16) & 0xFFU);
+        packet[11] = ((Tdc     >>  8) & 0xFFU);
+        packet[12] = ((Tdc     >>  0) & 0xFFU);
+      }
+
+#else
 
       inline void SetDataAsHeader(Packet_t packet) {
         Type     = DataType::Header;
@@ -307,6 +437,8 @@ namespace Extinction {
         packet[11] = ((Tdc     >>  8) & 0xFFU);
         packet[12] = ((Tdc     >>  0) & 0xFFU);
       }
+
+#endif
 
       std::basic_istream<char>& ReadHeader(std::basic_istream<char>& file,
                                            Packet_t* packet = nullptr) {
