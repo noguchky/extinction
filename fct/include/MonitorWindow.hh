@@ -173,9 +173,9 @@ namespace Extinction {
 
       inline void          Run() { fApplication->Run(true); }
 
-      inline Bool_t        IsClosed() const { return fCanvas->GetCanvasImp(); }
+      inline Bool_t        IsClosed() const { return !fCanvas->GetCanvasImp(); }
       inline Bool_t        IsTerminated() const { return fIsTerminated; }
-      
+
       inline void          Terminate() {
         fIsTerminated = true;
         gSystem->ExitLoop();
@@ -707,6 +707,9 @@ namespace Extinction {
         hTdcInSync      ->Reset();
         hTdcInSpill     ->Reset();
       } else if (fMonitorMode == MonitorMode::Offset) {
+        for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+          hMrSyncInterval[ch]->Reset();
+        }
         for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
           hExtTdcOffset[ch]->Reset();
         }
