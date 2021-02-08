@@ -197,6 +197,10 @@ namespace Extinction {
         return Tdc + 0x80000UL * Heartbeat;
       }
 
+      inline virtual void SetTimePerTdc(Double_t timePerTdc) override {
+        ClockFreq = 1.0 / timePerTdc;
+      }
+
       inline virtual Double_t GetTimePerTdc() const override {
         return 1.0 / ClockFreq;
       }
@@ -268,6 +272,10 @@ namespace Extinction {
           datum.Channel     = ChannelMap::MrSync.at(Channel) + MrSync::GlobalChannelOffset;
         }
         return { datum };
+      }
+
+      inline virtual std::vector<TdcData> GetTdcData(Int_t) const override {
+        return GetTdcData(); // TBD
       }
 
     };

@@ -290,6 +290,7 @@ namespace Extinction {
 
       // Additional
       UInt_t    Overflow; // TrueTdc = Tdc + 0x8000000 * Overflow
+      Double_t  TimePerTdc = 5.0 * nsec;
 
       Kc705Data() {
         Clear();
@@ -516,8 +517,12 @@ namespace Extinction {
         return Tdc + 0x8000000ULL * Overflow;
       }
 
+      inline virtual void SetTimePerTdc(Double_t timePerTdc) override {
+        TimePerTdc = timePerTdc;
+      }
+
       inline virtual Double_t GetTimePerTdc() const override {
-        return 5.0 * nsec;
+        return TimePerTdc;
       }
 
       inline virtual Double_t GetTime() const override {
@@ -649,6 +654,9 @@ namespace Extinction {
         return data;
       }
 
+      inline virtual std::vector<TdcData> GetTdcData(Int_t) const override {
+        return GetTdcData(); // TBD
+      }
     };
 
     class Decoder {

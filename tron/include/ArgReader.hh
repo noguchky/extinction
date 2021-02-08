@@ -64,7 +64,7 @@ namespace Tron {
                                         Int_t shortOpt, const std::string& longOpt,
                                         const std::string& description, const Char_t* defaultValue = nullptr);
     
-    Bool_t                      Parse(int argc, Char_t** argv);
+    Bool_t                      Parse(int argc, Char_t** argv, const Char_t* option = "");
 
     Bool_t                      HasUnsetRequired() const;
     Bool_t                      IsSet(const std::string& key) const;

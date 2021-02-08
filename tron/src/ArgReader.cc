@@ -33,7 +33,7 @@ Tron::ArgReader::~ArgReader() {
   fOptConfigs.clear();
 }
 
-bool Tron::ArgReader::Parse(int argc, char** argv) {
+bool Tron::ArgReader::Parse(int argc, char** argv, const Char_t* coption) {
   // Load Options With Option
   std::string optstring;
   std::vector<option> longopts;
@@ -41,7 +41,7 @@ bool Tron::ArgReader::Parse(int argc, char** argv) {
     optstring += config->GetOptString();
     longopts.push_back(config->GetOption());
   }
-  
+
   int opt;
   int longindex;
   while ((opt = getopt_long(argc, argv, optstring.data(), longopts.data(), &longindex)) != -1) {
@@ -51,12 +51,14 @@ bool Tron::ArgReader::Parse(int argc, char** argv) {
         configs.push_back(config);
       }
     }
-    
+
     if (configs.empty()) {
-      std::cout << "ArgReader::Parse [error] unknown option " << String::Wrap((char)optopt) << std::endl;
+      if (String::Contains(String::ToLower(coption), "v")) {
+        std::cout << "ArgReader::Parse [error] unknown option " << String::Wrap((char)optopt) << std::endl;
+      }
       return false;
     }
-      
+
     BaseConfig* config   = configs.front();
     std::string argValue = (optarg != nullptr ? optarg : config->DefaultValue);
     config->Values.push_back(argValue);
@@ -73,12 +75,12 @@ bool Tron::ArgReader::Parse(int argc, char** argv) {
 
     std::string argValue = argv2[iarg];
     config->Values.push_back(argValue);
-    
+
     if (!config->IsMultiple) {
       ++iconfig;
     }
   }
-    
+
   return true;
 }
 
@@ -93,8 +95,8 @@ bool Tron::ArgReader::HasUnsetRequired() const {
   if (notSatisfied.empty()) {
     return false;
   }
-  
-  std::cout << "ArgReader::Parse [error] do not meet requirement for " << String::Wrap(notSatisfied.front()->Key) << std::endl;
+
+  // std::cout << "ArgReader::Parse [error] do not meet requirement for " << String::Wrap(notSatisfied.front()->Key) << std::endl;
   return true;
 }
 
@@ -107,7 +109,7 @@ void Tron::ArgReader::Set(const std::string& key, const std::string& value) {
     std::cout << "ArgReader::Set [error] do not exist " << String::Wrap(key) << std::endl;
     return;
   }
-  
+
   auto values = fConfigs[key]->Values;
   values.clear();
   values.push_back(value);
@@ -118,7 +120,7 @@ void Tron::ArgReader::Add(const std::string& key, const std::string& value) {
     std::cout << "ArgReader::Set [error] do not exist " << String::Wrap(key) << std::endl;
     return;
   }
-  
+
   auto values = fConfigs[key]->Values;
   values.push_back(value);
 }
@@ -128,7 +130,7 @@ void Tron::ArgReader::Unset(const std::string& key) {
     std::cout << "ArgReader::Unset [error] do not exist " << String::Wrap(key) << std::endl;
     return;
   }
-  
+
   auto values = fConfigs[key]->Values;
   values.clear();
 }
@@ -144,7 +146,7 @@ void Tron::ArgReader::ShowUsage() const {
   } else if (fOptConfigs.size() >  1) {
     message << " [option]...";
   }
-    
+
   const int FullLength = 30;
   for (auto&& config : fArgConfigs) {
     message << " ";
@@ -156,7 +158,7 @@ void Tron::ArgReader::ShowUsage() const {
     if (config->IsMultiple) {
       message << "...";
     }
-        
+
     int length = FullLength;
     help1 << "  " << config->Key;
     length -= 2 + config->Key.length();
@@ -174,12 +176,12 @@ void Tron::ArgReader::ShowUsage() const {
     int length = FullLength;
     help2 << "  -" << (char)config->ShortOpt;
     length -= 4;
-        
+
     if (!config->LongOpt.empty()) {
       help2 << ", --" << config->LongOpt;
       length -= 4 + config->LongOpt.length();
     }
-        
+
     if        (config->Requirement == OptConfig::RequiredArg) {
       help2 << "=" << config->Key;
       length -= 1 + config->Key.length();

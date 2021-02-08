@@ -185,10 +185,14 @@ namespace Extinction {
           const std::size_t boardYi     = (topBottomCh / 8);
           const Double_t    boardX      = 5.6 * (boardXi - 3.5);
           const Double_t    boardY      = (boardYi ? -13.0 : +13.0);
-          const Int_t       bin         = hist->FindBin(boardX, boardY);
-          const Double_t    content     = hist->GetBinContent(bin);
-          hist->SetBinContent(bin, content + 1.0 / area);
-          hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area) / area));
+          const Int_t       xbin1       = hist->GetXaxis()->FindBin(boardX - 2.7);
+          const Int_t       xbin2       = hist->GetXaxis()->FindBin(boardX + 2.7);
+          const Int_t       ybin        = hist->GetYaxis()->FindBin(boardY);
+          const Double_t    content     = hist->GetBinContent(xbin1, ybin);
+          for (Int_t xbin = xbin1; xbin <= xbin2; ++xbin) {
+            hist->SetBinContent(xbin, ybin, content + 1.0 / area);
+            hist->SetBinError(xbin, ybin, TMath::Sqrt((content + 1.0 / area) / area));
+          }
         }
         break;
 
