@@ -291,6 +291,8 @@ namespace Extinction {
       // Additional
       UInt_t    Overflow; // TrueTdc = Tdc + 0x8000000 * Overflow
       Double_t  TimePerTdc = 5.0 * nsec;
+      UChar_t   Mppcs[MppcNch];
+      UChar_t   Subs[SubNch];
 
       Kc705Data() {
         Clear();
@@ -306,6 +308,8 @@ namespace Extinction {
           EMCount (data.EMCount ),
           WRCount (data.WRCount ),
           Overflow(data.Overflow) {
+        std::memcpy(Mppcs, data.Mppcs, MppcNch);
+        std::memcpy( Subs, data. Subs,  SubNch);
       }
       Kc705Data& operator=(const Kc705Data& data) {
         Type     = data.Type;
@@ -318,6 +322,8 @@ namespace Extinction {
         EMCount  = data.EMCount;
         WRCount  = data.WRCount;
         Overflow = data.Overflow;
+        std::memcpy(Mppcs, data.Mppcs, MppcNch);
+        std::memcpy( Subs, data. Subs,  SubNch);
         return *this;
       }
 
@@ -332,6 +338,8 @@ namespace Extinction {
         EMCount  = 0;
         WRCount  = 0;
         Overflow = 0;
+        std::memset(Mppcs, 0, MppcNch);
+        std::memset( Subs, 0,  SubNch);
       }
 
 #if KC705_FORMAT_VERSION == 1
@@ -347,6 +355,8 @@ namespace Extinction {
         EMCount  = 0;
         WRCount  = 0;
         Overflow = 0;
+        std::memset(Mppcs, 0, MppcNch);
+        std::memset( Subs, 0,  SubNch);
       }
 
       inline void SetDataAsData(Packet_t packet) {
@@ -357,6 +367,12 @@ namespace Extinction {
         MrSync  = GetMrSync(packet);
         Tdc     = GetTdc(packet);
         if (Tdc < lastTdc) { ++Overflow; }
+        for (std::size_t ch = 0; ch < MppcNch; ++ch) {
+          Mppcs[ch] = IsMppcHit(ch);
+        }
+        for (std::size_t ch = 0; ch < SubNch; ++ch) {
+          Subs[ch] = IsSubHit(ch);
+        }
       }
 
       inline void SetDataAsFooter(Packet_t packet) {
@@ -372,6 +388,8 @@ namespace Extinction {
         Tdc     = 0;
         EMCount = GetEMCount(packet);
         WRCount = GetWRCount(packet);
+        std::memset(Mppcs, 0, MppcNch);
+        std::memset( Subs, 0,  SubNch);
       }
 
       inline void GetData(Packet_t& packet) const {
@@ -402,6 +420,8 @@ namespace Extinction {
         Tdc      = 0;
         EMCount  = 0;
         Overflow = 0;
+        std::memset(Mppcs, 0, MppcNch);
+        std::memset( Subs, 0,  SubNch);
       }
 
       inline void SetDataAsData(Packet_t packet) {
@@ -412,6 +432,12 @@ namespace Extinction {
         MrSync  = GetMrSync(packet);
         Tdc     = GetTdc(packet);
         if (Tdc < lastTdc) { ++Overflow; }
+        for (std::size_t ch = 0; ch < MppcNch; ++ch) {
+          Mppcs[ch] = IsMppcHit(ch);
+        }
+        for (std::size_t ch = 0; ch < SubNch; ++ch) {
+          Subs[ch] = IsSubHit(ch);
+        }
       }
 
       inline void SetDataAsFooter(Packet_t packet) {
@@ -421,6 +447,8 @@ namespace Extinction {
         MrSync  = 0;
         Tdc     = 0;
         EMCount = GetEMCount(packet);
+        std::memset(Mppcs, 0, MppcNch);
+        std::memset( Subs, 0,  SubNch);
       }
 
       inline void GetData(Packet_t& packet) const {
@@ -540,6 +568,8 @@ namespace Extinction {
         tree->Branch("mppc"    , &MppcBit , "mppc"    "/l");
         tree->Branch("sub"     , &SubBit  , "sub"     "/s");
         tree->Branch("overflow", &Overflow, "overflow""/i");
+        tree->Branch("mppcs"   ,  Mppcs   , Form("mppcs[%lu]" "/b", MppcNch));
+        tree->Branch("subs"    ,  Subs    , Form("subs [%lu]" "/b", SubNch));
         tree->SetAlias("tdc2", "tdc + 0x8000000 * overflow");
       }
 
@@ -554,6 +584,8 @@ namespace Extinction {
         tree->SetBranchAddress("mppc"    , &MppcBit );
         tree->SetBranchAddress("sub"     , &SubBit  );
         tree->SetBranchAddress("overflow", &Overflow);
+        tree->SetBranchAddress("mppcs"   ,  Mppcs   );
+        tree->SetBranchAddress("subs"    ,  Subs    );
       }
 
       inline void ShowAsHex() const {
