@@ -103,7 +103,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   auto results = Extinction::Analyzer::AnaBeam::Execute(tree, &data);
   {
     std::cout << "=== Draw Hists" << std::endl;
-    results.Print(beamPdfFilename);
+    results.Print(beamPdfFilename, data.GetTimePerTdc());
 
     std::cout << "=== Write Hists" << std::endl;
     if (beamRootFilename.size()) {

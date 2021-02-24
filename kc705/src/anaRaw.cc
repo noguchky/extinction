@@ -46,7 +46,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   std::cout << "=== Get Tree" << std::endl;
-  TTree* tree = dynamic_cast<TTree*>(file->Get("FCTTDC"));
+  TTree* tree = dynamic_cast<TTree*>(file->Get("tree"));
   if (!tree) {
     std::cout << "[error] input tree is not found" << std::endl;
     return 1;
