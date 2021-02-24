@@ -112,7 +112,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   auto results = Extinction::Analyzer::AnaBeam::Execute(tree, &data);
 
   std::cout << "=== Draw Hists" << std::endl;
-  results.Print(ofilename1);
+  results.Print(ofilename1, data.GetTimePerTdc());
 
   std::cout << "=== Analyze Time Offset" << std::endl;
   gStyle->SetOptStat(1111);

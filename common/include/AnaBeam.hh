@@ -108,7 +108,7 @@ namespace Extinction {
         // Extinction Detector coincidence
         TH2** hExtTdcCoin; // [ExtinctionDetector::NofChannels]
 
-        void Print(const std::string& ofilename) {
+        void Print(const std::string& ofilename, Double_t timePerTdc = 1.0 * nsec) {
           TCanvas::MakeDefCanvas();
           gPad->SetGrid();
 
@@ -190,14 +190,34 @@ namespace Extinction {
           for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
             if (hExtTdcDiff[ch]->GetEntries()) {
               hExtTdcDiff[ch]->Draw("colz");
+              hExtTdcDiff[ch]->SetMinimum(-0.01);
               Utility::ResizeStats(hExtTdcDiff[ch]);
               gPad->Print(ofilename.data());
             }
           }
 
+          gPad->SetLogy(true);
+          for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+            const Int_t ybin1 = hExtTdcDiff[ch]->GetYaxis()->FindBin(-25.0 * nsec / timePerTdc );
+            const Int_t ybin2 = hExtTdcDiff[ch]->GetYaxis()->FindBin(+25.0 * nsec / timePerTdc );
+            if (hExtTdcDiff[ch]->Integral(1, hExtTdcDiff[ch]->GetNbinsX(), ybin1, ybin2)) {
+              TH1* hProj = hExtTdcDiff[ch]->ProjectionX("_px", ybin1, ybin2);
+              hProj->Scale(1.0 / hProj->GetBinContent(hProj->GetMaximumBin()));
+              hProj->SetMinimum( 0.001);
+              hProj->SetMaximum(10.000);
+              hProj->Draw("");
+              hProj->Draw("hist same");
+              Utility::ResizeStats(hProj);
+              gPad->Print(ofilename.data());
+              delete hProj;
+            }
+          }
+          gPad->SetLogy(false);
+
           for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
             if (hExtOscillo[ch]->GetEntries()) {
               hExtOscillo[ch]->Draw("colz");
+              hExtOscillo[ch]->SetMinimum(-0.01);
               Utility::ResizeStats(hExtOscillo[ch]);
               gPad->Print(ofilename.data());
             }
@@ -940,6 +960,10 @@ namespace Extinction {
 
           std::vector<TdcData> tdcData = provider->GetTdcData();
 
+          if (tdcData.size() > 8) {
+            continue;
+          }
+
           for (auto&& data : tdcData) {
             const Int_t    globalChannel = data.Channel;
             const Long64_t tdc           = data.Tdc;
@@ -965,6 +989,7 @@ namespace Extinction {
               }
 
               Bool_t containsThis = false; 
+              hExtTdcDiff[ch]->Fill(ch, 0);
               for (auto&& lastData : lastExtData) {
                 auto lastCh  = ExtinctionDetector::GetChannel(lastData.Channel);
                 auto lastTdc = lastData.Tdc;
@@ -974,12 +999,13 @@ namespace Extinction {
                   containsThis = true;
                 }
               }
+
               for (auto&& lastPair : recExtData) {
                 auto lastData = lastPair.second;
                 auto lastCh   = ExtinctionDetector::GetChannel(lastData.Channel);
                 auto lastTdc  = lastData.Tdc;
-                  hExtOscillo[lastCh]->Fill(    ch,     tdc - lastTdc);
-                  hExtOscillo[    ch]->Fill(lastCh, lastTdc -     tdc);
+                hExtOscillo[lastCh]->Fill(    ch,     tdc - lastTdc);
+                hExtOscillo[    ch]->Fill(lastCh, lastTdc -     tdc);
               }
               if (containsThis == false) {
                 recExtData[globalChannel] = data;
