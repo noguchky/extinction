@@ -11,6 +11,9 @@
 #include "Tdc.hh"
 #include "Detector.hh"
 
+#include "ConfReader.hh"
+#include "String.hh"
+
 #define KC705_FORMAT_VERSION 2
 
 namespace Extinction {
@@ -73,6 +76,55 @@ namespace Extinction {
         };
     }
 
+    namespace ChannelMapWithBoard {
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Ext;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Hod;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Tc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
+      std::map<Int_t/*global*/, Int_t/*board*/>               Board;
+
+      void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
+        for (auto&& board : boards) {
+          const std::string key = Form("ChannelMap.%d", board);
+          if (conf->Exists(key)) {
+            const std::vector<std::string> tuples = conf->GetValues(key);
+            for (auto&& tuple : tuples) {
+              const std::vector<std::string> elems = Tron::String::Split(tuple, ",");
+              if (elems.size() == 3) {
+                const Int_t       raw      = Tron::String::Convert<Int_t>(elems[0]);
+                const std::string detector =                              elems[1] ;
+                const Int_t       channel  = Tron::String::Convert<Int_t>(elems[2]);
+                if      (detector == "Ext"   ) {
+                  Ext   [board][raw] = channel;
+                  Board [channel + ExtinctionDetector::GlobalChannelOffset] = board;
+                } else if (detector == "Hod"   ) {
+                  Hod   [board][raw] = channel;
+                  Board [channel + Hodoscope         ::GlobalChannelOffset] = board;
+                } else if (detector == "Bh"    ) {
+                  Bh    [board][raw] = channel;
+                  Board [channel + BeamlineHodoscope ::GlobalChannelOffset] = board;
+                } else if (detector == "Tc"    ) {
+                  Tc    [board][raw] = channel;
+                  Board [channel + TimingCounter     ::GlobalChannelOffset] = board;
+             // } else if (detector == "MrP3"  ) {
+             //   MrP3  [board][raw] = channel;
+             //   Board [channel + MrP3              ::GlobalChannelOffset] = board;
+             // } else if (detector == "MrRf"  ) {
+             //   MrRf  [board][raw] = channel;
+             //   Board [channel + MrRf              ::GlobalChannelOffset] = board;
+                } else if (detector == "MrSync") {
+                  MrSync[board][raw] = channel;
+                  Board [channel + MrSync            ::GlobalChannelOffset] = board;
+                }
+              }
+            }
+          }
+
+        }
+      }
+    }
+    
     struct DataType {
       enum {
             None,
@@ -178,6 +230,9 @@ namespace Extinction {
     //     Id :                AA-AA-AA-AA-AA-AA-AA-AA
     inline UShort_t GetEMCount(Packet_t data) {
       return pntohs(data);
+    }
+    inline UShort_t GetWRCount(Packet_t) {
+      return 0;
     }
     inline ULong64_t GetFooterId(Packet_t data) {
       return pntohll(data + 5);
@@ -361,11 +416,6 @@ namespace Extinction {
 
       inline void SetDataAsFooter(Packet_t packet) {
         Type    = DataType::Footer;
-        const Int_t lastSpill = Spill;
-        Spill   = Extinction::::Kc705::GetSpill(packet);
-        if (Spill != lastSpill) {
-          std::cerr << "[warning] spill inconsistent" << std::endl;
-        }
         MppcBit = 0;
         SubBit  = 0;
         MrSync  = 0;
@@ -401,6 +451,7 @@ namespace Extinction {
         MrSync   = 0;
         Tdc      = 0;
         EMCount  = 0;
+        WRCount  = 0;
         Overflow = 0;
       }
 
@@ -416,11 +467,17 @@ namespace Extinction {
 
       inline void SetDataAsFooter(Packet_t packet) {
         Type    = DataType::Footer;
+        const Int_t lastSpill = Spill;
+        Spill   = Extinction::Kc705::GetSpill(packet);
+        if (Spill != lastSpill) {
+          std::cerr << "[warning] spill inconsistent" << std::endl;
+        }
         MppcBit = 0;
         SubBit  = 0;
         MrSync  = 0;
         Tdc     = 0;
         EMCount = GetEMCount(packet);
+        WRCount = GetWRCount(packet);
       }
 
       inline void GetData(Packet_t& packet) const {
