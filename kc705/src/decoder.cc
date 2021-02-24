@@ -408,7 +408,7 @@ Int_t main(Int_t argc, Char_t** argv) {
       std::cout << ">> " << count << std::endl;
     }
 
-    if (decoder.Data.Type == Extinction::Kc705::DataType::HeaderError) {
+    if (checkPacketLoss && decoder.Data.Type == Extinction::Kc705::DataType::HeaderError) {
       if (!Extinction::Kc705::IsFooter(packet)) {
         for (std::size_t i = 0; i < lastPacketsSize; ++i) {
           Extinction::Kc705::ShowAsHex(lastPackets[i]);
@@ -422,7 +422,7 @@ Int_t main(Int_t argc, Char_t** argv) {
       std::cout << "[info] begin of spill " << decoder.Data.Spill << std::endl;
 
     } else if (decoder.Data.Type == Extinction::Kc705::DataType::HeaderError) {
-      if (lastType != Extinction::Kc705::DataType::HeaderError) {
+      if (checkPacketLoss && lastType != Extinction::Kc705::DataType::HeaderError) {
         for (std::size_t i = 0; i < lastPacketsSize; ++i) {
           Extinction::Kc705::ShowAsHex(lastPackets[i]);
         }
