@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "TTree.h"
+#include "Units.hh"
 
 namespace Extinction {
 
@@ -52,7 +53,7 @@ namespace Extinction {
       Board         = 0;
     }
 
-    ULong64_t GetTdcTag() const {
+    inline ULong64_t GetTdcTag() const {
       return (Tdc < 0 || Channel < 0) ? 0 : (((ULong64_t)(Time / nsec)) * 1000ULL + Channel);
     }
   };
