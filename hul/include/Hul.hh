@@ -9,6 +9,9 @@
 #include "Tdc.hh"
 #include "Detector.hh"
 
+#include "ConfReader.hh"
+#include "String.hh"
+
 namespace Extinction {
 
   namespace Hul {
@@ -63,7 +66,56 @@ namespace Extinction {
          {  1 + 16 - 1, 0 },
         };
     }
-    
+
+    namespace ChannelMapWithBoard {
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Ext;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Hod;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Tc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
+      std::map<Int_t/*global*/, Int_t/*board*/>               Board;
+
+      void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
+        for (auto&& board : boards) {
+          const std::string key = Form("ChannelMap.%d", board);
+          if (conf->Exists(key)) {
+            const std::vector<std::string> tuples = conf->GetValues(key);
+            for (auto&& tuple : tuples) {
+              const std::vector<std::string> elems = Tron::String::Split(tuple, ",");
+              if (elems.size() == 3) {
+                const Int_t       raw      = Tron::String::Convert<Int_t>(elems[0]);
+                const std::string detector =                              elems[1] ;
+                const Int_t       channel  = Tron::String::Convert<Int_t>(elems[2]);
+                if      (detector == "Ext"   ) {
+                  Ext   [board][raw] = channel;
+                  Board [channel + ExtinctionDetector::GlobalChannelOffset] = board;
+                } else if (detector == "Hod"   ) {
+                  Hod   [board][raw] = channel;
+                  Board [channel + Hodoscope         ::GlobalChannelOffset] = board;
+                } else if (detector == "Bh"    ) {
+                  Bh    [board][raw] = channel;
+                  Board [channel + BeamlineHodoscope ::GlobalChannelOffset] = board;
+                } else if (detector == "Tc"    ) {
+                  Tc    [board][raw] = channel;
+                  Board [channel + TimingCounter     ::GlobalChannelOffset] = board;
+             // } else if (detector == "MrP3"  ) {
+             //   MrP3  [board][raw] = channel;
+             //   Board [channel + MrP3              ::GlobalChannelOffset] = board;
+             // } else if (detector == "MrRf"  ) {
+             //   MrRf  [board][raw] = channel;
+             //   Board [channel + MrRf              ::GlobalChannelOffset] = board;
+                } else if (detector == "MrSync") {
+                  MrSync[board][raw] = channel;
+                  Board [channel + MrSync            ::GlobalChannelOffset] = board;
+                }
+              }
+            }
+          }
+            
+        }
+      }
+    }
+
     struct DataType {
       enum {
             None       = 0x0U,
@@ -96,6 +148,9 @@ namespace Extinction {
     }
     inline UInt_t GetTdc(Packet1_t data) {
       return (data & 0x0007FFFFU);
+    }
+    inline UInt_t GetHeartbeat(Packet1_t data) {
+      return (data & 0x0000FFFFU);
     }
     inline UChar_t GetType(Packet2_t data) {
       return (data & 0xF0U) >> 4;
@@ -176,12 +231,12 @@ namespace Extinction {
           Tdc     = GetTdc(buff1);
           break;
         case DataType::Error:
-          Heartbeat = GetTdc(buff1);
+          Heartbeat = GetHeartbeat(buff1);
           std::cerr << "error detected, spill = " << Spill
                     << ", heartbeat = " << Heartbeat << std::endl;
           break;
         case DataType::Heartbeat:
-          Heartbeat = GetTdc(buff1);
+          Heartbeat = GetHeartbeat(buff1);
           break;
         }
 
@@ -259,7 +314,11 @@ namespace Extinction {
         datum.Spill         = Spill;
         datum.Tdc           = Tdc;
         datum.Time          = GetTime();
-        datum.MrSyncChannel = ChannelMap::MrSync.at(16) + MrSync::GlobalChannelOffset; // TBD
+        datum.TimePerTdc    = GetTimePerTdc();
+        datum.Board         = 1;
+        if (ChannelMap::MrSync.begin() != ChannelMap::MrSync.end()) {
+          datum.MrSyncChannel = ChannelMap::MrSync.begin()->second + MrSync::GlobalChannelOffset;
+        }
         if        (ChannelMap::Ext.find(Channel) != ChannelMap::Ext.end()) {
           datum.Channel     = ChannelMap::Ext.at(Channel) + ExtinctionDetector::GlobalChannelOffset;
         } else if (ChannelMap::Hod.find(Channel) != ChannelMap::Hod.end()) {
@@ -274,8 +333,68 @@ namespace Extinction {
         return { datum };
       }
 
-      inline virtual std::vector<TdcData> GetTdcData(Int_t) const override {
-        return GetTdcData(); // TBD
+      inline virtual std::vector<TdcData> GetTdcData(Int_t board) const override {
+        using namespace ChannelMapWithBoard;
+        TdcData datum;
+        datum.Spill         = Spill;
+        datum.Tdc           = Tdc;
+        datum.Time          = GetTime();
+        datum.TimePerTdc    = GetTimePerTdc();
+        datum.Board         = board;
+        typename decltype(MrSync      )::const_iterator itr1;
+        typename decltype(itr1->second)::const_iterator itr2;
+        if        ((itr1 = MrSync      .find(board  )) != Ext         .end() &&
+                   (itr2 = itr1->second.begin()      ) != itr1->second.end()) {
+          datum.MrSyncChannel = itr2->second + MrSync::GlobalChannelOffset;
+        }
+        if        ((itr1 = Ext         .find(board  )) != Ext         .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + ExtinctionDetector::GlobalChannelOffset;
+        } else if ((itr1 = Hod         .find(board  )) != Hod         .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + Hodoscope         ::GlobalChannelOffset;
+        } else if ((itr1 = Tc          .find(board  )) != Tc          .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + TimingCounter     ::GlobalChannelOffset;
+        } else if ((itr1 = Bh          .find(board  )) != Bh          .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + BeamlineHodoscope ::GlobalChannelOffset;
+        } else if ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + MrSync            ::GlobalChannelOffset;
+        }
+        return { datum };
+      }
+
+      inline void WriteSpillStart(std::ofstream& file) const {
+        Packet1_t data1 = 0x0000ffff;
+        Packet2_t data2 = (DataType::SpillStart << 4);
+        file.write((Char_t*)&data1, sizeof(Packet1_t));
+        file.write((Char_t*)&data2, sizeof(Packet2_t));
+      }
+      inline void WriteData(std::ofstream& file) const {
+        Packet1_t data1 = ((Channel & 0x3F) << 19) + (Tdc & 0x7FFFF);
+        Packet2_t data2 = (DataType::Data << 4);
+        file.write((Char_t*)&data1, sizeof(Packet1_t));
+        file.write((Char_t*)&data2, sizeof(Packet2_t));
+      }
+      inline void WriteSpillEnd(std::ofstream& file) const {
+        Packet1_t data1 = 0x0;
+        Packet2_t data2 = (DataType::SpillEnd << 4);
+        file.write((Char_t*)&data1, sizeof(Packet1_t));
+        file.write((Char_t*)&data2, sizeof(Packet2_t));
+      }
+      inline void WriteError(std::ofstream& file) const {
+        Packet1_t data1 = (Heartbeat & 0xFFFF);
+        Packet2_t data2 = (DataType::Error << 4);
+        file.write((Char_t*)&data1, sizeof(Packet1_t));
+        file.write((Char_t*)&data2, sizeof(Packet2_t));
+      }
+      inline void WriteHeartbeat(std::ofstream& file) const {
+        Packet1_t data1 = (Heartbeat & 0xFFFF);
+        Packet2_t data2 = (DataType::Heartbeat << 4);
+        file.write((Char_t*)&data1, sizeof(Packet1_t));
+        file.write((Char_t*)&data2, sizeof(Packet2_t));
       }
 
     };
