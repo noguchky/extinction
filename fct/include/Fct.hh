@@ -363,8 +363,8 @@ namespace Extinction {
         datum.Time          = GetTime();
         datum.TimePerTdc    = TimePerTdc;
         datum.Board         = 1;
-        if (MrSync.find(14) != MrSync.end()) {
-          datum.MrSyncChannel = MrSync.at(14) + MrSync::GlobalChannelOffset; // TBD
+        if (MrSync.begin() != MrSync.end()) {
+          datum.MrSyncChannel = MrSync.begin()->second + MrSync::GlobalChannelOffset;
         }
         if        (Ext   .find(Channel) != Ext   .end()) {
           datum.Channel     = Ext   .at(Channel) + ExtinctionDetector::GlobalChannelOffset;
@@ -391,7 +391,7 @@ namespace Extinction {
         typename decltype(MrSync      )::const_iterator itr1;
         typename decltype(itr1->second)::const_iterator itr2;
         if        ((itr1 = MrSync      .find(board  )) != Ext         .end() &&
-                   (itr2 = itr1->second.find(14     )) != itr1->second.end()) {
+                   (itr2 = itr1->second.begin()      ) != itr1->second.end()) {
           datum.MrSyncChannel = itr2->second + MrSync::GlobalChannelOffset;
         }
         if        ((itr1 = Ext         .find(board  )) != Ext         .end() &&
@@ -413,6 +413,27 @@ namespace Extinction {
         return { datum };
       }
 
+      inline void WriteHeader(std::ofstream& file) const {
+        Packet_t data = 0x12345678;
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteGateStart(std::ofstream& file) const {
+        Packet_t data = 0xffffaaaa;
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteData(std::ofstream& file) const {
+        Packet_t data = 0xc0000000U + ((Channel & 0x1fU) << 24) + (Tdc & 0xffffffU);
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteGateEnd(std::ofstream& file) const {
+        Packet_t data = 0xffff5555;
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteCarry(std::ofstream& file) const {
+        Packet_t data = 0xffff0000 + (Carry & 0xff);
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      
     };
 
     class Decoder {

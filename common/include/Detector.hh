@@ -158,6 +158,35 @@ namespace Extinction {
       return list;
     }
 
+    inline Long64_t FindChannel(Double_t x, Double_t y) {
+      if (TMath::Abs(x) > 8.0 * mm * 28 + 100.0 * mm ||
+          TMath::Abs(y) >                 200.0 * mm) {
+        // Outside
+        return -1;
+      } else if (TMath::Abs(x) >  8.0 * mm * 28) {
+        // Left/Right
+        const Int_t    ix    = x <  0 ? 0 : 1;
+        const Int_t    iy    = y >= 0 ? 0 : 1;
+        const Int_t    ch    = iy * 2 + ix;
+        return ch + ChannelOffset::LeftRight;
+      } else if (TMath::Abs(y) > 60.0 * mm) {
+        // Top/Bottom
+        const Double_t dx    = (x + 56.0 * mm * 3.5);
+        const Int_t    ix    = dx / (56.0 * mm);
+        const Int_t    iy    = y >= 0 ? 0 : 1;
+        const Int_t    ch    = iy * 8 + ix;
+        return ch + ChannelOffset::TopBottom;
+      } else {
+        // Center
+        const Double_t dx    = (x + 8.0 * mm * 28);
+        const Int_t    board = dx / (64.0 * mm);
+        const Int_t    ix    = (dx - board * 64.0 * mm) / (8.0 * mm);
+        const Int_t    iy    = y >= 0 ? 0 : 1;
+        const Int_t    ch    = board * 16 + iy * 8 + ix;
+        return ch + ChannelOffset::Center;
+      }
+    }
+
     inline void Fill(TH2* hist, std::size_t channel) {
       const Int_t    type = GetType(channel);
       const Double_t area = GetArea(type) / cm2;
@@ -300,6 +329,20 @@ namespace Extinction {
       }
 
       return list;
+    }
+
+    inline Long64_t FindChannel(Double_t x, Double_t y) {
+      if (TMath::Abs(x) > 320.0 * mm ||
+          TMath::Abs(y) > 120.0 * mm) {
+        // Outside
+        return -1;
+      } else {
+        // Inside
+        const Double_t dx = (x + 320.0 * mm);
+        const Int_t    ix = dx / (40.0 * mm);
+        const Int_t    ch = ix;
+        return ch;
+      }
     }
 
     inline void Fill(TH2* hist, std::size_t channel) {
