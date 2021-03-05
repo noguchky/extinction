@@ -155,13 +155,15 @@ namespace {
 
 Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
-  args->AddArg<std::string>("ConfFilename"  ,                    "A configure filename");
-  args->AddOpt<Int_t>      ("Boards"        , 'b', "boards"    , "Set comma-separated input boards");
-  args->AddOpt<std::string>("Filenames"     , 'f', "files"     , "Set comma-separated input filenames (no wait to be written)");
-  args->AddOpt<std::string>("ChannelAlign"  , 'a', "align"     , "Set channel align (raw/projection)", "raw");
-  args->AddOpt<Int_t>      ("MonitorMode"   , 'm', "mode"      , "Set monitor mode (channel/offset/coincidence)", "coincidence");
-  args->AddOpt<Int_t>      ("MonitorChannel", 'c', "channel"   , "Set monitor channel by global channel", "-1");
-  args->AddOpt             ("Help"          , 'h', "help"      , "Show usage");
+  args->AddArg<std::string>("ConfFilename"    ,                  "A configure filename");
+  args->AddOpt<Int_t>      ("Boards"          , 'b', "boards"  , "Set comma-separated input boards");
+  args->AddOpt<std::string>("Filenames"       , 'f', "files"   , "Set comma-separated input filenames (no wait to be written)");
+  args->AddOpt<std::string>("ChannelAlign"    , 'a', "align"   , "Set channel align (raw/projection)", "raw");
+  args->AddOpt<Int_t>      ("MonitorMode"     , 'm', "mode"    , "Set monitor mode (channel/offset/coincidence)", "coincidence");
+  args->AddOpt<Int_t>      ("MonitorChannel"  , 'c', "channel" , "Set monitor channel by global channel", "-1");
+  args->AddOpt<std::string>("OffsetFilename"  , 'o', "offset"  , "Set output offset filename", "");
+  args->AddOpt<std::string>("IntervalFilename", 'i', "interval", "Set output mr-sync interval filename", "");
+  args->AddOpt             ("Help"            , 'h', "help"    , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
     args->ShowUsage();
@@ -177,12 +179,14 @@ Int_t main(Int_t argc, Char_t** argv) {
     return 0;
   }
 
-  const std::string confFilename   = args->GetValue("ConfFilename");
-  const std::string channelAlign   = args->GetValue("ChannelAlign");
-  const std::string monitorMode    = args->GetValue("MonitorMode");
-  const Int_t       monitorChannel = args->GetValue<Int_t>("MonitorChannel");
-  const Bool_t      isBoardsSet    = args->IsSet("Boards");
-  const Bool_t      isFilenamesSet = args->IsSet("Filenames");
+  const std::string confFilename     = args->GetValue("ConfFilename");
+  const std::string channelAlign     = args->GetValue("ChannelAlign");
+  const std::string monitorMode      = args->GetValue("MonitorMode");
+  const Int_t       monitorChannel   = args->GetValue<Int_t>("MonitorChannel");
+  const Bool_t      isBoardsSet      = args->IsSet("Boards");
+  const Bool_t      isFilenamesSet   = args->IsSet("Filenames");
+  const std::string offsetFilename   = args->GetValue("OffsetFilename");
+  const std::string intervalFilename = args->GetValue("IntervalFilename");
 
   const Bool_t isWatchingMode = !isFilenamesSet;
 
@@ -200,6 +204,20 @@ Int_t main(Int_t argc, Char_t** argv) {
   const Int_t windowWidth  = conf->GetValue<Int_t>("Window.Width" );
   const Int_t windowHeight = conf->GetValue<Int_t>("Window.Height");
 
+  Extinction::Fct::MonitorWindow::PlotsProfiles profile;
+  profile.TimeInSpill   .NbinsX   = conf->GetValue<Double_t>("TimeInSpill.NbinsX");
+  profile.TimeInSpill   .Xmin     = conf->GetValue<Double_t>("TimeInSpill.Xmin");
+  profile.TimeInSpill   .Xmax     = conf->GetValue<Double_t>("TimeInSpill.Xmax");
+  profile.TimeInSpill   .Unit     = conf->GetValue<Double_t>("TimeInSpill.Unit");
+  profile.TimeInSync    .Xmin     = conf->GetValue<Double_t>("TimeInSync.Xmin");
+  profile.TimeInSync    .Xmax     = conf->GetValue<Double_t>("TimeInSync.Xmax");
+  profile.TimeInSync    .BinWidth = conf->GetValue<Double_t>("TimeInSync.BinWidth");
+  profile.MrSyncInterval.Mean     = conf->GetValue<Double_t>("MrSyncInterval.Mean");
+  profile.MrSyncInterval.Xmin     = conf->GetValue<Double_t>("MrSyncInterval.Xmin");
+  profile.MrSyncInterval.Xmax     = conf->GetValue<Double_t>("MrSyncInterval.Xmax");
+  profile.TimeDiff      .Xmin     = conf->GetValue<Double_t>("TimeDiff.Xmin");
+  profile.TimeDiff      .Xmax     = conf->GetValue<Double_t>("TimeDiff.Xmax");
+
   const std::vector<int> boards = isBoardsSet ? Tron::Linq::From(argBoards)
     .Select([](const std::string& board) { return Tron::String::Convert<Int_t>(board); })
     .ToVector() :
@@ -214,6 +232,11 @@ Int_t main(Int_t argc, Char_t** argv) {
   const std::map<Int_t, Double_t> mrSyncInterval = Tron::Linq::From(boards)
     .ToMap([&](int board) { return board; },
            [&](int board) { return conf->GetValue<Double_t>(Form("MrSyncInterval.%d", board)); });
+
+  const Double_t    historyWidth   = conf->GetValue<Double_t   >("HistoryWidth");
+  const Double_t    coinTimeWidth  = conf->GetValue<Double_t   >("CoinTimeWidth");
+  const Long64_t    spillLimit     = conf->GetValue<Long64_t   >("SpillLimit");
+  const std::size_t readBufferSize = conf->GetValue<std::size_t>("ReadBufferSize");
 
   if (isWatchingMode) {
     filenames = Tron::Linq::From(boards)
@@ -254,28 +277,35 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   if        (channelAlign == "raw"       ) {
-    monitor->SetChannelAlign(Extinction::Fct::ChannelAlign::Raw);
+    monitor->SetChannelAlign(Extinction::Fct::MonitorWindow::ChannelAlign::Raw);
   } else if (channelAlign == "projection") {
-    monitor->SetChannelAlign(Extinction::Fct::ChannelAlign::Projection);
+    monitor->SetChannelAlign(Extinction::Fct::MonitorWindow::ChannelAlign::Projection);
   } else {
     std::cerr << "[warning] invalid align, set to raw align" << std::endl;
-    monitor->SetChannelAlign(Extinction::Fct::ChannelAlign::Raw);
+    monitor->SetChannelAlign(Extinction::Fct::MonitorWindow::ChannelAlign::Raw);
   }
   if        (monitorMode == "channel") {
-    monitor->SetMonitorMode(Extinction::Fct::MonitorMode::Channel, monitorChannel);
+    monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Channel, monitorChannel);
   } else if (monitorMode == "offset") {
-    monitor->SetMonitorMode(Extinction::Fct::MonitorMode::Offset, monitorChannel);
+    monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Offset, monitorChannel);
+    monitor->SetMrSyncIntervalFilename(intervalFilename);
+    monitor->SetCoinDiffsFilename(offsetFilename);
   } else if (monitorMode == "coincidence") {
-    monitor->SetMonitorMode(Extinction::Fct::MonitorMode::Coincidence);
+    monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Coincidence);
   } else {
     std::cerr << "[warning] invalid monitor mode, set to coincidence" << std::endl;
-    monitor->SetMonitorMode(Extinction::Fct::MonitorMode::Coincidence);
+    monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Coincidence);
   }
 
+  monitor->SetHistoryWidth(historyWidth);
+  monitor->SetCoinTimeWidth(coinTimeWidth);
+  monitor->SetSpillLimit(spillLimit);
+  monitor->SetReadBufferSize(readBufferSize);
+  
   monitor->SetTimePerTdc(timePerTdc);
   monitor->SetMrSyncInterval(mrSyncInterval);
   monitor->InitializeWindow(windowWidth ? windowWidth : 1600, windowHeight ? windowHeight : 1200);
-  monitor->InitializePlots();
+  monitor->InitializePlots(profile);
   monitor->DrawPlots();
 
   std::cout << "--- Set signal handler" << std::endl;
