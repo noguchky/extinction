@@ -3,7 +3,6 @@
 #include "TRandom.h"
 
 #include "Linq.hh"
-#include "Math.hh"
 
 #include "Tdc.hh"
 #include "Detector.hh"
@@ -33,7 +32,7 @@ namespace {
   Double_t sigmaT =  1 * nsec;
 
   const Double_t nofParticles          = 1.6e11;
-  const Double_t daqTime               = 1.5 * 24 * 60 * 60 * sec;
+  const Double_t daqTime               = 1.0 * 24 * 60 * 60 * sec;
 
   const Double_t cycle                 =    5.52 *  sec;
   const Double_t spillLength           =    0.5  *  sec;
@@ -99,7 +98,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   Extinction::Fct::ChannelMapWithBoard::Load(conf, boards);
 
-  TF1* fGaussX = new TF1("fGaussX", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/((x>=[1])*[2]+(x<[1])*[3])))", /*-40, 40*/-30, 30);
+  TF1* fGaussX = new TF1("fGaussX", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/((x>=[1])*[2]+(x<[1])*[3])))", -40, 40);
   fGaussX->SetParNames("Constant", "Mu", "Sigma+", "Sigma-");
   fGaussX->SetNpx(80 * 10);
   fGaussX->SetParameters(1.0,
@@ -107,7 +106,7 @@ Int_t main(Int_t argc, Char_t** argv) {
                          K18BR::X::SigmaP / Extinction::cm,
                          K18BR::X::SigmaN / Extinction::cm);
 
-  TF1* fGaussY = new TF1("fGaussY", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/[2]))", /*-32, 32*/-10, 10);
+  TF1* fGaussY = new TF1("fGaussY", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/[2]))", -32, 32);
   fGaussY->SetParNames("Constant", "Mu", "Sigma");
   fGaussY->SetNpx(64 * 10);
   fGaussY->SetParameters(1.0,
@@ -157,7 +156,7 @@ Int_t main(Int_t argc, Char_t** argv) {
       hits[board].clear();
     }
     for (auto&& board : boards) {
-      const Long64_t tdc = TMath::Max(0.0, (t0 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+      const Long64_t tdc = TMath::Max(0.0, (t0 + gRandom->Gaus() * sigmaT) / timePerTdc);
       // std::cout << tdc << std::endl;
       for (auto&& pair : Extinction::Fct::ChannelMapWithBoard::MrSync[board]) {
         hits[board][tdc].insert(pair.first);
@@ -169,7 +168,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         std::cout << " !! reakage" << std::endl;
         const Int_t bunch = gRandom->Integer(nofBunchPerMrSync);
         const Double_t mu = bunchT0 + (bunch + 0.5) * bunchInterval;
-        const Double_t t = t0 + mu + gRandom->Gaus() * bunchSigma * 2.0; // gRandom->Uniform(-200.0 * nsec, 200.0 * nsec);
+        const Double_t t = t0 + mu + gRandom->Gaus() * bunchSigma * 2.0;
         const Double_t x = fGaussX->GetRandom() * cm;
         const Double_t y = fGaussY->GetRandom() * cm;
         hMap->Fill(x / cm, y / cm);
@@ -177,7 +176,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         {
           ch = 0;
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::BeamlineHodoscope::GlobalChannelOffset];
-          const Long64_t tdc = TMath::Max(0.0, (t + dtBH1 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+          const Long64_t tdc = TMath::Max(0.0, (t + dtBH1 + gRandom->Gaus() * sigmaT) / timePerTdc);
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Bh[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
             .FirstOrDefault()
@@ -188,7 +187,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         {
           ch = 1;
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::BeamlineHodoscope::GlobalChannelOffset];
-          const Long64_t tdc = TMath::Max(0.0, (t + dtBH2 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+          const Long64_t tdc = TMath::Max(0.0, (t + dtBH2 + gRandom->Gaus() * sigmaT) / timePerTdc);
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Bh[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
             .FirstOrDefault()
@@ -199,7 +198,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         {
           ch = TMath::Max(Extinction::Hodoscope::FindChannel(x / 2, y), 0LL);
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::Hodoscope::GlobalChannelOffset];
-          const Long64_t tdc = TMath::Max(0.0, (t + dtHod + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+          const Long64_t tdc = TMath::Max(0.0, (t + dtHod + gRandom->Gaus() * sigmaT) / timePerTdc);
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Hod[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
             .FirstOrDefault()
@@ -210,7 +209,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         {
           ch = TMath::Max(Extinction::ExtinctionDetector::FindChannel(x, y), 0LL);
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::ExtinctionDetector::GlobalChannelOffset];
-          const Long64_t tdc = TMath::Max(0.0, (t + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+          const Long64_t tdc = TMath::Max(0.0, (t + gRandom->Gaus() * sigmaT) / timePerTdc);
 
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Ext[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
@@ -222,7 +221,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         {
           ch = 0;
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::TimingCounter::GlobalChannelOffset];
-          const Long64_t tdc = TMath::Max(0.0, (t + dtTC1 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+          const Long64_t tdc = TMath::Max(0.0, (t + dtTC1 + gRandom->Gaus() * sigmaT) / timePerTdc);
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Tc[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
             .FirstOrDefault()
@@ -233,7 +232,7 @@ Int_t main(Int_t argc, Char_t** argv) {
         {
           ch = 1;
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::TimingCounter::GlobalChannelOffset];
-          const Long64_t tdc = TMath::Max(0.0, (t + dtTC2 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+          const Long64_t tdc = TMath::Max(0.0, (t + dtTC2 + gRandom->Gaus() * sigmaT) / timePerTdc);
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Tc[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
             .FirstOrDefault()
@@ -248,7 +247,7 @@ Int_t main(Int_t argc, Char_t** argv) {
             std::cout << ">> " << particleCnt << std::endl;
           }
           const Double_t mu = bunchT0 + bunch * bunchInterval;
-          const Double_t t = t0 + mu + gRandom->Gaus() * bunchSigma; // gRandom->Uniform(-100.0 * nsec, 100.0 * nsec);
+          const Double_t t = t0 + mu + gRandom->Gaus() * bunchSigma;
           const Double_t x = fGaussX->GetRandom() * cm;
           const Double_t y = fGaussY->GetRandom() * cm;
           hMap->Fill(x / cm, y / cm);
@@ -257,7 +256,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           {
             ch = 0;
             const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::BeamlineHodoscope::GlobalChannelOffset];
-            const Long64_t tdc = TMath::Max(0.0, (t + dtBH1 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+            const Long64_t tdc = TMath::Max(0.0, (t + dtBH1 + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Bh[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()
@@ -268,7 +267,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           if (reach < 1.05) {
             ch = 1;
             const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::BeamlineHodoscope::GlobalChannelOffset];
-            const Long64_t tdc = TMath::Max(0.0, (t + dtBH2 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+            const Long64_t tdc = TMath::Max(0.0, (t + dtBH2 + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Bh[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()
@@ -279,7 +278,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           if (reach < 1.03 &&
               (ch = Extinction::Hodoscope::FindChannel(x / 2, y)) >= 0) {
             const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::Hodoscope::GlobalChannelOffset];
-            const Long64_t tdc = TMath::Max(0.0, (t + dtHod + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+            const Long64_t tdc = TMath::Max(0.0, (t + dtHod + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Hod[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()
@@ -290,7 +289,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           if (reach < 1.02 &&
               (ch = Extinction::ExtinctionDetector::FindChannel(x, y)) >= 0) {
             const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::ExtinctionDetector::GlobalChannelOffset];
-            const Long64_t tdc = TMath::Max(0.0, (t + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+            const Long64_t tdc = TMath::Max(0.0, (t + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Ext[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()
@@ -301,7 +300,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           if (reach < 1.01) {
             ch = 0;
             const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::TimingCounter::GlobalChannelOffset];
-            const Long64_t tdc = TMath::Max(0.0, (t + dtTC1 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+            const Long64_t tdc = TMath::Max(0.0, (t + dtTC1 + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Tc[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()
@@ -312,7 +311,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           if (reach < 1.00) {
             ch = 1;
             const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::TimingCounter::GlobalChannelOffset];
-            const Long64_t tdc = TMath::Max(0.0, (t + dtTC2 + Tron::Math::Bind(gRandom->Gaus(), -10.0, 10.0) * sigmaT) / timePerTdc);
+            const Long64_t tdc = TMath::Max(0.0, (t + dtTC2 + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Tc[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()

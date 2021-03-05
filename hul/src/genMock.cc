@@ -1,3 +1,4 @@
+#include "TApplication.h"
 #include "TF1.h"
 #include "TRandom.h"
 
@@ -11,19 +12,27 @@ namespace {
   using namespace Extinction;
   namespace K18BR {
     namespace X {
-      const Double_t Mu     = -6.722 * cm;
-      const Double_t SigmaP = 14.37  * cm;
-      const Double_t SigmaN =  6.621 * cm;
+      Double_t Mu     = -6.722 * cm;
+      Double_t SigmaP = 14.37  * cm;
+      Double_t SigmaN =  6.621 * cm;
     }
     namespace Y {
-      const Double_t Mu     =  0.0   * cm;
-      const Double_t Sigma  =  3.574 * cm;
+      Double_t Mu     =  0.0   * cm;
+      Double_t Sigma  =  3.574 * cm;
     }
   }
 
-  const Double_t extinction            = 3.0e-11;
+  Double_t extinction = 3.0e-11;
+
+  Double_t dtBH1 = 100 * nsec;
+  Double_t dtBH2 = 120 * nsec;
+  Double_t dtHod = 110 * nsec;
+  Double_t dtTC1 = 140 * nsec;
+  Double_t dtTC2 = 140 * nsec;
+  Double_t sigmaT =  1 * nsec;
+
   const Double_t nofParticles          = 1.6e11;
-  const Double_t daqTime               = 24 * 60 * 60 * sec;
+  const Double_t daqTime               = 1.0 * 24 * 60 * 60 * sec;
 
   const Double_t cycle                 =    5.52 *  sec;
   const Double_t spillLength           =    0.5  *  sec;
@@ -43,13 +52,6 @@ namespace {
   const Double_t nofBunchPerMrSync     = 4;
   const Double_t nofParticlesPerMrSync = nofParticlesPerSpill / nofMrSyncInSpill;
   const Double_t nofParticlesPerBunch  = nofParticlesPerMrSync/ nofBunchPerMrSync;
-
-  const Double_t dtBH1 = 100 * nsec;
-  const Double_t dtBH2 = 120 * nsec;
-  const Double_t dtHod = 110 * nsec;
-  const Double_t dtTC1 = 140 * nsec;
-  const Double_t dtTC2 = 140 * nsec;
-  const Double_t sigmaT =  1 * nsec;
 }
 
 Int_t main(Int_t argc, Char_t** argv) {
@@ -57,7 +59,9 @@ Int_t main(Int_t argc, Char_t** argv) {
     std::cout << "Usage: ./genMock [ConfFilename]" << std::endl;
     return 1;
   }
-  
+
+  TApplication* app = new TApplication("app", nullptr, nullptr);
+
   const std::string confFilename = argv[1];
 
   std::cout << "--- Load configure" << std::endl;
@@ -69,12 +73,34 @@ Int_t main(Int_t argc, Char_t** argv) {
   conf->ShowContents();
 
   const auto boards = conf->GetValues<Int_t>("Boards");
+  {
+    using namespace K18BR::X;
+    Mu     = conf->GetValue<Double_t>("K18BR.X.Mu");
+    SigmaP = conf->GetValue<Double_t>("K18BR.X.SigmaP");
+    SigmaN = conf->GetValue<Double_t>("K18BR.X.SigmaN");
+  }
+  {
+    using namespace K18BR::Y;
+    Mu     = conf->GetValue<Double_t>("K18BR.Y.Mu");
+    Sigma  = conf->GetValue<Double_t>("K18BR.Y.Sigma");
+  }
+  {
+    extinction = conf->GetValue<Double_t>("Extinction");
+
+    dtBH1  = conf->GetValue<Double_t>("Offset.BH1");
+    dtBH2  = conf->GetValue<Double_t>("Offset.BH2");
+    dtHod  = conf->GetValue<Double_t>("Offset.Hod");
+    dtTC1  = conf->GetValue<Double_t>("Offset.TC1");
+    dtTC2  = conf->GetValue<Double_t>("Offset.TC2");
+
+    sigmaT = conf->GetValue<Double_t>("TimeResolution");
+  }
 
   Extinction::Hul::ChannelMapWithBoard::Load(conf, boards);
 
   TF1* fGaussX = new TF1("fGaussX", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/((x>=[1])*[2]+(x<[1])*[3])))", -40, 40);
   fGaussX->SetParNames("Constant", "Mu", "Sigma+", "Sigma-");
-  fGaussX->SetNpx(64*10);
+  fGaussX->SetNpx(80 * 10);
   fGaussX->SetParameters(1.0,
                          K18BR::X::Mu / Extinction::cm,
                          K18BR::X::SigmaP / Extinction::cm,
@@ -82,10 +108,12 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   TF1* fGaussY = new TF1("fGaussY", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/[2]))", -32, 32);
   fGaussY->SetParNames("Constant", "Mu", "Sigma");
-  fGaussY->SetNpx(64*10);
+  fGaussY->SetNpx(64 * 10);
   fGaussY->SetParameters(1.0,
                          K18BR::Y::Mu / Extinction::cm,
                          K18BR::Y::Sigma / Extinction::cm);
+
+  TH2* hMap = new TH2D("hMap", "Hit Map;x [cm];y [cm]", 80, -40, 40, 64, -32, 32);
 
   Extinction::Hul::HulData data;
   const Double_t timePerTdc = data.GetTimePerTdc();
@@ -114,7 +142,10 @@ Int_t main(Int_t argc, Char_t** argv) {
   std::cout << "nofParticlesPerSpill  = " << nofParticlesPerSpill  << std::endl;
   std::cout << "nofParticlesPerMrSync = " << nofParticlesPerMrSync << std::endl;
   std::cout << "nofParticlesPerBunch  = " << nofParticlesPerBunch  << std::endl;
-  Long64_t particleCnt = 0;
+  std::cout << "timeResolution        = " << sigmaT / Extinction::nsec << " nsec" << std::endl;
+  std::cout << "time/tdc              = " << timePerTdc / Extinction::nsec << " nsec" << std::endl;
+
+  Long64_t particleCnt = 0, coinParticleCnt = 0;
   for (Long64_t mrSync = 0; mrSync < nofMrSync; ++mrSync) {
     // if (mrSync % 1000 == 0) {
     //   std::cout << " --- " << mrSync << std::endl;
@@ -133,14 +164,14 @@ Int_t main(Int_t argc, Char_t** argv) {
     }
     if (extractT0 < t0 && t0 < extractT0 + spillLength) {
       // Extracting
-      for (Long64_t residual = 0; residual < gRandom->Poisson(nofParticlesPerBunch * extinction); ++residual) {
+      for (Long64_t residual = 0, residuals = gRandom->Poisson(nofParticlesPerBunch * extinction); residual < residuals; ++residual) {
         std::cout << " !! reakage" << std::endl;
         const Int_t bunch = gRandom->Integer(nofBunchPerMrSync);
         const Double_t mu = bunchT0 + (bunch + 0.5) * bunchInterval;
         const Double_t t = t0 + mu + gRandom->Gaus() * bunchSigma * 2.0;
         const Double_t x = fGaussX->GetRandom() * cm;
         const Double_t y = fGaussY->GetRandom() * cm;
-        const Double_t reach = gRandom->Uniform(0.0, 2.1);
+        hMap->Fill(x / cm, y / cm);
         // BH1
         {
           ch = 0;
@@ -153,7 +184,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           hits[board][tdc].insert(rawCh);
         }
         // BH2
-        if (reach < 1.05) {
+        {
           ch = 1;
           const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::BeamlineHodoscope::GlobalChannelOffset];
           const Long64_t tdc = TMath::Max(0.0, (t + dtBH2 + gRandom->Gaus() * sigmaT) / timePerTdc);
@@ -163,9 +194,9 @@ Int_t main(Int_t argc, Char_t** argv) {
             .first;
           hits[board][tdc].insert(rawCh);
         }
-        // HOD1
-        if (reach < 1.03 &&
-            (ch = Extinction::Hodoscope::FindChannel(x, y)) >= 0) {
+        // HOD
+        {
+          ch = TMath::Max(Extinction::Hodoscope::FindChannel(x / 2, y), 0LL);
           const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::Hodoscope::GlobalChannelOffset];
           const Long64_t tdc = TMath::Max(0.0, (t + dtHod + gRandom->Gaus() * sigmaT) / timePerTdc);
           const Long64_t rawCh = Tron::Linq::From(Extinction::Hul::ChannelMapWithBoard::Hod[board])
@@ -175,8 +206,8 @@ Int_t main(Int_t argc, Char_t** argv) {
           hits[board][tdc].insert(rawCh);
         }
         // EXT
-        if (reach < 1.02 &&
-            (ch = Extinction::ExtinctionDetector::FindChannel(x, y)) >= 0) {
+        {
+          ch = TMath::Max(Extinction::ExtinctionDetector::FindChannel(x, y), 0LL);
           const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::ExtinctionDetector::GlobalChannelOffset];
           const Long64_t tdc = TMath::Max(0.0, (t + gRandom->Gaus() * sigmaT) / timePerTdc);
 
@@ -187,7 +218,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           hits[board][tdc].insert(rawCh);
         }
         // TC1
-        if (reach < 1.01) {
+        {
           ch = 0;
           const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::TimingCounter::GlobalChannelOffset];
           const Long64_t tdc = TMath::Max(0.0, (t + dtTC1 + gRandom->Gaus() * sigmaT) / timePerTdc);
@@ -198,7 +229,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           hits[board][tdc].insert(rawCh);
         }
         // TC2
-        if (reach < 1.00) {
+        {
           ch = 1;
           const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::TimingCounter::GlobalChannelOffset];
           const Long64_t tdc = TMath::Max(0.0, (t + dtTC2 + gRandom->Gaus() * sigmaT) / timePerTdc);
@@ -207,10 +238,11 @@ Int_t main(Int_t argc, Char_t** argv) {
             .FirstOrDefault()
             .first;
           hits[board][tdc].insert(rawCh);
+          ++coinParticleCnt;
         }
       }
       for (Long64_t bunch = 0; bunch < nofBunchPerMrSync; ++bunch) {
-        for (Long64_t particle = 0; particle < nofParticlesPerBunch * 2.1; ++particle) {
+        for (Long64_t particle = 0, particles = gRandom->Poisson(nofParticlesPerBunch * 2.1); particle < particles; ++particle) {
           if (++particleCnt % 200000 == 0) {
             std::cout << ">> " << particleCnt << std::endl;
           }
@@ -218,6 +250,7 @@ Int_t main(Int_t argc, Char_t** argv) {
           const Double_t t = t0 + mu + gRandom->Gaus() * bunchSigma;
           const Double_t x = fGaussX->GetRandom() * cm;
           const Double_t y = fGaussY->GetRandom() * cm;
+          hMap->Fill(x / cm, y / cm);
           const Double_t reach = gRandom->Uniform(0.0, 2.1);
           // BH1
           {
@@ -241,9 +274,9 @@ Int_t main(Int_t argc, Char_t** argv) {
               .first;
             hits[board][tdc].insert(rawCh);
           }
-          // HOD1
+          // HOD
           if (reach < 1.03 &&
-              (ch = Extinction::Hodoscope::FindChannel(x, y)) >= 0) {
+              (ch = Extinction::Hodoscope::FindChannel(x / 2, y)) >= 0) {
             const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::Hodoscope::GlobalChannelOffset];
             const Long64_t tdc = TMath::Max(0.0, (t + dtHod + gRandom->Gaus() * sigmaT) / timePerTdc);
             const Long64_t rawCh = Tron::Linq::From(Extinction::Hul::ChannelMapWithBoard::Hod[board])
@@ -257,9 +290,6 @@ Int_t main(Int_t argc, Char_t** argv) {
               (ch = Extinction::ExtinctionDetector::FindChannel(x, y)) >= 0) {
             const Int_t board = Extinction::Hul::ChannelMapWithBoard::Board[ch + Extinction::ExtinctionDetector::GlobalChannelOffset];
             const Long64_t tdc = TMath::Max(0.0, (t + gRandom->Gaus() * sigmaT) / timePerTdc);
-            // if (ch == 50) {
-            //   std::cout << (Long64_t)(t/nsec) << "\t" << tdc << std::endl;
-            // }
             const Long64_t rawCh = Tron::Linq::From(Extinction::Hul::ChannelMapWithBoard::Ext[board])
               .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
               .FirstOrDefault()
@@ -287,6 +317,7 @@ Int_t main(Int_t argc, Char_t** argv) {
               .FirstOrDefault()
               .first;
             hits[board][tdc].insert(rawCh);
+            ++coinParticleCnt;
           }
         }
       }
@@ -299,9 +330,6 @@ Int_t main(Int_t argc, Char_t** argv) {
       for (auto&& hitInTdc : hitsInBoard.second) {
         const Long64_t tdc = hitInTdc.first;
         const Long64_t currentHeartbeat = tdc >> 19;
-        // if (board == 0) {
-        //   std::cout << Form("%30llx", tdc) << "\t" << currentHeartbeat << std::endl;
-        // }
         for (; heartbeat[board] <= currentHeartbeat; ++heartbeat[board]) {
           data.Heartbeat = heartbeat[board];
           data.WriteHeartbeat(ofile[board]);
@@ -318,7 +346,14 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   for (auto&& board : boards) {
     data.WriteSpillEnd(ofile[board]);
+    ofile[board].close();
   }
+
+  std::cout << "coinParticleCnt       = " << coinParticleCnt << std::endl;
+
+  hMap->Draw("col");
+  
+  app->Run();
   
   return 0;
 }
