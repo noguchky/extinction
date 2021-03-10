@@ -303,68 +303,71 @@ namespace Extinction {
             const Double_t    time  = extData.Time;
             Bool_t coincidence[CoinOffset::N];
             std::vector<std::size_t> coinHodChs;
+
             for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
               const std::size_t i = bhCh + CoinOffset::BH;
-              if (contains[extCh][i]) {
-                coincidence[i] = false;
-                for (auto&& lastData : lastBhData) {
-                  const Double_t dt    = lastData.Time - time;
-                  const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-                  // const Double_t sigma = 3.0 * coinInfo[extCh][i].FitSigma * timePerTdc;
-                  const Double_t sigma = 25.0 * nsec;
-                  if (TMath::Abs(dt - mean) < sigma) {
-                    coincidence[i] = true;
+              coincidence[i] = !contains[extCh][i];
+            }
+            for (auto&& lastData : lastBhData) {
+              const std::size_t bhCh = BeamlineHodoscope::GetChannel(lastData.Channel);
+              const std::size_t i = bhCh + CoinOffset::BH;
+              if (!coincidence[i]) {
+                const Double_t dt   = lastData.Time - time;
+                const Double_t mean = coinInfo[extCh][i].FitMean * timePerTdc;
+                const Double_t sigma = 25.0 * nsec;
+                if (std::abs(dt - mean) < sigma) {
+                  coincidence[i] = true;
+                  if (std::all_of(coincidence + CoinOffset::BH, coincidence + CoinOffset::BH + BeamlineHodoscope::NofChannels, [](Bool_t b) { return b; })) {
                     break;
                   }
                 }
-              } else {
-                coincidence[i] = true;
               }
             }
+
             {
               const std::size_t hodCh = 0;
               const std::size_t i = hodCh + CoinOffset::Hod;
-              if (contains[extCh][i]) {
-                coincidence[i] = false;
-                for (auto&& lastData : lastHodData) {
-                  if (lastData.Channel != Hodoscope::GlobalChannelOffset) {
-                    continue;
-                  } // TBD: for 20201217
-                  const Double_t dt    = lastData.Time - time;
-                  const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-                  // const Double_t sigma = 3.0 * coinInfo[extCh][i].FitSigma * timePerTdc;
-                  const Double_t sigma = 25.0 * nsec;
-                  if (TMath::Abs(dt - mean) < sigma) {
-                    coincidence[i] = true;
-                    coinHodChs.push_back(Hodoscope::GetChannel(lastData.Channel));
-                    break;
-                  }
+              coincidence[i] = !contains[extCh][i];
+            }
+            for (auto&& lastData : lastHodData) {
+              if (lastData.Channel != Hodoscope::GlobalChannelOffset) {
+                continue;
+              } // TBD: for 20201217
+              const std::size_t hodCh = 0;
+              const std::size_t i = hodCh + CoinOffset::Hod;
+              if (!coincidence[i]) {
+                const Double_t dt   = lastData.Time - time;
+                const Double_t mean = coinInfo[extCh][i].FitMean * timePerTdc;
+                const Double_t sigma = 25.0 * nsec;
+                if (std::abs(dt - mean) < sigma) {
+                  coincidence[i] = true;
+                  coinHodChs.push_back(Hodoscope::GetChannel(lastData.Channel));
+                  break;
                 }
-              } else {
-                coincidence[i] = true;
               }
             }
+
             for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
               const std::size_t i = tcCh + CoinOffset::TC;
-              if (contains[extCh][i]) {
-                coincidence[i] = false;
-                for (auto&& lastData : lastTcData) {
-                  const Double_t dt    = lastData.Time - time;
-                  const Double_t mean  = coinInfo[extCh][i].FitMean * timePerTdc;
-                  // const Double_t sigma = 3.0 * coinInfo[extCh][i].FitSigma * timePerTdc;
-                  const Double_t sigma = 25.0 * nsec;
-                  if (TMath::Abs(dt - mean) < sigma) {
-                    coincidence[i] = true;
+              coincidence[i] = !contains[extCh][i];
+            }
+            for (auto&& lastData : lastTcData) {
+              const std::size_t tcCh = TimingCounter::GetChannel(lastData.Channel);
+              const std::size_t i = tcCh + CoinOffset::TC;
+              if (!coincidence[i]) {
+                const Double_t dt   = lastData.Time - time;
+                const Double_t mean = coinInfo[extCh][i].FitMean * timePerTdc;
+                const Double_t sigma = 25.0 * nsec;
+                if (std::abs(dt - mean) < sigma) {
+                  coincidence[i] = true;
+                  if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
                     break;
                   }
                 }
-              } else {
-                coincidence[i] = true;
               }
             }
 
             if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-
               // std::cout << "contains: " << std::endl;
               // for (auto&& pair1 : contains) {
               //   for (auto&& pair2 : pair1.second) {
