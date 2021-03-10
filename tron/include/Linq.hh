@@ -199,7 +199,7 @@ namespace Tron {
       }
 
       auto Average() const -> Value_t {
-        return IsEmpty() ? Sum() / Count() : Value_t();
+        return IsEmpty() ? Value_t() : Sum() / Count();
       }
 
       auto Distinct() const -> Enumerable_t<std::set<Value_t>> {
