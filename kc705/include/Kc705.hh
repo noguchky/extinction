@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
+#include <set>
 #include "TFile.h"
 #include "TTree.h"
 #include "Units.hh"
@@ -77,12 +78,13 @@ namespace Extinction {
     }
 
     namespace ChannelMapWithBoard {
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Ext;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Hod;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Tc;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
-      std::map<Int_t/*global*/, Int_t/*board*/>               Board;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> ExtMppc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> ExtSub;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> Hod;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> Tc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> Bh;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> MrSync;
+      std::map<Int_t/*global*/, std::set<Int_t/*board*/>> Board;
 
       void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
         for (auto&& board : boards) {
@@ -95,27 +97,30 @@ namespace Extinction {
                 const Int_t       raw      = Tron::String::Convert<Int_t>(elems[0]);
                 const std::string detector =                              elems[1] ;
                 const Int_t       channel  = Tron::String::Convert<Int_t>(elems[2]);
-                if      (detector == "Ext"   ) {
-                  Ext   [board][raw] = channel;
-                  Board [channel + ExtinctionDetector::GlobalChannelOffset] = board;
-                } else if (detector == "Hod"   ) {
-                  Hod   [board][raw] = channel;
-                  Board [channel + Hodoscope         ::GlobalChannelOffset] = board;
-                } else if (detector == "Bh"    ) {
-                  Bh    [board][raw] = channel;
-                  Board [channel + BeamlineHodoscope ::GlobalChannelOffset] = board;
-                } else if (detector == "Tc"    ) {
-                  Tc    [board][raw] = channel;
-                  Board [channel + TimingCounter     ::GlobalChannelOffset] = board;
-             // } else if (detector == "MrP3"  ) {
-             //   MrP3  [board][raw] = channel;
-             //   Board [channel + MrP3              ::GlobalChannelOffset] = board;
-             // } else if (detector == "MrRf"  ) {
-             //   MrRf  [board][raw] = channel;
-             //   Board [channel + MrRf              ::GlobalChannelOffset] = board;
-                } else if (detector == "MrSync") {
-                  MrSync[board][raw] = channel;
-                  Board [channel + MrSync            ::GlobalChannelOffset] = board;
+                if        (detector == "ExtMppc") {
+                  ExtMppc[board][raw].insert(channel);
+                  Board  [channel + ExtinctionDetector::GlobalChannelOffset].insert(board);
+                } else if (detector == "ExtSub" ) {
+                  ExtSub [board][raw].insert(channel);
+                  Board  [channel + ExtinctionDetector::GlobalChannelOffset].insert(board);
+                } else if (detector == "Hod"    ) {
+                  Hod    [board][raw].insert(channel);
+                  Board  [channel + Hodoscope         ::GlobalChannelOffset].insert(board);
+                } else if (detector == "Bh"     ) {
+                  Bh     [board][raw].insert(channel);
+                  Board  [channel + BeamlineHodoscope ::GlobalChannelOffset].insert(board);
+                } else if (detector == "Tc"     ) {
+                  Tc     [board][raw].insert(channel);
+                  Board  [channel + TimingCounter     ::GlobalChannelOffset].insert(board);
+             // } else if (detector == "MrP3"   ) {
+             //   MrP3   [board][raw].insert(channel);
+             //   Board  [channel + MrP3              ::GlobalChannelOffset].insert(board);
+             // } else if (detector == "MrRf"   ) {
+             //   MrRf   [board][raw].insert(channel);
+             //   Board  [channel + MrRf              ::GlobalChannelOffset].insert(board);
+                } else if (detector == "MrSync" ) {
+                  MrSync [board][raw].insert(channel);
+                  Board  [channel + MrSync            ::GlobalChannelOffset].insert(board);
                 }
               }
             }
@@ -452,7 +457,7 @@ namespace Extinction {
         packet[ 6] = ((MppcBit >>  8) & 0xFFU);
         packet[ 7] = ((MppcBit >>  0) & 0xFFU);
         packet[ 8] = ((SubBit  >>  4) & 0xFFU);
-        packet[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x7FU);
+        packet[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x07U);
         packet[10] = ((Tdc     >> 16) & 0xFFU);
         packet[11] = ((Tdc     >>  8) & 0xFFU);
         packet[12] = ((Tdc     >>  0) & 0xFFU);
@@ -518,7 +523,7 @@ namespace Extinction {
         packet[ 6] = ((MppcBit >>  8) & 0xFFU);
         packet[ 7] = ((MppcBit >>  0) & 0xFFU);
         packet[ 8] = ((SubBit  >>  4) & 0xFFU);
-        packet[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x7FU);
+        packet[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x07U);
         packet[10] = ((Tdc     >> 16) & 0xFFU);
         packet[11] = ((Tdc     >>  8) & 0xFFU);
         packet[12] = ((Tdc     >>  0) & 0xFFU);
@@ -694,6 +699,8 @@ namespace Extinction {
       }
 
       inline virtual std::vector<TdcData> GetTdcData() const override {
+        using namespace ChannelMap;
+        namespace CM = ChannelMap;
         std::vector<TdcData> data;
         const Long64_t tdc  = GetTdc2();
         const Double_t time = GetTime();
@@ -702,11 +709,11 @@ namespace Extinction {
           datum.Spill   = Spill;
           datum.Tdc     = tdc;
           datum.Time    = time;
-          if (ChannelMap::MrSync.find(BoardId) != ChannelMap::MrSync.end()) {
-            datum.MrSyncChannel = ChannelMap::MrSync.at(BoardId) + MrSync::GlobalChannelOffset;
+          if (CM::MrSync.find(BoardId) != CM::MrSync.end()) {
+            datum.MrSyncChannel = CM::MrSync.at(BoardId) + MrSync            ::GlobalChannelOffset;
           }
-          if (ChannelMap::ExtMppc.find(mppcCh) != ChannelMap::ExtMppc.end()) {
-            datum.Channel = ChannelMap::ExtMppc.at(mppcCh) + ExtinctionDetector::GlobalChannelOffset;
+          if (ExtMppc.find(mppcCh) != ExtMppc.end()) {
+            datum.Channel       = ExtMppc   .at(mppcCh ) + ExtinctionDetector::GlobalChannelOffset;
           }
           data.push_back(datum);
         }
@@ -715,17 +722,17 @@ namespace Extinction {
           datum.Spill   = Spill;
           datum.Tdc     = tdc;
           datum.Time    = time;
-          if (ChannelMap::MrSync.find(BoardId) != ChannelMap::MrSync.end()) {
-            datum.MrSyncChannel = ChannelMap::MrSync.at(BoardId) + MrSync::GlobalChannelOffset;
+          if (CM::MrSync.find(BoardId) != CM::MrSync.end()) {
+            datum.MrSyncChannel = CM::MrSync.at(BoardId) + MrSync            ::GlobalChannelOffset;
           }
-          if        (ChannelMap::ExtSub.find(subCh) != ChannelMap::ExtSub.end()) {
-            datum.Channel = ChannelMap::ExtSub.at(subCh) + ExtinctionDetector::GlobalChannelOffset;
-          } else if (ChannelMap::Hod   .find(subCh) != ChannelMap::Hod   .end()) {
-            datum.Channel = ChannelMap::Hod   .at(subCh) + Hodoscope        ::GlobalChannelOffset;
-          } else if (ChannelMap::Tc    .find(subCh) != ChannelMap::Tc    .end()) {
-            datum.Channel = ChannelMap::Tc    .at(subCh) + TimingCounter    ::GlobalChannelOffset;
-          } else if (ChannelMap::Bh    .find(subCh) != ChannelMap::Bh    .end()) {
-            datum.Channel = ChannelMap::Bh    .at(subCh) + BeamlineHodoscope::GlobalChannelOffset;
+          if        (ExtSub.find(subCh) != ExtSub.end()) {
+            datum.Channel       = ExtSub    .at(subCh  ) + ExtinctionDetector::GlobalChannelOffset;
+          } else if (Hod   .find(subCh) != Hod   .end()) {
+            datum.Channel       = Hod       .at(subCh  ) + Hodoscope         ::GlobalChannelOffset;
+          } else if (Tc    .find(subCh) != Tc    .end()) {
+            datum.Channel       = Tc        .at(subCh  ) + TimingCounter     ::GlobalChannelOffset;
+          } else if (Bh    .find(subCh) != Bh    .end()) {
+            datum.Channel       = Bh        .at(subCh  ) + BeamlineHodoscope ::GlobalChannelOffset;
           }
           data.push_back(datum);
         }
@@ -734,8 +741,8 @@ namespace Extinction {
           datum.Spill   = Spill;
           datum.Tdc     = tdc;
           datum.Time    = time;
-          if (ChannelMap::MrSync.find(BoardId) != ChannelMap::MrSync.end()) {
-            datum.Channel = ChannelMap::MrSync.at(BoardId) + MrSync::GlobalChannelOffset;
+          if (CM::MrSync.find(BoardId) != CM::MrSync.end()) {
+            datum.Channel       = CM::MrSync.at(BoardId) + MrSync            ::GlobalChannelOffset;
             datum.MrSyncChannel = datum.Channel;
           }
           data.push_back(datum);
@@ -743,9 +750,177 @@ namespace Extinction {
         return data;
       }
 
-      inline virtual std::vector<TdcData> GetTdcData(Int_t) const override {
-        return GetTdcData(); // TBD
+      inline virtual std::vector<TdcData> GetTdcData(Int_t board) const override {
+        using namespace ChannelMapWithBoard;
+        namespace CM = ChannelMapWithBoard;
+        std::vector<TdcData> data;
+        const Long64_t tdc  = GetTdc2();
+        const Double_t time = GetTime();
+        typename decltype(CM::MrSync  )::const_iterator itr1;
+        typename decltype(itr1->second)::const_iterator itr2;
+        for (auto&& mppcCh : GetMppcHitChannels()) {
+          TdcData datum;
+          datum.Spill   = Spill;
+          datum.Tdc     = tdc;
+          datum.Time    = time;
+          if        ((itr1 = CM::MrSync  .find(board )) != CM::MrSync  .end() &&
+                     (itr2 = itr1->second.begin()     ) != itr1->second.end()) {
+            datum.MrSyncChannel = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
+          }
+          if        ((itr1 = ExtMppc     .find(board )) != ExtMppc     .end() &&
+                     (itr2 = itr1->second.find(mppcCh)) != itr1->second.end()) {
+            datum.Channel       = *itr2->second.begin() + ExtinctionDetector::GlobalChannelOffset;
+          }
+          data.push_back(datum);
+        }
+        for (auto&& subCh : GetSubHitChannels()) {
+          TdcData datum;
+          datum.Spill   = Spill;
+          datum.Tdc     = tdc;
+          datum.Time    = time;
+          if        ((itr1 = CM::MrSync  .find(board)) != CM::MrSync  .end() &&
+                     (itr2 = itr1->second.begin()    ) != itr1->second.end()) {
+            datum.MrSyncChannel = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
+          }
+          if        ((itr1 = ExtSub      .find(board)) != ExtSub      .end() &&
+                     (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
+            datum.Channel       = *itr2->second.begin() + ExtinctionDetector::GlobalChannelOffset;
+          } else if ((itr1 = Hod         .find(board)) != Hod         .end() &&
+                     (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
+            datum.Channel       = *itr2->second.begin() + Hodoscope         ::GlobalChannelOffset;
+          } else if ((itr1 = Tc          .find(board)) != Tc          .end() &&
+                     (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
+            datum.Channel       = *itr2->second.begin() + TimingCounter     ::GlobalChannelOffset;
+          } else if ((itr1 = Bh          .find(board)) != Bh          .end() &&
+                     (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
+            datum.Channel       = *itr2->second.begin() + BeamlineHodoscope ::GlobalChannelOffset;
+          }
+          data.push_back(datum);
+        }
+        if (MrSync) {
+          TdcData datum;
+          datum.Spill   = Spill;
+          datum.Tdc     = tdc;
+          datum.Time    = time;
+          if ((itr1 = CM::MrSync  .find(board)) != CM::MrSync  .end() &&
+              (itr2 = itr1->second.begin()    ) != itr1->second.end()) {
+            datum.Channel       = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
+          }
+          data.push_back(datum);
+        }
+        return data;
       }
+
+#if KC705_FORMAT_VERSION == 1
+
+      inline void WriteHeader(std::ofstream& file) const {
+        Packet_t data = { 0 };
+        data[ 0] = 0xAB;
+        data[ 1] = 0xB0;
+        data[ 2] = 0x00;
+        data[ 3] = 0x12;
+        data[ 4] = 0x34;
+        data[ 5] = 0x56;
+        data[ 6] = 0x70;
+        data[ 7] = 0x12;
+        data[ 8] = 0x34;
+        data[ 9] = 0x56;
+        data[10] = 0x70 + (BoardId & 0xF);
+        data[11] = ((Spill >> 8) & 0xFF);
+        data[12] = ( Spill       & 0xFF);
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteData(std::ofstream& file) const {
+        Packet_t data = { 0 };
+        data[ 0] = ((MppcBit >> 56) & 0xFFU);
+        data[ 1] = ((MppcBit >> 48) & 0xFFU);
+        data[ 2] = ((MppcBit >> 40) & 0xFFU);
+        data[ 3] = ((MppcBit >> 32) & 0xFFU);
+        data[ 4] = ((MppcBit >> 24) & 0xFFU);
+        data[ 5] = ((MppcBit >> 16) & 0xFFU);
+        data[ 6] = ((MppcBit >>  8) & 0xFFU);
+        data[ 7] = ((MppcBit >>  0) & 0xFFU);
+        data[ 8] = ((SubBit  >>  4) & 0xFFU);
+        data[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x07U);
+        data[10] = ((Tdc     >> 16) & 0xFFU);
+        data[11] = ((Tdc     >>  8) & 0xFFU);
+        data[12] = ((Tdc     >>  0) & 0xFFU);
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteFooter(std::ofstream& file) const {
+        Packet_t data = { 0 };
+        data[ 0] = ((EMCount >> 8) & 0xFF);
+        data[ 1] = ( EMCount       & 0xFF);
+        data[ 2] = 0x00;
+        data[ 3] = 0x00;
+        data[ 4] = 0x00;
+        data[ 5] = 0xAA;
+        data[ 6] = 0xAA;
+        data[ 7] = 0xAA;
+        data[ 8] = 0xAA;
+        data[ 9] = 0xAA;
+        data[10] = 0xAA;
+        data[11] = 0xAA;
+        data[12] = 0xAA;
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+
+#else
+
+      inline void WriteHeader(std::ofstream& file) const {
+        Packet_t data = { 0 };
+        data[ 0] = 0x01;
+        data[ 1] = 0x23;
+        data[ 2] = 0x45;
+        data[ 3] = 0x67;
+        data[ 4] = ((Spill >> 8) & 0xFF);
+        data[ 5] = ((Spill     ) & 0xFF);
+        data[ 6] = (BoardId & 0x0F);
+        data[ 7] = 0x01;
+        data[ 8] = 0x23;
+        data[ 9] = 0x45;
+        data[10] = 0x67;
+        data[11] = 0x89;
+        data[12] = 0xAB;
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteData(std::ofstream& file) const {
+        Packet_t data = { 0 };
+        data[ 0] = ((MppcBit >> 56) & 0xFFU);
+        data[ 1] = ((MppcBit >> 48) & 0xFFU);
+        data[ 2] = ((MppcBit >> 40) & 0xFFU);
+        data[ 3] = ((MppcBit >> 32) & 0xFFU);
+        data[ 4] = ((MppcBit >> 24) & 0xFFU);
+        data[ 5] = ((MppcBit >> 16) & 0xFFU);
+        data[ 6] = ((MppcBit >>  8) & 0xFFU);
+        data[ 7] = ((MppcBit >>  0) & 0xFFU);
+        data[ 8] = ((SubBit  >>  4) & 0xFFU);
+        data[ 9] = ((SubBit  <<  4) & 0xF0U) + (MrSync * 0x08U) + ((Tdc >> 24) & 0x7U);
+        data[10] = ((Tdc     >> 16) & 0xFFU);
+        data[11] = ((Tdc     >>  8) & 0xFFU);
+        data[12] = ((Tdc     >>  0) & 0xFFU);
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+      inline void WriteFooter(std::ofstream& file) const {
+        Packet_t data = { 0 };
+        data[ 0] = 0xAA;
+        data[ 1] = 0xAA;
+        data[ 2] = 0xAA;
+        data[ 3] = 0xAA;
+        data[ 4] = ((Spill   >>  8) & 0xFF);
+        data[ 5] = ( Spill          & 0xFF);
+        data[ 6] = ((EMCount >>  8) & 0xFF);
+        data[ 7] = ( EMCount        & 0xFF);
+        data[ 8] = ((WRCount >> 24) & 0xFF);
+        data[ 9] = ((WRCount >> 16) & 0xFF);
+        data[10] = ((WRCount >>  8) & 0xFF);
+        data[11] = ((WRCount      ) & 0xFF);
+        data[12] = 0xAB;
+        file.write((Char_t*)&data, sizeof(Packet_t));
+      }
+
+#endif
+
     };
 
     class Decoder {
