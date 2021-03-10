@@ -1,4 +1,5 @@
 #include "TApplication.h"
+#include "TCanvas.h"
 #include "TF1.h"
 #include "TRandom.h"
 
@@ -23,7 +24,10 @@ namespace {
   }
 
   Double_t extinction = 3.0e-11;
+  Int_t    eventMatchNumber = 1054;
+  Int_t    eventMatchParity;
 
+  Double_t dtEM  =  10 * nsec;
   Double_t dtBH1 = 100 * nsec;
   Double_t dtBH2 = 120 * nsec;
   Double_t dtHod = 110 * nsec;
@@ -86,6 +90,11 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
   {
     extinction = conf->GetValue<Double_t>("Extinction");
+    eventMatchNumber = conf->GetValue<Int_t>("EventMatchNumber");
+    eventMatchParity = 1;
+    for (std::size_t i = 0; i < 16; ++i) {
+      eventMatchParity ^= (eventMatchNumber >> i) & 0x1;
+    }
 
     dtBH1  = conf->GetValue<Double_t>("Offset.BH1");
     dtBH2  = conf->GetValue<Double_t>("Offset.BH2");
@@ -114,6 +123,19 @@ Int_t main(Int_t argc, Char_t** argv) {
                          K18BR::Y::Sigma / Extinction::cm);
 
   TH2* hMap = new TH2D("hMap", "Hit Map;x [cm];y [cm]", 80, -40, 40, 64, -32, 32);
+
+  // TH2* hCnl = new TH2D("hCnl", "Cnl Map;x [cm];y [cm]", 80, -40, 40, 64, -32, 32);
+  // for (Int_t xbin = 1, xbins = hCnl->GetNbinsX(); xbin <= xbins; ++xbin) {
+  //   for (Int_t ybin = 1, ybins = hCnl->GetNbinsY(); ybin <= ybins; ++ybin) {
+  //     const Double_t x = hCnl->GetXaxis()->GetBinCenter(xbin);
+  //     const Double_t y = hCnl->GetYaxis()->GetBinCenter(ybin);
+  //     const Int_t ch = Extinction::ExtinctionDetector::FindChannel(x * Extinction::cm, y * Extinction::cm);
+  //     std::cout << "x = " << x << ", y  = " << y << "  ->  " << ch << std::endl;
+  //     hCnl->SetBinContent(xbin, ybin, (Double_t)ch);
+  //   }
+  // }
+  // hCnl->Draw("colz");
+  // gPad->Update();
 
   Extinction::Fct::FctData data;
   const Double_t timePerTdc = data.GetTimePerTdc();
@@ -162,6 +184,20 @@ Int_t main(Int_t argc, Char_t** argv) {
         hits[board][tdc].insert(pair.first);
       }
     }
+
+    if ((mrSync ==  0) ||
+        (mrSync <  17 && ((eventMatchNumber >> (mrSync - 1)) & 0x1)) ||
+        (mrSync == 17 && eventMatchParity)) {
+      ch = 0;
+      const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::EventMatch::GlobalChannelOffset];
+      const Long64_t tdc = TMath::Max(0.0, (t0 + dtEM + gRandom->Gaus() * sigmaT) / timePerTdc);
+      const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Evm[board])
+        .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
+        .FirstOrDefault()
+        .first;
+      hits[board][tdc].insert(rawCh);
+    }
+
     if (extractT0 < t0 && t0 < extractT0 + spillLength) {
       // Extracting
       for (Long64_t residual = 0, residuals = gRandom->Poisson(nofParticlesPerBunch * extinction); residual < residuals; ++residual) {

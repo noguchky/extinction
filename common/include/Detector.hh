@@ -165,15 +165,15 @@ namespace Extinction {
         return -1;
       } else if (TMath::Abs(x) >  8.0 * mm * 28) {
         // Left/Right
-        const Int_t    ix    = x <  0 ? 0 : 1;
-        const Int_t    iy    = y >= 0 ? 0 : 1;
+        const Int_t    ix    = (x <  0) ? 0 : 1;
+        const Int_t    iy    = (y >= 0) ? 0 : 1;
         const Int_t    ch    = iy * 2 + ix;
         return ch + ChannelOffset::LeftRight + GlobalChannelOffset;
       } else if (TMath::Abs(y) > 60.0 * mm) {
         // Top/Bottom
         const Double_t dx    = (x + 56.0 * mm * 3.5);
         const Int_t    ix    = dx / (56.0 * mm);
-        const Int_t    iy    = y >= 0 ? 0 : 1;
+        const Int_t    iy    = (y >= 0) ? 0 : 1;
         const Int_t    ch    = iy * 8 + ix;
         return ch + ChannelOffset::TopBottom + GlobalChannelOffset;
       } else {
@@ -181,7 +181,7 @@ namespace Extinction {
         const Double_t dx    = (x + 8.0 * mm * 28);
         const Int_t    board = dx / (8.0 * mm * 8);
         const Int_t    ix    = (dx - board * 8.0 * mm * 8) / (8.0 * mm);
-        const Int_t    iy    = y >= 0 ? 0 : 1;
+        const Int_t    iy    = (y >= 0) ? 0 : 1;
         const Int_t    ch    = board * 16 + iy * 8 + ix;
         return ch + ChannelOffset::Center + GlobalChannelOffset;
       }
@@ -436,8 +436,24 @@ namespace Extinction {
     }
   }
 
+  namespace EventMatch {
+    constexpr std::size_t NofChannels         = 1U;
+    constexpr std::size_t GlobalChannelOffset = MrSync::GlobalChannelOffset + MrSync::NofChannels;
+
+    inline Bool_t Contains(std::size_t globalChannel) {
+      return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
+    }
+
+    inline Int_t GetChannel(std::size_t globalChannel) {
+      if (Contains(globalChannel)) {
+        return globalChannel - GlobalChannelOffset;
+      }
+      return -1;
+    }
+  }
+
   namespace GlobalChannel {
-    constexpr std::size_t NofChannels = MrSync::GlobalChannelOffset + MrSync::NofChannels;
+    constexpr std::size_t NofChannels = EventMatch::GlobalChannelOffset + EventMatch::NofChannels;
   }
   
 }
