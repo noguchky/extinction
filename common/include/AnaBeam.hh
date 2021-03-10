@@ -29,6 +29,8 @@ namespace Extinction {
       };
 
       struct Results_t {
+        Int_t eventMatchNumber;
+        
         // Extinction detector hit count
         TH1* hExtEntryByCh;
 
@@ -633,6 +635,7 @@ namespace Extinction {
         std::vector<Extinction::TdcData> lastTcData;
         std::vector<Extinction::TdcData> lastBhData;
         std::vector<Extinction::TdcData> lastMrSyncData;
+        std::vector<Extinction::TdcData> eventMatchData;
         std::map<std::size_t, Extinction::TdcData> recExtData;
         std::map<std::size_t, Extinction::TdcData> recHodData;
         std::map<std::size_t, Extinction::TdcData> recTcData;
@@ -1258,6 +1261,8 @@ namespace Extinction {
                 std::cerr << "[error] size of lastMrSyncData reaches 10000" << std::endl;
                 exit(1);
               }
+            } else if (EventMatch::Contains(globalChannel)) {
+              eventMatchData.push_back(data);
             }
 
           }
@@ -1265,8 +1270,59 @@ namespace Extinction {
           lastSpill = provider->GetSpill();
         }
 
+        const std::size_t eventMatchSize = 18;
+        Int_t eventMatchNumber = -1;
+        if (eventMatchData.empty()) {
+          std::cout << "[warning] event match data is empty" << std::endl;
+        } else {
+          Int_t eventMatchBits[eventMatchSize] = { 0 };
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          Double_t meanMrSyncInterval = 0.0;
+          {
+            Double_t sum = 0.0, cnt = 0.0;
+            for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+              if (hMrSyncTdcInterval2[ch]->GetEntries()) {
+                sum += hMrSyncTdcInterval2[ch]->GetBinCenter(hMrSyncTdcInterval2[ch]->GetMaximumBin());
+                cnt += 1.0;
+              }
+            }
+            meanMrSyncInterval = sum / cnt;
+          }
+          for (auto&& data : eventMatchData) {
+            const Double_t norm = (data.Tdc - eventMatchData[0].Tdc) / meanMrSyncInterval;
+            const std::size_t bit = TMath::Nint(norm);
+            if (bit < eventMatchSize) {
+              // std::cout << bit << ", ";
+              eventMatchBits[bit] = 1;
+            } else {
+              std::cout << "[warning] invalid event match tdc" << std::endl;
+              std::cout << data.Tdc << " - " << eventMatchData[0].Tdc << std::endl
+                        << "-> " << data.Tdc - eventMatchData[0].Tdc << " / " << meanMrSyncInterval << std::endl
+                        << "-> " << norm << " -> " << bit << std::endl;
+            }
+          }
+          // std::cout << std::endl;
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          Int_t parityBit = 0;
+          for (std::size_t bit = 0; bit < eventMatchSize - 1; ++bit) {
+            parityBit ^= eventMatchBits[bit];
+          }
+          // std::cout << parityBit << " <--> " << eventMatchBits[eventMatchSize - 1] << std::endl;
+          if (parityBit != eventMatchBits[eventMatchSize - 1]) {
+            std::cout << "[warning] invalid parity bit" << std::endl;
+          } else {
+            eventMatchNumber = 0;
+            for (std::size_t bit = 1; bit < eventMatchSize - 1; ++bit) {
+              if (eventMatchBits[bit]) {
+                eventMatchNumber += (0x1 << (bit - 1));
+              }
+            }
+          }
+        }
+
         return
           {
+           eventMatchNumber,
            hExtEntryByCh,
            hExtHitMap,
            hHodEntryByCh,
