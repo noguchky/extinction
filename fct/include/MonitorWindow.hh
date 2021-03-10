@@ -34,7 +34,7 @@ namespace Extinction {
       };
 
       enum class MonitorMode {
-        Channel, Offset, Coincidence,
+        Channel, Ext, Hod, Offset, Coincidence,
       };
 
       struct PlotsProfiles {
@@ -57,6 +57,7 @@ namespace Extinction {
 
     private:
       const std::size_t kHistLimit = 10000;
+      const std::size_t kEventMatchSize = 18; 
 
     private:
       using CoinOffset = Analyzer::AnaTimeOffset::CoinOffset;
@@ -128,6 +129,7 @@ namespace Extinction {
 
       Long64_t                     fSpillCount          = 0;
       Long64_t                     fCoinCount           = 0;
+      Int_t                        fEventMatchNumber    = -1;
 
       std::map<Int_t, Double_t>    fTimePerTdc;
       std::map<Int_t, Double_t>    fMrSyncInterval;
@@ -138,6 +140,7 @@ namespace Extinction {
       std::vector<TdcData>         fLastHodData;
       std::vector<TdcData>         fLastTcData;
       std::vector<TdcData>         fLastBhData;
+      std::vector<TdcData>         fEventMatchData;
 
       std::map<Int_t, TdcData>     fLastMrSyncData;
 
@@ -166,6 +169,11 @@ namespace Extinction {
         fMrSyncIntervalAverage = Tron::Linq::From(map)
           .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
           .Average();
+        std::cout << "SetMrSyncInterval" << std::endl;
+        for (auto&& pair : fMrSyncInterval) {
+          std::cout << pair.first << "\t" << pair.second << std::endl;
+        }
+        std::cout << "Ave: " << fMrSyncIntervalAverage << std::endl;
       }
       inline void          SetChannelAlign(ChannelAlign align) { fChannelAlign = align; }
       inline ChannelAlign  GetChannelAlign() const { return fChannelAlign; }
@@ -190,6 +198,8 @@ namespace Extinction {
             std::cout << "[warning] invalid channel number, " << option << std::endl;
           }
           break;
+        case MonitorMode::Ext:
+        case MonitorMode::Hod:
         case MonitorMode::Coincidence:
           fMonitorMode = mode;
           return true;
@@ -245,6 +255,47 @@ namespace Extinction {
       void                 FillCoincidence2(const TdcData& tdcData);
       std::vector<TdcData> CollectCoinExtData(const TdcData& tdcData, std::size_t i);
       std::size_t          RemoveOldTdc(std::vector<TdcData>* lastData, Double_t time);
+
+      Int_t                DecodeEventMatchNumber(const std::vector<TdcData>& eventMatchData) const {
+        Int_t eventMatchNumber = -1;
+        if (eventMatchData.empty()) {
+          std::cout << "[warning] event match data is empty" << std::endl;
+        } else {
+          Int_t eventMatchBits[kEventMatchSize] = { 0 };
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          for (auto&& data : eventMatchData) {
+            const Double_t norm = (data.Tdc - eventMatchData[0].Tdc) / fMrSyncIntervalAverage;
+            const std::size_t bit = TMath::Nint(norm);
+            if (bit < kEventMatchSize) {
+              // std::cout << bit << ", ";
+              eventMatchBits[bit] = 1;
+            } else {
+              std::cout << "[warning] invalid event match tdc" << std::endl;
+              std::cout << data.Tdc << " - " << eventMatchData[0].Tdc << std::endl
+                        << "-> " << data.Tdc - eventMatchData[0].Tdc << " / " << fMrSyncIntervalAverage << std::endl
+                        << "-> " << norm << " -> " << bit << std::endl;
+            }
+          }
+          // std::cout << std::endl;
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          Int_t parityBit = 0;
+          for (std::size_t bit = 0; bit < kEventMatchSize - 1; ++bit) {
+            parityBit ^= eventMatchBits[bit];
+          }
+          // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
+          if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
+            std::cout << "[warning] invalid parity bit" << std::endl;
+          } else {
+            eventMatchNumber = 0;
+            for (std::size_t bit = 1; bit < kEventMatchSize - 1; ++bit) {
+              if (eventMatchBits[bit]) {
+                eventMatchNumber += (0x1 << (bit - 1));
+              }
+            }
+          }
+        }
+        return eventMatchNumber;
+      }
 
       template <typename T, typename V>
       inline bool          IsAllOfSecondsTrue(const std::map<T, V> map) {
@@ -369,7 +420,9 @@ namespace Extinction {
         pads.push_back(fPadTdcSync   = new TPad("fPadTdcSync"  , "", 3.0 * seg, 0.0 * seg, 6.0 * seg, 4.0 * seg));
         fPadMountain ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadMountain ->SetGrid(); fPadMountain ->SetLogy();
         fPadTdcSync  ->SetMargin(0.06, 0.06, 0.10, 0.10); fPadTdcSync  ->SetGrid();
-      } else if (fMonitorMode == MonitorMode::Channel) {
+      } else if (fMonitorMode == MonitorMode::Channel ||
+                 fMonitorMode == MonitorMode::Ext     ||
+                 fMonitorMode == MonitorMode::Hod     ) {
         pads.push_back(fPadMountain  = new TPad("fPadMountain" , "", 3.0 * seg, 4.0 * seg, 6.0 * seg, 6.0 * seg));
         pads.push_back(fPadTdcSync   = new TPad("fPadTdcSync"  , "", 3.0 * seg, 2.0 * seg, 6.0 * seg, 4.0 * seg));
         pads.push_back(fPadHit       = new TPad("fPadHit"      , "", 3.0 * seg, 0.0 * seg, 6.0 * seg, 2.0 * seg));
@@ -528,6 +581,44 @@ namespace Extinction {
                                     "Time [ms]", tdcName.data(), fMonitorChannel),
                                xbinsInSpill, xminInSpill, xmaxInSpill);
         hTdcInSpill->SetStats(false);
+      } else if (fMonitorMode == MonitorMode::Ext) {
+        hMountain = new TH2D("hMountain",
+                             Form("%s, Mountain Plot @ Extinction Detector;"
+                                  "TDC [count];"
+                                  "Time [ms]", tdcName.data()),
+                             xbinsInSync / 2, xminInSync, xmaxInSync,
+                             xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+        hMountain->SetStats(false);
+
+        hTdcInSync = new TH1D("hTdcInSync",
+                              Form("%s, TDC in MR Sync @ Extinction Detector;"
+                                   "TDC [count]", tdcName.data()),
+                              xbinsInSync, xminInSync, xmaxInSync);
+
+        hTdcInSpill = new TH1D("hTdcInSpill",
+                               Form("%s, TDC in Spill @ Extinction Detector;"
+                                    "Time [ms]", tdcName.data()),
+                               xbinsInSpill, xminInSpill, xmaxInSpill);
+        hTdcInSpill->SetStats(false);
+      } else if (fMonitorMode == MonitorMode::Hod) {
+        hMountain = new TH2D("hMountain",
+                             Form("%s, Mountain Plot @ Hodoscope;"
+                                  "TDC [count];"
+                                  "Time [ms]", tdcName.data()),
+                             xbinsInSync / 2, xminInSync, xmaxInSync,
+                             xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+        hMountain->SetStats(false);
+
+        hTdcInSync = new TH1D("hTdcInSync",
+                              Form("%s, TDC in MR Sync @ Hodoscope;"
+                                   "TDC [count]", tdcName.data()),
+                              xbinsInSync, xminInSync, xmaxInSync);
+
+        hTdcInSpill = new TH1D("hTdcInSpill",
+                               Form("%s, TDC in Spill @ Hodoscope;"
+                                    "Time [ms]", tdcName.data()),
+                               xbinsInSpill, xminInSpill, xmaxInSpill);
+        hTdcInSpill->SetStats(false);
       }
 
       // Offset monitor hists
@@ -557,6 +648,12 @@ namespace Extinction {
     void MonitorWindow::DrawPlots() {
       std::cout << "Draw plots" << std::endl;
       Int_t padnumber = 0;
+
+      if (fEventMatchNumber >= 0) {
+        fCanvas->SetTitle((fProvider.GetName() + " | Semi-online Monitor" + Form(" (%d)", fEventMatchNumber)).data());
+      } else {
+        fCanvas->SetTitle((fProvider.GetName() + " | Semi-online Monitor").data());
+      }
 
       if (fCanvas->cd(++padnumber)) {
         hBhTdcInSpill[0]->Draw();
@@ -728,9 +825,10 @@ namespace Extinction {
           hExtTdcOffset[fMonitorChannel]->GetYaxis()->SetTitleOffset(0.9);
         }
 
-      } else if (fMonitorMode == MonitorMode::Channel) {
+      } else if (fMonitorMode == MonitorMode::Channel ||
+                 fMonitorMode == MonitorMode::Ext ||
+                 fMonitorMode == MonitorMode::Hod) {
         if (fCanvas->cd(++padnumber)) {
-          hMountain->SetTitle(Form("%s, Mountain Plot @ ch%d", fProvider.GetName().data(), fMonitorChannel));
           hMountain->Draw("col");
           hMountain->GetXaxis()->SetLabelSize(0.05);
           hMountain->GetYaxis()->SetLabelSize(0.05);
@@ -741,7 +839,6 @@ namespace Extinction {
         }
 
         if (fCanvas->cd(++padnumber)) {
-          hTdcInSync->SetTitle(Form("%s, TDC in Sync @ ch%d", fProvider.GetName().data(), fMonitorChannel));
           hTdcInSync->Draw();
           hTdcInSync->SetMinimum(0.2);
           hTdcInSync->GetXaxis()->SetLabelSize(0.05);
@@ -753,7 +850,6 @@ namespace Extinction {
         }
 
         if (fCanvas->cd(++padnumber)) {
-          hTdcInSpill->SetTitle(Form("%s, TDC in Spill @ ch%d", fProvider.GetName().data(), fMonitorChannel));
           hTdcInSpill->Draw();
           hTdcInSpill->GetXaxis()->SetLabelSize(0.05);
           hTdcInSpill->GetYaxis()->SetLabelSize(0.05);
@@ -770,7 +866,8 @@ namespace Extinction {
     }
 
     void MonitorWindow::ClearLastSpill() {
-      fCoinCount = 0;
+      fCoinCount        = 0;
+      fEventMatchNumber = -1;
 
       fTdcBuffer.clear();
 
@@ -781,6 +878,7 @@ namespace Extinction {
       for (auto&& pair: fLastMrSyncData) {
         pair.second.Clear();
       }
+      fEventMatchData.clear();
 
       hBhTdcInSpill[0]  ->Reset();
       hBhTdcInSpill[1]  ->Reset();
@@ -794,7 +892,9 @@ namespace Extinction {
       hExtEntryByCh     ->Reset();
       hExtMountain_Any  ->Reset();
       hExtTdcInSync_Any ->Reset();
-      if (fMonitorMode == MonitorMode::Channel) {
+      if (fMonitorMode == MonitorMode::Channel ||
+          fMonitorMode == MonitorMode::Ext     ||
+          fMonitorMode == MonitorMode::Hod     ) {
         hMountain       ->Reset();
         hTdcInSync      ->Reset();
         hTdcInSpill     ->Reset();
@@ -1408,7 +1508,9 @@ namespace Extinction {
             const Int_t    globalChannel = data.Channel;
             const Double_t time          = data.Time;
 
-            if (fMonitorMode == MonitorMode::Channel && fMonitorChannel == globalChannel) {
+            if ((fMonitorMode == MonitorMode::Channel && fMonitorChannel           == globalChannel ) ||
+                (fMonitorMode == MonitorMode::Ext     && ExtinctionDetector::Contains(globalChannel)) ||
+                (fMonitorMode == MonitorMode::Hod     && Hodoscope         ::Contains(globalChannel))) {
               const Long64_t     tdc = data.Tdc;
               const Long64_t syncTdc = fLastMrSyncData[board].Tdc;
               hTdcInSpill->Fill(time / msec);
@@ -1545,6 +1647,8 @@ namespace Extinction {
               }
               fLastMrSyncData[board] = data;
 
+            } else if (EventMatch::Contains(globalChannel)) {
+              fEventMatchData.push_back(data);
             }
 
             if (tdcTag == lastTdcTags[board] &&
@@ -1565,6 +1669,9 @@ namespace Extinction {
 
           } else if (IsAllOfSecondsTrue(gateEnded)) {
             std::cout << "[info] end of spill " << fSpillCount << std::endl;
+
+            fEventMatchNumber = DecodeEventMatchNumber(fEventMatchData);
+
             const Int_t np = fSpillCount % fSpillLimit;
             gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );
          // gHitInSpill->SetPointError(np, 0.0, TMath::Sqrt(fCoinCount     ));

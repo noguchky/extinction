@@ -75,6 +75,7 @@ namespace Extinction {
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Tc;
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Evm;
       std::map<Int_t/*global*/, Int_t/*board*/>               Board;
 
       void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
@@ -109,11 +110,14 @@ namespace Extinction {
                 } else if (detector == "MrSync") {
                   MrSync[board][raw] = channel;
                   Board [channel + MrSync            ::GlobalChannelOffset] = board;
+                } else if (detector == "Evm"   ) {
+                  Evm[board][raw] = channel;
+                  Board [channel + EventMatch        ::GlobalChannelOffset] = board;
                 }
               }
             }
           }
-            
+
         }
       }
     }
@@ -376,6 +380,8 @@ namespace Extinction {
           datum.Channel     = Bh    .at(Channel) + BeamlineHodoscope ::GlobalChannelOffset;
         } else if (MrSync.find(Channel) != MrSync.end()) {
           datum.Channel     = MrSync.at(Channel) + MrSync            ::GlobalChannelOffset;
+     // } else if (Evm   .find(Channel) != Evm   .end()) {
+     //   datum.Channel     = Evm   .at(Channel) + EventMatch        ::GlobalChannelOffset;
         }
         return { datum };
       }
@@ -409,6 +415,9 @@ namespace Extinction {
         } else if ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
                    (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
           datum.Channel     = itr2->second + MrSync            ::GlobalChannelOffset;
+        } else if ((itr1 = Evm         .find(board  )) != Evm         .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + EventMatch        ::GlobalChannelOffset;
         }
         return { datum };
       }
