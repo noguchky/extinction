@@ -159,7 +159,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddOpt<Int_t>      ("Boards"          , 'b', "boards"  , "Set comma-separated input boards");
   args->AddOpt<std::string>("Filenames"       , 'f', "files"   , "Set comma-separated input filenames (no wait to be written)");
   args->AddOpt<std::string>("ChannelAlign"    , 'a', "align"   , "Set channel align (raw/projection)", "raw");
-  args->AddOpt<Int_t>      ("MonitorMode"     , 'm', "mode"    , "Set monitor mode (channel/offset/coincidence)", "coincidence");
+  args->AddOpt<std::string>("MonitorMode"     , 'm', "mode"    , "Set monitor mode (channel/mppc/hod/offset/coincidence)", "coincidence");
   args->AddOpt<Int_t>      ("MonitorChannel"  , 'c', "channel" , "Set monitor channel by global channel", "-1");
   args->AddOpt<std::string>("OffsetFilename"  , 'o', "offset"  , "Set output offset filename", "");
   args->AddOpt<std::string>("IntervalFilename", 'i', "interval", "Set output mr-sync interval filename", "");
@@ -286,6 +286,10 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
   if        (monitorMode == "channel") {
     monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Channel, monitorChannel);
+  } else if (monitorMode == "ext") {
+    monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Ext);
+  } else if (monitorMode == "hod") {
+    monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Hod);
   } else if (monitorMode == "offset") {
     monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Offset, monitorChannel);
     monitor->SetMrSyncIntervalFilename(intervalFilename);
