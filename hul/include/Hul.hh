@@ -330,7 +330,7 @@ namespace Extinction {
         TdcData datum;
         datum.Spill         = Spill;
         datum.EMCount       = EMCount;
-        datum.Tdc           = Tdc;
+        datum.Tdc           = GetTdc2();
         datum.Time          = GetTime();
         datum.TimePerTdc    = GetTimePerTdc();
         datum.Board         = 1;
@@ -358,7 +358,7 @@ namespace Extinction {
         TdcData datum;
         datum.Spill         = Spill;
         datum.EMCount       = EMCount;
-        datum.Tdc           = Tdc;
+        datum.Tdc           = GetTdc2();
         datum.Time          = GetTime();
         datum.TimePerTdc    = GetTimePerTdc();
         datum.Board         = board;
@@ -430,11 +430,13 @@ namespace Extinction {
         } else {
           Int_t eventMatchBits[kEventMatchSize] = { 0 };
           // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          // for (auto&& data : eventMatchData) { std::cout << data.Tdc << " "; } std::cout << std::endl;
           for (auto&& data : eventMatchData) {
-            const Double_t norm = (data.Tdc - eventMatchData[0].Tdc) / (eventMatchData[1].Tdc - eventMatchData[0].Tdc);
+            const Double_t norm = (Double_t)(data.Tdc - eventMatchData[0].Tdc) / (Double_t)(eventMatchData[1].Tdc - eventMatchData[0].Tdc);
             const std::size_t bit = TMath::Nint(norm);
             if (bit < kEventMatchSize) {
               // std::cout << bit << ", ";
+              // std::cout << bit << ": " << data.Tdc << std::endl;
               eventMatchBits[bit] = 1;
             } else {
               // Maybe second event match signals
@@ -456,11 +458,16 @@ namespace Extinction {
           // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
           if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
             std::cout << "[warning] invalid parity bit" << std::endl;
+            for (auto&& data : eventMatchData) {
+              const Double_t norm = (Double_t)(data.Tdc - eventMatchData[0].Tdc) / (Double_t)(eventMatchData[1].Tdc - eventMatchData[0].Tdc);
+              const std::size_t bit = TMath::Nint(norm);
+              std::cout << bit << ": " << data.Tdc << std::endl;
+            }
           } else {
             eventMatchNumber = 0;
             for (std::size_t bit = kHeaderSize; bit < kEventMatchSize - 1; ++bit) {
               if (eventMatchBits[bit]) {
-                eventMatchNumber += (0x1 << (bit - 1));
+                eventMatchNumber += (0x1 << (bit - kHeaderSize));
               }
             }
           }
