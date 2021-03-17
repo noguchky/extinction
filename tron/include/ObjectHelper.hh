@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include "TROOT.h"
-#include "TVectorD.h"
+#include "TParameter.h"
 #include "TFile.h"
 
 namespace Tron {
@@ -22,9 +22,8 @@ namespace Tron {
     template <typename Value_t>
     inline void WriteValue(Value_t value, const std::string& name) {
       if (gFile) {
-        TVectorT<Value_t> v(1);
-        v[0] = value;
-        v.Write(name.data());
+        TParameter<Value_t> v(name.data(), value);
+        v.Write();
       } else {
         std::cout << "[warning] file is not opened" << std::endl;
       }
@@ -35,8 +34,8 @@ namespace Tron {
       Value_t result = Value_t();
       if (gFile) {
         if (auto obj = gFile->Get(name.data())) {
-          if (auto value = dynamic_cast<TVectorT<Value_t>*>(obj)) {
-            result = (*value)[0];
+          if (auto value = dynamic_cast<TParameter<Value_t>*>(obj)) {
+            result = value->GetVal();
           } else {
             std::cout << "[warning] value cannot cast" << std::endl;
           }
