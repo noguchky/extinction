@@ -233,10 +233,11 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([&](int board) { return board; },
            [&](int board) { return conf->GetValue<Double_t>(Form("MrSyncInterval.%d", board)); });
 
-  const Double_t    historyWidth   = conf->GetValue<Double_t   >("HistoryWidth");
-  const Double_t    coinTimeWidth  = conf->GetValue<Double_t   >("CoinTimeWidth");
-  const Long64_t    spillLimit     = conf->GetValue<Long64_t   >("SpillLimit");
-  const std::size_t readBufferSize = conf->GetValue<std::size_t>("ReadBufferSize");
+  const Double_t    historyWidth     = conf->GetValue<Double_t   >("HistoryWidth");
+  const Double_t    coinTimeWidth    = conf->GetValue<Double_t   >("CoinTimeWidth");
+  const Long64_t    spillLimit       = conf->GetValue<Long64_t   >("SpillLimit");
+  const std::size_t readBufferSize   = conf->GetValue<std::size_t>("ReadBufferSize");
+  const std::size_t readBufferMargin = conf->GetValue<std::size_t>("ReadBufferMargin");
 
   if (isWatchingMode) {
     filenames = Tron::Linq::From(boards)
@@ -305,7 +306,8 @@ Int_t main(Int_t argc, Char_t** argv) {
   monitor->SetCoinTimeWidth(coinTimeWidth);
   monitor->SetSpillLimit(spillLimit);
   monitor->SetReadBufferSize(readBufferSize);
-  
+  monitor->SetReadBufferMargin(readBufferMargin);
+
   monitor->SetTimePerTdc(timePerTdc);
   monitor->SetMrSyncInterval(mrSyncInterval);
   monitor->InitializeWindow(windowWidth ? windowWidth : 1600, windowHeight ? windowHeight : 1200);

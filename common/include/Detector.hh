@@ -437,7 +437,7 @@ namespace Extinction {
   }
 
   namespace EventMatch {
-    constexpr std::size_t NofChannels         = 1U;
+    constexpr std::size_t NofChannels         = 8U;
     constexpr std::size_t GlobalChannelOffset = MrSync::GlobalChannelOffset + MrSync::NofChannels;
 
     inline Bool_t Contains(std::size_t globalChannel) {

@@ -56,8 +56,7 @@ namespace Extinction {
       };
 
     private:
-      const std::size_t kHistLimit = 10000;
-      const std::size_t kEventMatchSize = 18; 
+      static const std::size_t kHistLimit = 10000;
 
     private:
       using CoinOffset = Analyzer::AnaTimeOffset::CoinOffset;
@@ -67,19 +66,19 @@ namespace Extinction {
 
       struct CoinOffsetX {
         enum {
-              BH  = 0,
-              Hod = 0 + BeamlineHodoscope::NofChannels,
-              TC  = 0 + BeamlineHodoscope::NofChannels + Hodoscope::NofChannels,
-              N   = 0 + BeamlineHodoscope::NofChannels + Hodoscope::NofChannels + TimingCounter::NofChannels,
+          BH  = 0,
+          Hod = 0 + BeamlineHodoscope::NofChannels,
+          TC  = 0 + BeamlineHodoscope::NofChannels + Hodoscope::NofChannels,
+          N   = 0 + BeamlineHodoscope::NofChannels + Hodoscope::NofChannels + TimingCounter::NofChannels,
         };
       };
 
       struct ContainsOffset {
-        enum {
-              Max = -1,
-              TC  = -1 - TimingCounter::NofChannels,
-              Hod = -1 - TimingCounter::NofChannels - 1,
-              BH  = -1 - TimingCounter::NofChannels - 1 - BeamlineHodoscope::NofChannels,
+        enum : unsigned long long {
+          Max = (unsigned long long)-1,
+          TC  = (unsigned long long)-1 - TimingCounter::NofChannels,
+          Hod = (unsigned long long)-1 - TimingCounter::NofChannels - 1,
+          BH  = (unsigned long long)-1 - TimingCounter::NofChannels - 1 - BeamlineHodoscope::NofChannels,
         };
       };
 
@@ -155,6 +154,7 @@ namespace Extinction {
       Double_t                     fCoinTimeWidth       =  10.0 * nsec;
       Long64_t                     fSpillLimit          = 1 * 60 * 60 / 5;
       std::size_t                  fBufferSize          = 5000;
+      std::size_t                  fBufferMargin        =  100;
 
       std::string                  fMrSyncIntervalFilename;
       std::string                  fCoinDiffsFilename;
@@ -221,6 +221,9 @@ namespace Extinction {
       void                 SetReadBufferSize(std::size_t size)  { fBufferSize = size; }
       std::size_t          GetReadBufferSize() const { return fBufferSize; }
 
+      void                 SetReadBufferMargin(std::size_t size)  { fBufferMargin = size; }
+      std::size_t          GetReadBufferMargin() const { return fBufferMargin; }
+
       void                 SetMrSyncIntervalFilename(const std::string& filename) {
         fMrSyncIntervalFilename = filename;
       }
@@ -255,47 +258,6 @@ namespace Extinction {
       void                 FillCoincidence2(const TdcData& tdcData);
       std::vector<TdcData> CollectCoinExtData(const TdcData& tdcData, std::size_t i);
       std::size_t          RemoveOldTdc(std::vector<TdcData>* lastData, Double_t time);
-
-      Int_t                DecodeEventMatchNumber(const std::vector<TdcData>& eventMatchData) const {
-        Int_t eventMatchNumber = -1;
-        if (eventMatchData.empty()) {
-          std::cout << "[warning] event match data is empty" << std::endl;
-        } else {
-          Int_t eventMatchBits[kEventMatchSize] = { 0 };
-          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
-          for (auto&& data : eventMatchData) {
-            const Double_t norm = (data.Tdc - eventMatchData[0].Tdc) / fMrSyncIntervalAverage;
-            const std::size_t bit = TMath::Nint(norm);
-            if (bit < kEventMatchSize) {
-              // std::cout << bit << ", ";
-              eventMatchBits[bit] = 1;
-            } else {
-              std::cout << "[warning] invalid event match tdc" << std::endl;
-              std::cout << data.Tdc << " - " << eventMatchData[0].Tdc << std::endl
-                        << "-> " << data.Tdc - eventMatchData[0].Tdc << " / " << fMrSyncIntervalAverage << std::endl
-                        << "-> " << norm << " -> " << bit << std::endl;
-            }
-          }
-          // std::cout << std::endl;
-          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
-          Int_t parityBit = 0;
-          for (std::size_t bit = 0; bit < kEventMatchSize - 1; ++bit) {
-            parityBit ^= eventMatchBits[bit];
-          }
-          // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
-          if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
-            std::cout << "[warning] invalid parity bit" << std::endl;
-          } else {
-            eventMatchNumber = 0;
-            for (std::size_t bit = 1; bit < kEventMatchSize - 1; ++bit) {
-              if (eventMatchBits[bit]) {
-                eventMatchNumber += (0x1 << (bit - 1));
-              }
-            }
-          }
-        }
-        return eventMatchNumber;
-      }
 
       template <typename T, typename V>
       inline bool          IsAllOfSecondsTrue(const std::map<T, V> map) {
@@ -1475,7 +1437,9 @@ namespace Extinction {
                 for (auto&& data : tdcData) {
                   fTdcBuffer[data.GetTdcTag()] = data;
                 }
-                lastTdcTag = tdcData.back().GetTdcTag();
+                if (ibuf < fBufferSize - fBufferMargin) {
+                  lastTdcTag = tdcData.back().GetTdcTag();
+                }
 
               }
             }
@@ -1670,7 +1634,7 @@ namespace Extinction {
           } else if (IsAllOfSecondsTrue(gateEnded)) {
             std::cout << "[info] end of spill " << fSpillCount << std::endl;
 
-            fEventMatchNumber = DecodeEventMatchNumber(fEventMatchData);
+            fEventMatchNumber = fProvider.DecodeEventMatchNumber(fEventMatchData);
 
             const Int_t np = fSpillCount % fSpillLimit;
             gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );

@@ -167,6 +167,7 @@ namespace Extinction {
     public:
       UChar_t  Type;
       Int_t    Spill;     // log_2(60 * 60 * 24) = 16.39 -> need more than 16 bit
+      Int_t    EMCount;
       UShort_t Channel;
       UInt_t   Tdc;       // 19 bit
       UShort_t Heartbeat; // 16 bit
@@ -181,6 +182,7 @@ namespace Extinction {
       HulData(const HulData& data)
         : Type     (data.Type     ),
           Spill    (data.Spill    ),
+          EMCount  (data.EMCount  ),
           Channel  (data.Channel  ),
           Tdc      (data.Tdc      ),
           Heartbeat(data.Heartbeat),
@@ -189,6 +191,7 @@ namespace Extinction {
       HulData& operator=(const HulData& data) {
         Type      = data.Type;
         Spill     = data.Spill;
+        EMCount   = data.EMCount;
         Channel   = data.Channel;
         Tdc       = data.Tdc;
         Heartbeat = data.Heartbeat;
@@ -199,6 +202,7 @@ namespace Extinction {
       inline void Clear() {
         Type      = DataType::None;
         Spill     = -1;
+        EMCount   = -1;
         Channel   = 0;
         Tdc       = 0;
         Heartbeat = 0;
@@ -277,11 +281,15 @@ namespace Extinction {
         tree->Branch("heartbeat", &Heartbeat, "heartbeat/s");
         tree->SetAlias("tdc2", "tdc + 0x80000 * heartbeat");
       }
+      inline TBranch* AddEMBranch(TTree* tree) {
+        return tree->Branch("emcount", &EMCount, "emcount/I");
+      }
 
       inline virtual void SetBranchAddress(TTree* tree) override {
         // std::cout << "Hul::HulData::SetBranchAddress()" << std::endl;
         tree->SetBranchAddress("type"     , &Type     );
         tree->SetBranchAddress("spill"    , &Spill    );
+        tree->SetBranchAddress("emcount"  , &EMCount  );
         tree->SetBranchAddress("ch"       , &Channel  );
         tree->SetBranchAddress("tdc"      , &Tdc      );
         tree->SetBranchAddress("heartbeat", &Heartbeat);
@@ -296,6 +304,7 @@ namespace Extinction {
           Type == DataType::Error      ? "Error"      :
           Type == DataType::Heartbeat  ? "Heartbeat"  : "Other";
         std::cout << "Spill = " << Spill  << ", " 
+                  << "EMCount = " << EMCount  << ", " 
                   << (UInt_t)Type << "(" << tname << ") " << ", "
                   << "Ch = " << Channel  << ", "
                   << "TDC = " << Tdc << " + 0x8000 * " << Heartbeat << std::endl;
@@ -309,6 +318,10 @@ namespace Extinction {
         return Type == DataType::Data;
       }
 
+      inline virtual Bool_t IsFooter() const override {
+        return Type == DataType::SpillEnd;
+      }
+
       inline virtual Int_t GetSpill() const override {
         return Spill;
       }
@@ -316,6 +329,7 @@ namespace Extinction {
       inline virtual std::vector<TdcData> GetTdcData() const override {
         TdcData datum;
         datum.Spill         = Spill;
+        datum.EMCount       = EMCount;
         datum.Tdc           = Tdc;
         datum.Time          = GetTime();
         datum.TimePerTdc    = GetTimePerTdc();
@@ -343,6 +357,7 @@ namespace Extinction {
         using namespace ChannelMapWithBoard;
         TdcData datum;
         datum.Spill         = Spill;
+        datum.EMCount       = EMCount;
         datum.Tdc           = Tdc;
         datum.Time          = GetTime();
         datum.TimePerTdc    = GetTimePerTdc();
@@ -406,6 +421,52 @@ namespace Extinction {
         file.write((Char_t*)&data2, sizeof(Packet2_t));
       }
 
+      virtual Int_t DecodeEventMatchNumber(const std::vector<TdcData>& eventMatchData) const override {
+        const std::size_t kHeaderSize     =  2;
+        const std::size_t kEventMatchSize = 19;
+        Int_t eventMatchNumber = -1;
+        if (eventMatchData.size() < kHeaderSize) {
+          std::cout << "[warning] event match data is empty" << std::endl;
+        } else {
+          Int_t eventMatchBits[kEventMatchSize] = { 0 };
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          for (auto&& data : eventMatchData) {
+            const Double_t norm = (data.Tdc - eventMatchData[0].Tdc) / (eventMatchData[1].Tdc - eventMatchData[0].Tdc);
+            const std::size_t bit = TMath::Nint(norm);
+            if (bit < kEventMatchSize) {
+              // std::cout << bit << ", ";
+              eventMatchBits[bit] = 1;
+            } else {
+              // Maybe second event match signals
+              break;
+              // std::cout << "[warning] invalid event match tdc" << std::endl;
+              // std::cout << "(" << data.Tdc << " - " << eventMatchData[0].Tdc << ") / "
+              //           << "(" << eventMatchData[1].Tdc << " - " << eventMatchData[0].Tdc << ")" << std::endl
+              //           << "-> " << data.Tdc - eventMatchData[0].Tdc
+              //           << " / " << eventMatchData[1].Tdc - eventMatchData[0].Tdc << std::endl
+              //           << "-> " << norm << " -> " << bit << std::endl;
+            }
+          }
+          // std::cout << std::endl;
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          Int_t parityBit = 0;
+          for (std::size_t bit = 0; bit < kEventMatchSize - 1; ++bit) {
+            parityBit ^= eventMatchBits[bit];
+          }
+          // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
+          if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
+            std::cout << "[warning] invalid parity bit" << std::endl;
+          } else {
+            eventMatchNumber = 0;
+            for (std::size_t bit = kHeaderSize; bit < kEventMatchSize - 1; ++bit) {
+              if (eventMatchBits[bit]) {
+                eventMatchNumber += (0x1 << (bit - 1));
+              }
+            }
+          }
+        }
+        return eventMatchNumber;
+      }
     };
 
     class Decoder {

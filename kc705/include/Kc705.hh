@@ -545,7 +545,7 @@ namespace Extinction {
           // Nothing to do
         } else {
           std::cout << "[error] invalid header, maybe "
-                    << (IsFooter(buff) ? "footer" : "data") << std::endl;
+                    << (Kc705::IsFooter(buff) ? "footer" : "data") << std::endl;
           Type = DataType::HeaderError;
         }
 
@@ -564,7 +564,7 @@ namespace Extinction {
           return ret;
         }
 
-        if (IsFooter(buff)) {
+        if (Kc705::IsFooter(buff)) {
           SetDataAsFooter(buff);
         } else {
           SetDataAsData(buff);
@@ -624,7 +624,6 @@ namespace Extinction {
         tree->Branch("type"    , &Type    , "type"    "/B");
         tree->Branch("boardId" , &BoardId , "boardId" "/b");
         tree->Branch("spill"   , &Spill   , "spillC"  "/I");
-        tree->Branch("emCount" , &EMCount , "emCount" "/s");
         tree->Branch("tdc"     , &Tdc     , "tdc"     "/i");
         tree->Branch("mrSync"  , &MrSync  , "MrSync"  "/O");
         tree->Branch("mppc"    , &MppcBit , "mppc"    "/l");
@@ -634,13 +633,16 @@ namespace Extinction {
         tree->Branch("subs"    ,  Subs    , Form("subs [%lu]" "/b", SubNch));
         tree->SetAlias("tdc2", "tdc + 0x8000000 * overflow");
       }
+      inline TBranch* AddEMBranch(TTree* tree) {
+        return tree->Branch("emcount", &EMCount, "emcount/I");
+      }
 
       inline virtual void SetBranchAddress(TTree* tree) override {
         // std::cout << "Kc705::Kc705Data::SetBranchAddress()" << std::endl;
         tree->SetBranchAddress("type"    , &Type    );
         tree->SetBranchAddress("boardId" , &BoardId );
         tree->SetBranchAddress("spill"   , &Spill   );
-        tree->SetBranchAddress("emCount" , &EMCount );
+        tree->SetBranchAddress("emcount" , &EMCount );
         tree->SetBranchAddress("tdc"     , &Tdc     );
         tree->SetBranchAddress("mrSync"  , &MrSync  );
         tree->SetBranchAddress("mppc"    , &MppcBit );
@@ -694,6 +696,10 @@ namespace Extinction {
         return Type == DataType::Data;
       }
 
+      inline virtual Bool_t IsFooter() const override {
+        return Type == DataType::Footer;
+      }
+      
       inline virtual Int_t GetSpill() const override {
         return Spill;
       }
@@ -921,6 +927,10 @@ namespace Extinction {
 
 #endif
 
+      virtual Int_t DecodeEventMatchNumber(const std::vector<TdcData>& /*data*/) const override {
+        return EMCount;
+      }
+
     };
 
     class Decoder {
@@ -949,7 +959,7 @@ namespace Extinction {
         } else {
           for (; Read(file); ++count) {
             // Data.Show();
-            if (Data.Type == DataType::Data) {
+            if (Data.Type == DataType::Data || Data.Type == DataType::Footer) {
               // std::cout << "TTree::Fill()" << std::endl;
               Tree->Fill();
             }

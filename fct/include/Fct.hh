@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <cstring>
+#include <set>
 #include "TTree.h"
 #include "Units.hh"
 #include "Tdc.hh"
@@ -133,7 +134,7 @@ namespace Extinction {
             Error,
       };
     };
-    
+
     // 4 byte
     using Packet_t = UInt_t;
 
@@ -175,8 +176,8 @@ namespace Extinction {
     public:
       Int_t    Type;
       Int_t    Spill;
+      Int_t    EMCount;
       Int_t    Channel;
-      Int_t    DTime;   // ? ... currently, all data are filled with 0
       Int_t    Tdc;
       Int_t    Carry;
 
@@ -191,8 +192,8 @@ namespace Extinction {
       FctData(const FctData& data)
         : Type     (data.Type     ),
           Spill    (data.Spill    ),
+          EMCount  (data.EMCount  ),
           Channel  (data.Channel  ),
-          DTime    (data.DTime    ),
           Tdc      (data.Tdc      ),
           Carry    (data.Carry    ) {
         for (std::size_t ch = 0; ch < NofChannels; ++ch) {
@@ -203,8 +204,8 @@ namespace Extinction {
       FctData& operator=(const FctData& data) {
         Type      = data.Type;
         Spill     = data.Spill;
+        EMCount   = data.EMCount;
         Channel   = data.Channel;
-        DTime     = data.DTime;
         Tdc       = data.Tdc;
         Carry     = data.Carry;
         for (std::size_t ch = 0; ch < NofChannels; ++ch) {
@@ -217,8 +218,8 @@ namespace Extinction {
       inline void Clear() {
         Type      = DataType::None;
         Spill     = -1;
+        EMCount   = -1;
         Channel   = 0;
-        DTime     = 0;
         Tdc       = 0;
         Carry     = 0;
         for (std::size_t ch = 0; ch < NofChannels; ++ch) {
@@ -235,7 +236,6 @@ namespace Extinction {
         Type = DataType::GateStart;
         ++Spill;
         Channel = 0;
-        DTime   = 0;
         Tdc     = 0;
         Carry   = 0;
         for (std::size_t ch = 0; ch < NofChannels; ++ch) {
@@ -318,33 +318,35 @@ namespace Extinction {
       inline virtual Double_t GetTimePerTdc() const override {
         return TimePerTdc;
       };
-      
+
       inline virtual Double_t GetTime() const override {
         return Tdc * TimePerTdc;
       }
 
       inline void CreateBranch(TTree* tree) {
         // std::cout << "Fct::FctData::CreateBranch()" << std::endl;
-        tree->Branch("CH"   , &Channel, "CH" "/I");
-        tree->Branch("TDC"  , &Tdc    , "TDC""/I");
-        tree->Branch("DTIME", &DTime  , "DTIME/I");
-        tree->Branch("SPILL", &Spill  , "SPILL/I");
+        tree->Branch("ch"   , &Channel, "ch" "/I");
+        tree->Branch("tdc"  , &Tdc    , "tdc""/I");
+        tree->Branch("spill", &Spill  , "spill/I");
+      }
+      inline TBranch* AddEMBranch(TTree* tree) {
+        return tree->Branch("emcount", &EMCount, "emcount/I");
       }
 
       inline virtual void SetBranchAddress(TTree* tree) override {
         // std::cout << "Fct::FctData::SetBranchAddress()" << std::endl;
         Type = DataType::Data;
-        tree->SetBranchAddress("CH"   , &Channel);
-        tree->SetBranchAddress("TDC"  , &Tdc    );
-        tree->SetBranchAddress("DTIME", &DTime  );
-        tree->SetBranchAddress("SPILL", &Spill  );
+        tree->SetBranchAddress("ch"     , &Channel);
+        tree->SetBranchAddress("tdc"    , &Tdc    );
+        tree->SetBranchAddress("spill"  , &Spill  );
+        tree->SetBranchAddress("emcount", &EMCount);
       }
 
       inline void Show() const {
-        std::cout << "Spill = " << Spill   << ", " 
-                  << "Ch = "    << Channel << ", "
-                  << "TDC = "   << Tdc     << ", "
-                  << "DTime = " << DTime   << std::endl;
+        std::cout << "Spill = "   << Spill   << ", "
+                  << "EMCount = " << EMCount << ", "
+                  << "Ch = "      << Channel << ", "
+                  << "TDC = "     << Tdc     << std::endl;
       }
 
       inline virtual std::string GetName() const override {
@@ -355,6 +357,10 @@ namespace Extinction {
         return Type == DataType::Data;
       }
 
+      inline virtual Bool_t IsFooter() const override {
+        return Type == DataType::GateEnd;
+      }
+
       inline virtual Int_t GetSpill() const override {
         return Spill;
       }
@@ -363,6 +369,7 @@ namespace Extinction {
         using namespace ChannelMap;
         TdcData datum;
         datum.Spill         = Spill;
+        datum.EMCount       = EMCount;
         datum.Tdc           = Tdc;
         datum.Time          = GetTime();
         datum.TimePerTdc    = TimePerTdc;
@@ -390,6 +397,7 @@ namespace Extinction {
         using namespace ChannelMapWithBoard;
         TdcData datum;
         datum.Spill         = Spill;
+        datum.EMCount       = EMCount;
         datum.Tdc           = Tdc;
         datum.Time          = GetTime();
         datum.TimePerTdc    = TimePerTdc;
@@ -442,7 +450,54 @@ namespace Extinction {
         Packet_t data = 0xffff0000 + (Carry & 0xff);
         file.write((Char_t*)&data, sizeof(Packet_t));
       }
-      
+
+      virtual Int_t DecodeEventMatchNumber(const std::vector<TdcData>& eventMatchData) const override {
+        const std::size_t kHeaderSize     =  2;
+        const std::size_t kEventMatchSize = 19;
+        Int_t eventMatchNumber = -1;
+        if (eventMatchData.size() < kHeaderSize) {
+          std::cout << "[warning] event match data is empty" << std::endl;
+        } else {
+          Int_t eventMatchBits[kEventMatchSize] = { 0 };
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          for (auto&& data : eventMatchData) {
+            const Double_t norm = (data.Tdc - eventMatchData[0].Tdc) / (eventMatchData[1].Tdc - eventMatchData[0].Tdc);
+            const std::size_t bit = TMath::Nint(norm);
+            if (bit < kEventMatchSize) {
+              // std::cout << bit << ", ";
+              eventMatchBits[bit] = 1;
+            } else {
+              // Maybe second event match signals
+              break;
+              // std::cout << "[warning] invalid event match tdc" << std::endl;
+              // std::cout << "(" << data.Tdc << " - " << eventMatchData[0].Tdc << ") / "
+              //           << "(" << eventMatchData[1].Tdc << " - " << eventMatchData[0].Tdc << ")" << std::endl
+              //           << "-> " << data.Tdc - eventMatchData[0].Tdc
+              //           << " / " << eventMatchData[1].Tdc - eventMatchData[0].Tdc << std::endl
+              //           << "-> " << norm << " -> " << bit << std::endl;
+            }
+          }
+          // std::cout << std::endl;
+          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
+          Int_t parityBit = 0;
+          for (std::size_t bit = 0; bit < kEventMatchSize - 1; ++bit) {
+            parityBit ^= eventMatchBits[bit];
+          }
+          // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
+          if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
+            std::cout << "[warning] invalid parity bit" << std::endl;
+          } else {
+            eventMatchNumber = 0;
+            for (std::size_t bit = kHeaderSize; bit < kEventMatchSize - 1; ++bit) {
+              if (eventMatchBits[bit]) {
+                eventMatchNumber += (0x1 << (bit - 1));
+              }
+            }
+          }
+        }
+        return eventMatchNumber;
+      }
+
     };
 
     class Decoder {
@@ -453,7 +508,7 @@ namespace Extinction {
       Decoder() : Tree(nullptr) {
       }
 
-      void InitializeTree(const std::string& treename = "FCTTDC") {
+      void InitializeTree(const std::string& treename = "tree") {
         // std::cout << "Fct::Decoder::InitializeTree()" << std::endl;
         if (Tree) {
           delete Tree;

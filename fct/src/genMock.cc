@@ -23,26 +23,26 @@ namespace {
     }
   }
 
-  Double_t extinction = 3.0e-11;
-  Int_t    eventMatchNumber = 1054;
-  Int_t    eventMatchParity;
+  Double_t       extinction            =    3.0e-11;
+  Int_t          eventMatchNumber      = 1054;
+  Int_t          eventMatchParity;
 
-  Double_t dtEM  =  10 * nsec;
-  Double_t dtBH1 = 100 * nsec;
-  Double_t dtBH2 = 120 * nsec;
-  Double_t dtHod = 110 * nsec;
-  Double_t dtTC1 = 140 * nsec;
-  Double_t dtTC2 = 140 * nsec;
-  Double_t sigmaT =  1 * nsec;
+  Double_t       dtEM                  =   10    * nsec;
+  Double_t       dtBH1                 =  100    * nsec;
+  Double_t       dtBH2                 =  120    * nsec;
+  Double_t       dtHod                 =  110    * nsec;
+  Double_t       dtTC1                 =  140    * nsec;
+  Double_t       dtTC2                 =  140    * nsec;
+  Double_t       sigmaT                =    1    * nsec;
+  Double_t       bunchSigma            =   15.0  * nsec;
 
-  const Double_t nofParticles          = 1.6e11;
+  const Double_t nofParticles          =    1.6e11;
   const Double_t daqTime               = 1.0 * 24 * 60 * 60 * sec;
 
   const Double_t cycle                 =    5.52 *  sec;
   const Double_t spillLength           =    0.5  *  sec;
   const Double_t mrSyncInterval        = 5257.67 * nsec;
   const Double_t bunchInterval         = 1168.37 * nsec;
-  const Double_t bunchSigma            =   15.0  * nsec;
   const Double_t bunchT0               =  200.0  * nsec;
 
   const Double_t dataLength            = 1.5 * sec;
@@ -91,7 +91,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   {
     extinction = conf->GetValue<Double_t>("Extinction");
     eventMatchNumber = conf->GetValue<Int_t>("EventMatchNumber");
-    eventMatchParity = 1;
+    eventMatchParity = 0;
     for (std::size_t i = 0; i < 16; ++i) {
       eventMatchParity ^= (eventMatchNumber >> i) & 0x1;
     }
@@ -103,6 +103,8 @@ Int_t main(Int_t argc, Char_t** argv) {
     dtTC2  = conf->GetValue<Double_t>("Offset.TC2");
 
     sigmaT = conf->GetValue<Double_t>("TimeResolution");
+
+    bunchSigma = conf->GetValue<Double_t>("BunchSigma");
   }
 
   Extinction::Fct::ChannelMapWithBoard::Load(conf, boards);
@@ -185,17 +187,21 @@ Int_t main(Int_t argc, Char_t** argv) {
       }
     }
 
-    if ((mrSync ==  0) ||
-        (mrSync <  17 && ((eventMatchNumber >> (mrSync - 1)) & 0x1)) ||
-        (mrSync == 17 && eventMatchParity)) {
-      ch = 0;
-      const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::EventMatch::GlobalChannelOffset];
-      const Long64_t tdc = TMath::Max(0.0, (t0 + dtEM + gRandom->Gaus() * sigmaT) / timePerTdc);
-      const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Evm[board])
-        .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
-        .FirstOrDefault()
-        .first;
-      hits[board][tdc].insert(rawCh);
+    if (mrSync >= 192 &&
+        ((mrSync ==  0 + 192 || mrSync ==  1 + 192) ||
+         (mrSync <  18 + 192 && ((eventMatchNumber >> (mrSync - 1)) & 0x1)) ||
+         (mrSync == 18 + 192 && eventMatchParity))) {
+      for (ch = 0; ch < (Int_t)Extinction::EventMatch::NofChannels; ++ch) {
+        if (Extinction::Fct::ChannelMapWithBoard::Board.count(ch + Extinction::EventMatch::GlobalChannelOffset)) {
+          const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::EventMatch::GlobalChannelOffset];
+          const Long64_t tdc = TMath::Max(0.0, (t0 + dtEM + gRandom->Gaus() * sigmaT) / timePerTdc);
+          const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Evm[board])
+            .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
+            .FirstOrDefault()
+            .first;
+          hits[board][tdc].insert(rawCh);
+        }
+      }
     }
 
     if (extractT0 < t0 && t0 < extractT0 + spillLength) {
@@ -246,7 +252,6 @@ Int_t main(Int_t argc, Char_t** argv) {
           ch = TMath::Max(Extinction::ExtinctionDetector::FindChannel(x, y), 0LL);
           const Int_t board = Extinction::Fct::ChannelMapWithBoard::Board[ch + Extinction::ExtinctionDetector::GlobalChannelOffset];
           const Long64_t tdc = TMath::Max(0.0, (t + gRandom->Gaus() * sigmaT) / timePerTdc);
-
           const Long64_t rawCh = Tron::Linq::From(Extinction::Fct::ChannelMapWithBoard::Ext[board])
             .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == ch; })
             .FirstOrDefault()
