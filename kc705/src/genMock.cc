@@ -23,26 +23,26 @@ namespace {
     }
   }
 
-  Double_t extinction = 3.0e-11;
-  Int_t    eventMatchNumber = 1054;
-  Int_t    eventMatchParity;
-  Double_t spill = 113;
+  Double_t       extinction            =    3.0e-11;
+  Int_t          eventMatchNumber      = 1054;
+  Int_t          eventMatchParity;
+  Double_t       spill                 =  113;
 
-  Double_t dtBH1 = 100 * nsec;
-  Double_t dtBH2 = 120 * nsec;
-  Double_t dtHod = 110 * nsec;
-  Double_t dtTC1 = 140 * nsec;
-  Double_t dtTC2 = 140 * nsec;
-  Double_t sigmaT =  1 * nsec;
+  Double_t       dtBH1                 =  100    * nsec;
+  Double_t       dtBH2                 =  120    * nsec;
+  Double_t       dtHod                 =  110    * nsec;
+  Double_t       dtTC1                 =  140    * nsec;
+  Double_t       dtTC2                 =  140    * nsec;
+  Double_t       sigmaT                =    1    * nsec;
+  Double_t       bunchSigma            =   15.0  * nsec;
 
-  const Double_t nofParticles          = 1.6e11;
+  const Double_t nofParticles          =    1.6e11;
   const Double_t daqTime               = 1.0 * 24 * 60 * 60 * sec;
 
   const Double_t cycle                 =    5.52 *  sec;
   const Double_t spillLength           =    0.5  *  sec;
   const Double_t mrSyncInterval        = 5257.67 * nsec;
   const Double_t bunchInterval         = 1168.37 * nsec;
-  const Double_t bunchSigma            =   15.0  * nsec;
   const Double_t bunchT0               =  200.0  * nsec;
 
   const Double_t dataLength            = 1.5 * sec;
@@ -91,7 +91,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   {
     extinction = conf->GetValue<Double_t>("Extinction");
     eventMatchNumber = conf->GetValue<Int_t>("EventMatchNumber");
-    eventMatchParity = 1;
+    eventMatchParity = 0;
     for (std::size_t i = 0; i < 16; ++i) {
       eventMatchParity ^= (eventMatchNumber >> i) & 0x1;
     }
@@ -104,6 +104,8 @@ Int_t main(Int_t argc, Char_t** argv) {
     dtTC2  = conf->GetValue<Double_t>("Offset.TC2");
 
     sigmaT = conf->GetValue<Double_t>("TimeResolution");
+
+    bunchSigma = conf->GetValue<Double_t>("BunchSigma");
   }
 
   Extinction::Kc705::ChannelMapWithBoard::Load(conf, boards);
