@@ -407,8 +407,8 @@ namespace Extinction {
 
       inline void SetDataAsHeader(Packet_t packet) {
         Type     = DataType::Header;
-        BoardId  = GetBoardId(packet);
-        Spill    = Extinction::Kc705::GetSpill(packet);
+        BoardId  = Kc705::GetBoardId(packet);
+        Spill    = Kc705::GetSpill(packet);
         MppcBit  = 0;
         SubBit   = 0;
         MrSync   = 0;
@@ -423,10 +423,10 @@ namespace Extinction {
       inline void SetDataAsData(Packet_t packet) {
         const UInt_t lastTdc = Tdc;
         Type    = DataType::Data;
-        MppcBit = GetMppcBit(packet);
-        SubBit  = GetSubBit(packet);
-        MrSync  = GetMrSync(packet);
-        Tdc     = GetTdc(packet);
+        MppcBit = Kc705::GetMppcBit(packet);
+        SubBit  = Kc705::GetSubBit(packet);
+        MrSync  = Kc705::GetMrSync(packet);
+        Tdc     = Kc705::GetTdc(packet);
         if (Tdc < lastTdc) { ++Overflow; }
         for (std::size_t ch = 0; ch < MppcNch; ++ch) {
           Mppcs[ch] = IsMppcHit(ch);
@@ -442,8 +442,8 @@ namespace Extinction {
         SubBit  = 0;
         MrSync  = 0;
         Tdc     = 0;
-        EMCount = GetEMCount(packet);
-        WRCount = GetWRCount(packet);
+        EMCount = Kc705::GetEMCount(packet);
+        WRCount = Kc705::GetWRCount(packet);
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
       }
@@ -468,8 +468,8 @@ namespace Extinction {
 
       inline void SetDataAsHeader(Packet_t packet) {
         Type     = DataType::Header;
-        BoardId  = GetBoardId(packet);
-        Spill    = Extinction::Kc705::GetSpill(packet);
+        BoardId  = Kc705::GetBoardId(packet);
+        Spill    = Kc705::GetSpill(packet);
         MppcBit  = 0;
         SubBit   = 0;
         MrSync   = 0;
@@ -484,10 +484,10 @@ namespace Extinction {
       inline void SetDataAsData(Packet_t packet) {
         const UInt_t lastTdc = Tdc;
         Type    = DataType::Data;
-        MppcBit = GetMppcBit(packet);
-        SubBit  = GetSubBit(packet);
-        MrSync  = GetMrSync(packet);
-        Tdc     = GetTdc(packet);
+        MppcBit = Kc705::GetMppcBit(packet);
+        SubBit  = Kc705::GetSubBit(packet);
+        MrSync  = Kc705::GetMrSync(packet);
+        Tdc     = Kc705::GetTdc(packet);
         if (Tdc < lastTdc) { ++Overflow; }
         for (std::size_t ch = 0; ch < MppcNch; ++ch) {
           Mppcs[ch] = IsMppcHit(ch);
@@ -500,7 +500,7 @@ namespace Extinction {
       inline void SetDataAsFooter(Packet_t packet) {
         Type    = DataType::Footer;
         const Int_t lastSpill = Spill;
-        Spill   = Extinction::Kc705::GetSpill(packet);
+        Spill   = Kc705::GetSpill(packet);
         if (Spill != lastSpill) {
           std::cerr << "[warning] spill inconsistent" << std::endl;
         }
@@ -508,8 +508,8 @@ namespace Extinction {
         SubBit  = 0;
         MrSync  = 0;
         Tdc     = 0;
-        EMCount = GetEMCount(packet);
-        WRCount = GetWRCount(packet);
+        EMCount = Kc705::GetEMCount(packet);
+        WRCount = Kc705::GetWRCount(packet);
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
       }
@@ -540,7 +540,7 @@ namespace Extinction {
           return ret;
         }
 
-        if (IsHeader(buff)) {
+        if (Kc705::IsHeader(buff)) {
           SetDataAsHeader(buff);
         } else if (Type == DataType::HeaderError) {
           // Nothing to do
@@ -703,6 +703,10 @@ namespace Extinction {
       
       inline virtual Int_t GetSpill() const override {
         return Spill;
+      }
+
+      inline virtual Int_t GetEMCount() const override {
+        return EMCount;
       }
 
       inline virtual std::vector<TdcData> GetTdcData() const override {

@@ -246,7 +246,7 @@ namespace Extinction {
           return ret2;
         }
 
-        Type = GetType(buff2);
+        Type = Hul::GetType(buff2);
         switch (Type) {
         case DataType::SpillStart:
           ++Spill;
@@ -255,16 +255,16 @@ namespace Extinction {
         case DataType::SpillEnd:
           break;
         case DataType::Data:
-          Channel = GetChannel(buff1);
-          Tdc     = GetTdc(buff1);
+          Channel = Hul::GetChannel(buff1);
+          Tdc     = Hul::GetTdc(buff1);
           break;
         case DataType::Error:
-          Heartbeat = GetHeartbeat(buff1);
+          Heartbeat = Hul::GetHeartbeat(buff1);
           std::cerr << "error detected, spill = " << Spill
                     << ", heartbeat = " << Heartbeat << std::endl;
           break;
         case DataType::Heartbeat:
-          Heartbeat = GetHeartbeat(buff1);
+          Heartbeat = Hul::GetHeartbeat(buff1);
           break;
         }
 
@@ -344,6 +344,10 @@ namespace Extinction {
 
       inline virtual Int_t GetSpill() const override {
         return Spill;
+      }
+
+      inline virtual Int_t GetEMCount() const override {
+        return EMCount;
       }
 
       inline virtual std::vector<TdcData> GetTdcData() const override {

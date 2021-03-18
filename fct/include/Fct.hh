@@ -270,7 +270,7 @@ namespace Extinction {
 
       inline void SetDataAsCarry(Packet_t data) {
         Type  = DataType::Carry;
-        Carry = GetCarry(data);
+        Carry = Fct::GetCarry(data);
         for (std::size_t ch = 0; ch < NofChannels; ++ch) {
           PreviousCarry[ch] = Carry - 1;
         }
@@ -278,8 +278,8 @@ namespace Extinction {
 
       inline void SetDataAsData(Packet_t data) {
         Type      = DataType::Data;
-        Channel   = GetChannel(data);
-        Int_t tdc = GetTdc(data);
+        Channel   = Fct::GetChannel(data);
+        Int_t tdc = Fct::GetTdc(data);
 
         if (Channel < 0 || (Long64_t)NofChannels <= Channel) {
           Type = DataType::Error;
@@ -311,13 +311,13 @@ namespace Extinction {
           return ret;
         }
 
-        if        (IsHeader(buff)) {
+        if        (Fct::IsHeader(buff)) {
           SetDataAsHeader(buff);
-        } else if (IsGateStart(buff)) {
+        } else if (Fct::IsGateStart(buff)) {
           SetDataAsGateStart(buff);
-        } else if (IsGateEnd(buff)) {
+        } else if (Fct::IsGateEnd(buff)) {
           SetDataAsGateEnd(buff);
-        } else if (IsCarry(buff)) {
+        } else if (Fct::IsCarry(buff)) {
           SetDataAsCarry(buff);
         } else if (Fct::IsData(buff)) {
           SetDataAsData(buff);
@@ -383,6 +383,10 @@ namespace Extinction {
 
       inline virtual Int_t GetSpill() const override {
         return Spill;
+      }
+
+      inline virtual Int_t GetEMCount() const override {
+        return EMCount;
       }
 
       inline virtual std::vector<TdcData> GetTdcData() const override {

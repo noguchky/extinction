@@ -64,6 +64,7 @@ namespace Extinction {
 
   class ITdcDataProvider {
   public:
+    virtual ~ITdcDataProvider() { }
     virtual std::string          GetName() const = 0;
     virtual void                 SetTimePerTdc(Double_t) = 0;
     virtual Double_t             GetTimePerTdc() const = 0;
@@ -71,6 +72,7 @@ namespace Extinction {
     virtual Bool_t               IsData() const = 0;
     virtual Bool_t               IsFooter() const = 0;
     virtual Int_t                GetSpill() const = 0;
+    virtual Int_t                GetEMCount() const = 0;
     virtual Double_t             GetTime() const = 0;
     virtual std::vector<TdcData> GetTdcData() const = 0;
     virtual std::vector<TdcData> GetTdcData(Int_t) const = 0;

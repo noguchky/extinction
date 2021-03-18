@@ -113,8 +113,10 @@ namespace Extinction {
       return hist;
     }
 
-    inline TList* CreateBorderLine(Color_t color = kBlack, Style_t style = kSolid, Width_t width = 2) {
+    inline TList* CreateBorderLine(const std::string& name = "", Color_t color = kBlack, Style_t style = kSolid, Width_t width = 2) {
       TList* list = new TList();
+      list->SetName(name.data());
+
       auto newLine =
         [&](Double_t x1, Double_t y1, Double_t x2, Double_t y2) {
           TLine* line = new TLine(x1, y1, x2, y2);
@@ -301,8 +303,11 @@ namespace Extinction {
       return hist;
     }
 
-    inline TList* CreateBorderLine(Color_t color = kBlack, Style_t style = kSolid, Width_t width = 2) {
+    inline TList* CreateBorderLine(const std::string& name = "",
+                                   Color_t color = kBlack, Style_t style = kSolid, Width_t width = 2) {
       TList* list = new TList();
+      list->SetName(name.data());
+
       auto newLine =
         [&](Double_t x1, Double_t y1, Double_t x2, Double_t y2) {
           TLine* line = new TLine(x1, y1, x2, y2);
@@ -405,7 +410,7 @@ namespace Extinction {
   }
 
   namespace MrP3 {
-    constexpr std::size_t NofChannels         = 10U;
+    constexpr std::size_t NofChannels         = 8U;
     constexpr std::size_t GlobalChannelOffset = MrRf::GlobalChannelOffset + MrRf::NofChannels;
 
     inline Bool_t Contains(std::size_t globalChannel) {
@@ -421,7 +426,7 @@ namespace Extinction {
   }
 
   namespace MrSync {
-    constexpr std::size_t NofChannels         = 10U;
+    constexpr std::size_t NofChannels         = 8U;
     constexpr std::size_t GlobalChannelOffset = MrP3::GlobalChannelOffset + MrP3::NofChannels;
 
     inline Bool_t Contains(std::size_t globalChannel) {
@@ -455,7 +460,7 @@ namespace Extinction {
   namespace GlobalChannel {
     constexpr std::size_t NofChannels = EventMatch::GlobalChannelOffset + EventMatch::NofChannels;
   }
-  
+
 }
 
 #endif
