@@ -13,6 +13,7 @@
 
 #include "ConfReader.hh"
 #include "String.hh"
+#include "Linq.hh"
 
 namespace Extinction {
 
@@ -79,7 +80,7 @@ namespace Extinction {
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Evm;
       std::map<Int_t/*global*/, Int_t/*board*/>               Board;
 
-      void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
+      void Load(const Tron::ConfReader* conf, const std::vector<Int_t>& boards) {
         for (auto&& board : boards) {
           const std::string key = Form("ChannelMap.%d", board);
           if (conf->Exists(key)) {
@@ -118,8 +119,27 @@ namespace Extinction {
               }
             }
           }
-
         }
+
+        auto checkDouplicate =
+          [&](const std::string& name, std::map<Int_t, std::map<Int_t, Int_t>>& map, std::size_t nch) {
+            for (auto&& board : boards) {
+              for (std::size_t ch = 0; ch < nch; ++ch) {
+                auto count = Tron::Linq::From(map[board])
+                  .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == (Int_t)ch; })
+                  .Count();
+                if (count > 1) {
+                  std::cout << "[warning] channel duplicate at " << name << "'s ch" << ch << std::endl;
+                }
+              }
+            }
+          };
+        checkDouplicate("ExtinctionDetector", Ext   , ExtinctionDetector::NofChannels);
+        checkDouplicate("Hodoscope"         , Hod   , Hodoscope         ::NofChannels);
+        checkDouplicate("BeamlineHodoscope" , Bh    , BeamlineHodoscope ::NofChannels);
+        checkDouplicate("TimingCounter"     , Tc    , TimingCounter     ::NofChannels);
+        checkDouplicate("MRSync"            , MrSync, MrSync            ::NofChannels);
+        checkDouplicate("EventMatch"        , Evm   , EventMatch        ::NofChannels);
       }
     }
 

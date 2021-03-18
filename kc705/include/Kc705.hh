@@ -86,7 +86,7 @@ namespace Extinction {
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> MrSync;
       std::map<Int_t/*global*/, std::set<Int_t/*board*/>> Board;
 
-      void Load(const Tron::ConfReader* conf, const std::vector<int>& boards) {
+      void Load(const Tron::ConfReader* conf, const std::vector<Int_t>& boards) {
         for (auto&& board : boards) {
           const std::string key = Form("ChannelMap.%d", board);
           if (conf->Exists(key)) {
@@ -125,8 +125,9 @@ namespace Extinction {
               }
             }
           }
-
         }
+
+        // Nothing to check
       }
     }
     
