@@ -109,6 +109,25 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   Extinction::Hul::ChannelMapWithBoard::Load(conf, boards);
 
+  // auto printChannels =
+  //   [](const std::string& title, const std::map<Int_t, std::map<Int_t, Int_t>> map) {
+  //     std::cout << title << std::endl;
+  //     for (auto&& pair1 : map) {
+  //       for (auto&& pair2 : pair1.second) {
+  //         std::cout << pair1.first << "\t"
+  //                   << pair2.first << "\t"
+  //                   << pair2.second << std::endl;
+  //       }
+  //     }
+  //   };
+  // printChannels("BeamlineHodoscope" , Extinction::Hul::ChannelMapWithBoard::Bh    );
+  // printChannels("ExtinctionDetector", Extinction::Hul::ChannelMapWithBoard::Ext   );
+  // printChannels("Hodoscope"         , Extinction::Hul::ChannelMapWithBoard::Hod   );
+  // printChannels("TimingCounter"     , Extinction::Hul::ChannelMapWithBoard::Tc    );
+  // printChannels("MRSync"            , Extinction::Hul::ChannelMapWithBoard::MrSync);
+  // printChannels("EventMatch"        , Extinction::Hul::ChannelMapWithBoard::Evm   );
+  // return 0;
+
   TF1* fGaussX = new TF1("fGaussX", "[0]*TMath::Exp(-0.5*TMath::Sq((x-[1])/((x>=[1])*[2]+(x<[1])*[3])))", -40, 40);
   fGaussX->SetParNames("Constant", "Mu", "Sigma+", "Sigma-");
   fGaussX->SetNpx(80 * 10);
