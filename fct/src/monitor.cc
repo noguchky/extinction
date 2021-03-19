@@ -14,6 +14,7 @@
 #include <limits>
 #include <sys/inotify.h>
 #include <pthread.h>
+#include <regex>
 
 #include "MonitorWindow.hh"
 
@@ -23,6 +24,25 @@
 #include "ScopeSubstituter.hh"
 
 namespace {
+
+  auto parser =
+    [](const std::string& filename) {
+      static const std::regex pattern(R"((\d+)-(\d+)-(\d+)_(\d+)-(\d+)-(\d+))");
+
+      std::cmatch match;
+      if (std::regex_search(filename.data(), match, pattern)) {
+        const Int_t year   = Tron::String::Convert<Int_t>(match[1].str());
+        const Int_t month  = Tron::String::Convert<Int_t>(match[2].str());
+        const Int_t day    = Tron::String::Convert<Int_t>(match[3].str());
+        const Int_t hour   = Tron::String::Convert<Int_t>(match[4].str());
+        const Int_t minute = Tron::String::Convert<Int_t>(match[5].str());
+        const Int_t second = Tron::String::Convert<Int_t>(match[6].str());
+        return TDatime(year, month, day, hour, minute, second);
+      }
+
+      return TDatime(0U);
+    };
+
   bool                                idle = true;
   std::mutex                          busyMutex;
   std::mutex                          filenamesMutex;
@@ -59,7 +79,7 @@ namespace {
 
       try {
         std::cout << "Modify plots for " << ifilenames.begin()->second << " and so on" << std::endl;
-        monitor->UpdatePlots(ifilenames);
+        monitor->UpdatePlots(ifilenames, parser);
       } catch (...) {
         monitor->Terminate();
       }

@@ -126,6 +126,7 @@ namespace Extinction {
       TH1**                        hMrSyncInterval      = nullptr;
       TH2**                        hExtTdcOffset        = nullptr;
 
+      TDatime                      fDate;
       Long64_t                     fSpillCount          = 0;
       Long64_t                     fCoinCount           = 0;
       Int_t                        fEventMatchNumber    = -1;
@@ -139,9 +140,8 @@ namespace Extinction {
       std::vector<TdcData>         fLastHodData;
       std::vector<TdcData>         fLastTcData;
       std::vector<TdcData>         fLastBhData;
-      std::vector<TdcData>         fEventMatchData;
-
       std::map<Int_t, TdcData>     fLastMrSyncData;
+      std::map<Int_t, std::vector<TdcData>> fEventMatchData;
 
       Bool_t                       fIsTerminated        = false;
       ChannelAlign                 fChannelAlign        = ChannelAlign::Raw;
@@ -239,7 +239,8 @@ namespace Extinction {
 
       void                 DrawPlots();
 
-      Int_t                UpdatePlots(const std::map<Int_t, std::string>& ifilenames);
+      Int_t                UpdatePlots(const std::map<Int_t, std::string>& ifilenames,
+                                       const std::function<TDatime(const std::string&)>& parser = nullptr);
 
       inline void          Run() { fApplication->Run(true); }
 
@@ -464,7 +465,7 @@ namespace Extinction {
 
       // Extinction detector hit map
       hExtHitMap     = ExtinctionDetector::CreateHitMap("hExtHitMap");
-      lExtBorderLine = ExtinctionDetector::CreateBorderLine(kBlack, kSolid, 1);
+      lExtBorderLine = ExtinctionDetector::CreateBorderLine("lExtBorderLine", kBlack, kSolid, 1);
 
       // Extinction detector hit count
       hExtEntryByCh = new TH1D("hExtEntryByCh",
@@ -489,7 +490,7 @@ namespace Extinction {
 
       // Hodoscope hit map
       hHodHitMap     = Hodoscope::CreateHitMap("hHodHitMap");
-      lHodBorderLine = Hodoscope::CreateBorderLine(kBlack, kSolid, 1);
+      lHodBorderLine = Hodoscope::CreateBorderLine("lHodBorderLine", kBlack, kSolid, 1);
 
       // Hodoscope hit count
       hHodEntryByCh = new TH1D("hHodEntryByCh",
@@ -612,9 +613,25 @@ namespace Extinction {
       Int_t padnumber = 0;
 
       if (fEventMatchNumber >= 0) {
-        fCanvas->SetTitle((fProvider.GetName() + " | Semi-online Monitor" + Form(" (%d)", fEventMatchNumber)).data());
+        fCanvas->SetTitle((fProvider.GetName() + " | Semi-online Monitor" +
+                           Form(" (%04d/%02d/%02d %02d:%02d:%02d - %d)",
+                                fDate.GetYear(),
+                                fDate.GetMonth(),
+                                fDate.GetDay(),
+                                fDate.GetHour(),
+                                fDate.GetMinute(),
+                                fDate.GetSecond(),
+                                fEventMatchNumber)).data());
       } else {
-        fCanvas->SetTitle((fProvider.GetName() + " | Semi-online Monitor").data());
+        fCanvas->SetTitle((fProvider.GetName() + " | Semi-online Monitor" +
+                           Form(" (%04d/%02d/%02d %02d:%02d:%02d)",
+                                fDate.GetYear(),
+                                fDate.GetMonth(),
+                                fDate.GetDay(),
+                                fDate.GetHour(),
+                                fDate.GetMinute(),
+                                fDate.GetSecond()
+                                )).data());
       }
 
       if (fCanvas->cd(++padnumber)) {
@@ -840,7 +857,9 @@ namespace Extinction {
       for (auto&& pair: fLastMrSyncData) {
         pair.second.Clear();
       }
-      fEventMatchData.clear();
+      for (auto&& pair: fEventMatchData) {
+        pair.second.clear();
+      }
 
       hBhTdcInSpill[0]  ->Reset();
       hBhTdcInSpill[1]  ->Reset();
@@ -1357,7 +1376,8 @@ namespace Extinction {
       return lastData->size();
     }
 
-    Int_t MonitorWindow::UpdatePlots(const std::map<int, std::string>& ifilenames) {
+    Int_t MonitorWindow::UpdatePlots(const std::map<int, std::string>& ifilenames,
+                                     const std::function<TDatime(const std::string&)>& parser) {
       const clock_t startClock = clock();
 
       std::cout << "Initialize decoder" << std::endl;
@@ -1377,16 +1397,25 @@ namespace Extinction {
 
       std::cout << "Open file" << std::endl;
       std::map<Int_t, std::ifstream> ifiles;
+      std::vector<TDatime>           datimes;
       for (auto&& pair : ifilenames) {
         const Int_t       board     = pair.first;
         const std::string ifilename = pair.second;
         std::cout << " - " << ifilename << std::endl;
+        if (parser) {
+          datimes.push_back(parser(ifilename));
+        }
+
         ifiles[board].open(ifilename, std::ios::binary);
         if (!ifiles[board]) {
           std::cerr << "[error] input file is not opened, " << ifilename << std::endl;
           return 1;
         }
       }
+      const UInt_t averageTime = Tron::Linq::From(datimes)
+        .Select([](TDatime datime) -> ULong64_t { return datime.Convert(); })
+        .Average();
+      fDate.Set(averageTime);
 
       {
         Int_t targetBoard = 0;
@@ -1400,6 +1429,8 @@ namespace Extinction {
           gateEnded  [pair.first] = false;
           fileEnded  [pair.first] = false;
           lastTdcTags[pair.first] = 0;
+          fLastMrSyncData[pair.first];
+          fEventMatchData[pair.first];
         }
 
         for (std::size_t count = 0UL; !fIsTerminated;) {
@@ -1612,7 +1643,7 @@ namespace Extinction {
               fLastMrSyncData[board] = data;
 
             } else if (EventMatch::Contains(globalChannel)) {
-              fEventMatchData.push_back(data);
+              fEventMatchData[board].push_back(data);
             }
 
             if (tdcTag == lastTdcTags[board] &&
@@ -1634,7 +1665,14 @@ namespace Extinction {
           } else if (IsAllOfSecondsTrue(gateEnded)) {
             std::cout << "[info] end of spill " << fSpillCount << std::endl;
 
-            fEventMatchNumber = fProvider.DecodeEventMatchNumber(fEventMatchData);
+            fEventMatchNumber = fProvider.DecodeEventMatchNumber(fEventMatchData.begin()->second);
+            for (auto&& pair : ifilenames) {
+              const Int_t board = pair.first;
+              const Int_t emcount = fProvider.DecodeEventMatchNumber(fEventMatchData[board]);
+              if (emcount != fEventMatchNumber) {
+                std::cout << "[warning] conflict EMCount, " << fEventMatchNumber << " <--> " << emcount << std::endl;
+              }
+            }
 
             const Int_t np = fSpillCount % fSpillLimit;
             gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );

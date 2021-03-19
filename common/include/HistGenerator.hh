@@ -15,6 +15,7 @@
 #include "TText.h"
 #include "TDatime.h"
 #include "TF1.h"
+#include "TParameter.h"
 
 #include "Units.hh"
 #include "Detector.hh"
@@ -144,6 +145,7 @@ namespace Extinction {
 
       Long64_t                     fSpillCount          = 0;
       Long64_t                     fCoinCount           = 0;
+      TDatime                      fDate;
       Int_t                        fYear                = 0;
       Int_t                        fMonth               = 0;
       Int_t                        fDay                 = 0;
@@ -340,6 +342,10 @@ namespace Extinction {
       if (!file->IsOpen()) {
         std::cout << "[error] input file is not opened, " << ifilename << std::endl;
         return;
+      }
+
+      {
+        fDate.Set((UInt_t)Tron::ObjectHelper::ReadValue<Long64_t>("Time"));
       }
 
       {
@@ -665,6 +671,10 @@ namespace Extinction {
                                      "Spill", tdcName.data()));
       gHitInSpill->SetMarkerStyle(kPlus);
       gHitInSpill->SetMarkerColor(kBlue + 1);
+      gHitInSpill->GetXaxis()->SetTimeDisplay(true);
+      gHitInSpill->GetXaxis()->SetTimeOffset(0);
+      gHitInSpill->GetXaxis()->SetTimeFormat("#splitline{%m/%d}{%H:%M}");
+      gHitInSpill->GetXaxis()->SetLabelOffset(0.03);
 
       // Offset monitor hists
       hMrSyncInterval = new TH1*[MrSync::NofChannels];
@@ -698,6 +708,7 @@ namespace Extinction {
       }
 
       fSpillTree = new TTree(treename.data(), "Spill summary");
+      fSpillTree->Branch("date"          , &fDate                                                                        );
       fSpillTree->Branch("year"          , &fYear          , Form("year"                "/I"                            ));
       fSpillTree->Branch("month"         , &fMonth         , Form("month"               "/I"                            ));
       fSpillTree->Branch("day"           , &fDay           , Form("day"                 "/I"                            ));
@@ -938,6 +949,10 @@ namespace Extinction {
       if (!file->IsOpen()) {
         std::cout << "[error] output file is not opened, " << ofilename << std::endl;
         return;
+      }
+
+      {
+        Tron::ObjectHelper::WriteValue<Long64_t>(fDate.Convert(), "Time");
       }
 
       {
@@ -1780,14 +1795,13 @@ namespace Extinction {
       const UInt_t averageTime = Tron::Linq::From(datimes)
         .Select([](TDatime datime) -> ULong64_t { return datime.Convert(); })
         .Average();
-      TDatime averageDatime;
-      averageDatime.Set(averageTime);
-      fYear   = averageDatime.GetYear();
-      fMonth  = averageDatime.GetMonth();
-      fDay    = averageDatime.GetDay();
-      fHour   = averageDatime.GetHour();
-      fMinute = averageDatime.GetMinute();
-      fSecond = averageDatime.GetSecond();
+      fDate.Set(averageTime);
+      fYear   = fDate.GetYear();
+      fMonth  = fDate.GetMonth();
+      fDay    = fDate.GetDay();
+      fHour   = fDate.GetHour();
+      fMinute = fDate.GetMinute();
+      fSecond = fDate.GetSecond();
 
       {
         Int_t targetBoard = 0;
@@ -2038,7 +2052,9 @@ namespace Extinction {
 
             // Set point of hit count
             const Int_t np = fSpillCount;
-            gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );
+         // gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );
+         // gHitInSpill->SetPoint     (np, fEMCount,        fCoinCount      );
+            gHitInSpill->SetPoint     (np, fDate.Convert(), fCoinCount      );
          // gHitInSpill->SetPointError(np, 0.0, TMath::Sqrt(fCoinCount     ));
             ++fSpillCount;
 
