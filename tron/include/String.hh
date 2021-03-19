@@ -95,7 +95,7 @@ std::string Tron::String::Join(const std::initializer_list<Value_t>& list, const
 template <typename Value_t>
 Value_t Tron::String::Convert(const std::string& str, const char*) {
   std::stringstream line(str);
-  Value_t value;
+  Value_t value { };
   line >> value;
   return value;
 }
@@ -104,7 +104,7 @@ template <typename Value_t>
 std::vector<Value_t> Tron::String::Converts(const std::string& str, const char*) {
   std::stringstream line(str);
   std::vector<Value_t> values;
-  Value_t value;
+  Value_t value { };
   while (line >> value) {
     values.push_back(value);
   }

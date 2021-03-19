@@ -58,6 +58,7 @@ namespace Extinction {
     private:
       using CoinDiffs  = std::map<std::size_t/*extCh*/, std::map<std::size_t/*index*/, Double_t>>;
       using Contains   = std::map<std::size_t/*extCh*/, std::map<std::size_t/*index*/, Bool_t>>;
+      using TdcPair    = std::pair<TdcData, TdcData>;
 
       struct CoinOffset {
         enum {
@@ -158,14 +159,15 @@ namespace Extinction {
       Long64_t                     fInBunch             = 0;
       Double_t                     fExtinction          = 1;
       Double_t                     fExtinctionErr       = 1;
+      Double_t                     fTimePerTdc    [MrSync::NofChannels] = { 0 };
+      Double_t                     fMrSyncInterval[MrSync::NofChannels] = { 0 };
       Double_t                     fBunchCenters[kNofBunches] = { 0 };
       Double_t                     fBunchWidths [kNofBunches] = { 0 };
-      Double_t                     fMrSyncInterval[MrSync::NofChannels] = { 0 };
       CoinDiffs                    fCoinDiffs;
 
       CoinDiffs                    fStdCoinDiffs;
       Contains                     fContains;
-      std::map<Int_t, Double_t>    fTimePerTdc;
+      std::map<Int_t, Double_t>    fStdTimePerTdc;
       std::map<Int_t, Double_t>    fStdMrSyncInterval;
       Double_t                     fStdMrSyncIntervalAverage;
       Double_t                     fStdBunchCenters[kNofBunches] = { 0 };
@@ -176,6 +178,8 @@ namespace Extinction {
       Double_t                     fCoinTimeWidth       =  10.0 * nsec;
       std::size_t                  fBufferSize          = 5000;
       std::size_t                  fBufferMargin        =  100;
+      Double_t                     fMrSyncRefInterval   = 5.257665092140706e+03 * nsec;
+      std::size_t                  fMrSyncRefSize       = 200000;
 
       std::map<ULong64_t, TdcData> fTdcBuffer;
       std::vector<TdcData>         fLastBhData;
@@ -184,6 +188,8 @@ namespace Extinction {
       std::vector<TdcData>         fLastTcData;
       std::map<Int_t, TdcData>     fLastMrSyncData;
       std::vector<TdcData>         fEventMatchData;
+      std::map<Int_t, std::size_t> fMrSyncCount;
+      std::map<Int_t, TdcPair>     fMrSyncReference;
 
       TF1*                         fGauss               = nullptr;
 
@@ -191,37 +197,53 @@ namespace Extinction {
       HistGenerator(ITdcDataProvider* provider);
       ~HistGenerator();
 
+      void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
+      void                 SetMrSyncInterval(const std::map<Int_t, Double_t>& map);
+      void                 SetBunchCenters(const Double_t bunchCenters[kNofBunches]);
+      void                 SetBunchWidths(const Double_t bunchWidths[kNofBunches]);
       Int_t                LoadOffset(const std::string& ffilename);
-      inline void          SetTimePerTdc(const std::map<Int_t, Double_t>& map) {
-        fTimePerTdc = map;
-      }
-      inline void          SetMrSyncInterval(const std::map<Int_t, Double_t>& map) {
-        fStdMrSyncInterval        = map;
-        fStdMrSyncIntervalAverage = Tron::Linq::From(map)
-          .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
-          .Average();
-      }
-      inline void          SetBunchCenters(const Double_t bunchCenters[kNofBunches]) {
-        std::memcpy(fStdBunchCenters, bunchCenters, sizeof(fStdBunchCenters));
-      }
-      inline void          SetBunchWidths(const Double_t bunchWidths[kNofBunches]) {
-        std::memcpy(fStdBunchWidths, bunchWidths, sizeof(fStdBunchWidths));
-      }
 
-      inline void          SetCyclicCoincidence(Bool_t flag) { fCyclicCoincidence = flag; }
+      inline void          SetCyclicCoincidence(Bool_t flag) {
+        std::cout << "SetCyclicCoincidence ... " << (flag ? "True" : "False") << std::endl;
+        fCyclicCoincidence = flag;
+      }
       inline Bool_t        IsCyclicCoincidence() const { return fCyclicCoincidence; }
 
-      inline void          SetHistoryWidth(Double_t width) { fHistoryWidth = width; }
+      inline void          SetHistoryWidth(Double_t width) {
+        std::cout << "SetHistoryWidth ... " << width / nsec << " nsec" << std::endl;
+        fHistoryWidth = width;
+      }
       inline Double_t      GetHistoryWidth() const { return fHistoryWidth; }
 
-      inline void          SetCoinTimeWidth(Double_t width) { fCoinTimeWidth = width; }
+      inline void          SetCoinTimeWidth(Double_t width) {
+        std::cout << "SetCoinTimeWidth ... " << width / nsec << " nsec" << std::endl;
+        fCoinTimeWidth = width;
+      }
       inline Double_t      GetCoinTimeWidth() const { return fCoinTimeWidth; }
 
-      inline void          SetReadBufferSize(std::size_t size)  { fBufferSize = size; }
+      inline void          SetReadBufferSize(std::size_t size) {
+        std::cout << "SetReadBufferSize ... " << size << std::endl;
+        fBufferSize = size;
+      }
       inline std::size_t   GetReadBufferSize() const { return fBufferSize; }
 
-      inline void          SetReadBufferMargin(std::size_t size)  { fBufferMargin = size; }
+      inline void          SetReadBufferMargin(std::size_t size) {
+        std::cout << "SetReadBufferMargin ... " << size << std::endl;
+        fBufferMargin = size;
+      }
       inline std::size_t   GetReadBufferMargin() const { return fBufferMargin; }
+
+      inline void          SetMrSyncRefInterval(Double_t interval) {
+        std::cout << "SetMrSyncRefInterval ... " << interval / nsec << " nsec" << std::endl;
+        fMrSyncRefInterval = interval;
+      }
+      inline Double_t      GetMrSyncRefInterval() const { return fMrSyncRefInterval; }
+
+      inline void          SetMrSyncRefSize(std::size_t size) {
+        std::cout << "SetMrSyncRefSize ... " << size << std::endl;
+        fMrSyncRefSize = size;
+      }
+      inline std::size_t   GetMrSyncRefSize() const { return fMrSyncRefSize; }
 
       void                 ReadPlots(const std::string& ifilename);
       void                 InitializePlots(const PlotsProfiles& profile);
@@ -230,9 +252,10 @@ namespace Extinction {
       void                 DrawPlots(const std::string& ofilename);
       void                 WritePlots(const std::string& ofilename);
       void                 WriteSpillSummary();
-      void                 WriteBunchProfile(const std::string& ofilename);
+      void                 WriteTimePerTdc(const std::string& ofilename);
       void                 WriteMrSyncInterval(const std::string& ofilename);
-      void                 WriteCoinDiffs(const std::string& ofilename);
+      void                 WriteBunchProfile(const std::string& ofilename);
+      void                 WriteOffset(const std::string& ofilename);
 
       Int_t                GeneratePlots(std::map<Int_t, ITdcDataProvider*> providers,
                                          const std::map<Int_t, std::string>& ifilenames,
@@ -271,6 +294,41 @@ namespace Extinction {
     }
 
     HistGenerator::~HistGenerator() {
+    }
+
+    void HistGenerator::SetTimePerTdc(const std::map<Int_t, Double_t>& map) {
+      std::cout << "SetTimePerTdc" << std::endl;
+      for (auto&& pair : map) {
+        std::cout << pair.first << "\t" << pair.second << std::endl;
+      }
+      fStdTimePerTdc = map;
+    }
+
+    void HistGenerator::SetMrSyncInterval(const std::map<Int_t, Double_t>& map) {
+      std::cout << "SetMrSyncInterval" << std::endl;
+      for (auto&& pair : map) {
+        std::cout << pair.first << "\t" << pair.second << std::endl;
+      }
+      fStdMrSyncInterval        = map;
+      fStdMrSyncIntervalAverage = Tron::Linq::From(map)
+        .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
+        .Average();
+    }
+
+    void HistGenerator::SetBunchCenters(const Double_t bunchCenters[kNofBunches]) {
+      std::cout << "SetBunchCenters" << std::endl;
+      for (std::size_t i = 0; i < kNofBunches; ++i) {
+        std::cout << i << "\t" << bunchCenters[i] / nsec << " nsec" << std::endl;
+      }
+      std::memcpy(fStdBunchCenters, bunchCenters, sizeof(fStdBunchCenters));
+    }
+
+    void HistGenerator::SetBunchWidths(const Double_t bunchWidths[kNofBunches]) {
+      std::cout << "SetBunchWidths" << std::endl;
+      for (std::size_t i = 0; i < kNofBunches; ++i) {
+        std::cout << i << "\t" << bunchWidths[i] / nsec << " nsec" << std::endl;
+      }
+      std::memcpy(fStdBunchWidths, bunchWidths, sizeof(fStdBunchWidths));
     }
 
     Int_t HistGenerator::LoadOffset(const std::string& ffilename) {
@@ -688,7 +746,7 @@ namespace Extinction {
 
       hExtTdcOffset = new TH2*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-        hExtTdcOffset[ch] = new TH2D(Form("hhExtTdcOffset_%03lu", ch),
+        hExtTdcOffset[ch] = new TH2D(Form("hExtTdcOffset_%03lu", ch),
                                      Form("%s, Extinction Detector TDC Offset @ ch%ld;"
                                           "Channel;"
                                           "TDC [count]", tdcName.data(), ch),
@@ -725,6 +783,7 @@ namespace Extinction {
       fSpillTree->Branch("bunchcenter"   ,  fBunchCenters  , Form("bunchcenter"    "[%lu]/D",                kNofBunches));
       fSpillTree->Branch("bunchwidth"    ,  fBunchWidths   , Form("bunchwidth"     "[%lu]/D",                kNofBunches));
       fSpillTree->Branch("mrsyncinterval",  fMrSyncInterval, Form("mrsyncinterval" "[%lu]/D", MrSync       ::NofChannels));
+      fSpillTree->Branch("timepertdc"    ,  fTimePerTdc    , Form("timepertdc"     "[%lu]/D", MrSync       ::NofChannels));
     }
 
     void HistGenerator::DrawPlots(const std::string& ofilename) {
@@ -1092,23 +1151,21 @@ namespace Extinction {
         std::cout << "[warning] spill tree is not initialized" << std::endl;
         return;
       }
-      
+
       fSpillFile->cd();
       fSpillTree->Write();
     }
 
-    void HistGenerator::WriteBunchProfile(const std::string &ofilename) {
-      std::cout << "Write bunch profile" << std::endl;
+    void HistGenerator::WriteTimePerTdc(const std::string& ofilename) {
+      std::cout << "Write TimePerTdc" << std::endl;
       std::ofstream ofile(ofilename);
       if (!ofile) {
         std::cerr << "[error] output file is not opened, " << ofilename << std::endl;
         return;
       }
 
-      for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
-        ofile << bunch << "\t"
-              << fBunchCenters[bunch] / nsec << "\t"
-              << fBunchWidths [bunch] / nsec << std::endl;
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        ofile << ch << "\t" <<  Form("%23.15e", fTimePerTdc[ch] / nsec) << std::endl;
       }
 
       ofile.close();
@@ -1123,13 +1180,32 @@ namespace Extinction {
       }
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        ofile << ch << "\t" <<  fMrSyncInterval[ch] << std::endl;
+        ofile << ch << "\t" <<  Form("%23.15e", fMrSyncInterval[ch]) << std::endl;
       }
 
       ofile.close();
     }
 
-    void HistGenerator::WriteCoinDiffs(const std::string& ofilename) {
+    void HistGenerator::WriteBunchProfile(const std::string &ofilename) {
+      std::cout << "Write bunch profile" << std::endl;
+      std::ofstream ofile(ofilename);
+      if (!ofile) {
+        std::cerr << "[error] output file is not opened, " << ofilename << std::endl;
+        return;
+      }
+
+      for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+        ofile << bunch << "\t"
+              << Form("%23.15e", fBunchCenters[bunch] / fProvider->GetTimePerTdc()) << "\t"
+              << Form("%23.15e", fBunchCenters[bunch] / nsec                      ) << "\t"
+              << Form("%23.15e", fBunchWidths [bunch] / fProvider->GetTimePerTdc()) << "\t"
+              << Form("%23.15e", fBunchWidths [bunch] / nsec                      ) << std::endl;
+      }
+
+      ofile.close();
+    }
+
+    void HistGenerator::WriteOffset(const std::string& ofilename) {
       std::cout << "Write offset" << std::endl;
       std::ofstream ofile(ofilename);
       if (!ofile) {
@@ -1142,7 +1218,7 @@ namespace Extinction {
         for (auto&& pair2 : pair.second) {
           auto& index = pair2.first;
           auto& value = pair2.second;
-          ofile << board << "\t" << index << "\t" << value << std::endl;
+          ofile << board << "\t" << index << "\t" << Form("%23.15e", value) << std::endl;
         }
       }
 
@@ -1164,10 +1240,16 @@ namespace Extinction {
       fLastHodData.clear();
       fLastTcData .clear();
       fLastBhData .clear();
-      for (auto&& pair: fLastMrSyncData) {
+      for (auto&& pair : fLastMrSyncData) {
         pair.second.Clear();
       }
       fEventMatchData.clear();
+      for (auto&& pair : fMrSyncCount) {
+        pair.second = 0;
+      }
+      for (auto&& pair : fMrSyncReference) {
+        pair.second = { };
+      }
 
       if (clearHists) {
         hHodHitMap   ->Reset();
@@ -1334,7 +1416,7 @@ namespace Extinction {
             //        thre = -0.6 * fStdMrSyncIntervalAverage *  extData.TimePerTdc; dt < thre; dt += dint);
             // for (Double_t dint = fStdMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
             //        thre = +0.6 * fStdMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean  = fStdCoinDiffs[extCh][i];
+            const Double_t mean = fStdCoinDiffs[extCh][i];
             if (std::abs(dt - mean) < fCoinTimeWidth) {
               coincidence[i] = true;
               if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
@@ -1540,7 +1622,7 @@ namespace Extinction {
             //        thre = -0.6 * fStdMrSyncIntervalAverage *  tdcData.TimePerTdc; dt < thre; dt += dint);
             // for (Double_t dint = fStdMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
             //        thre = +0.6 * fStdMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean  = fStdCoinDiffs[tdcCh][i];
+            const Double_t mean = fStdCoinDiffs[tdcCh][i];
             if (std::abs(dt - mean) < fCoinTimeWidth) {
               coincidence[i] = true;
               if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
@@ -1562,7 +1644,7 @@ namespace Extinction {
             for (Double_t thre = +0.5 * fStdMrSyncIntervalAverage * fProvider->GetTimePerTdc(); dsync > thre;
                  dsync -= fStdMrSyncInterval[extData.Board] *  extData.TimePerTdc);
             const Double_t dt = dt0 - dsync;
-            const Double_t mean  = fStdCoinDiffs[extCh][tdcI];
+            const Double_t mean = fStdCoinDiffs[extCh][tdcI];
             if (std::abs(dt - mean) < fCoinTimeWidth) {
               hits.push_back(extData);
             }
@@ -1705,7 +1787,7 @@ namespace Extinction {
             //        thre = -0.6 * fStdMrSyncIntervalAverage; dt < thre; dt += dint);
             // for (Double_t dint = fStdMrSyncInterval[ tdcData.Board] *  tdcData.TimePerTdc,
             //        thre = +0.6 * fStdMrSyncIntervalAverage; dt > thre; dt -= dint);
-            const Double_t mean  = fStdCoinDiffs[extCh][i];
+            const Double_t mean = fStdCoinDiffs[extCh][i];
             if (std::abs(dt - mean) < fCoinTimeWidth) {
               coinExtData.push_back(lastData);
             }
@@ -1747,10 +1829,10 @@ namespace Extinction {
       std::cout << "Initialize decoder" << std::endl;
       for (auto&& pair : ifilenames) {
         const Int_t board = pair.first;
-        if (fTimePerTdc[board] == 0) {
+        if (fStdTimePerTdc[board] == 0) {
           providers[board]->SetTimePerTdc(fProvider->GetTimePerTdc());
         } else {
-          providers[board]->SetTimePerTdc(fTimePerTdc[board]);
+          providers[board]->SetTimePerTdc(fStdTimePerTdc[board]);
         }
       }
 
@@ -1758,11 +1840,9 @@ namespace Extinction {
       ClearLastSpill(true);
 
       std::cout << "Open file" << std::endl;
-      std::map<Int_t, TFile*> ifiles;
-      std::map<Int_t, TTree*> itrees;
+      std::map<Int_t, TFile*>   ifiles;
+      std::map<Int_t, TTree*>   itrees;
       std::map<Int_t, Long64_t> entrieses;
-      std::map<Int_t, Long64_t> entries;
-      std::map<Int_t, Long64_t> lastSpills;
       std::vector<TDatime>      datimes;
       for (auto&& pair : ifilenames) {
         const Int_t       board     = pair.first;
@@ -1784,12 +1864,10 @@ namespace Extinction {
           return 1;
         }
 
-        entrieses [board] = itrees[board]->GetEntries();
-        entries   [board] = 0;
-        lastSpills[board] = -1;
+        entrieses[board] = itrees[board]->GetEntries();
+        std::cout << " + " << entrieses[board] << std::endl;
 
         providers[board]->SetBranchAddress(itrees[board]);
-        std::cout << " + " << entrieses[board] << std::endl;
       }
       std::cout << " = " << Tron::Linq::From(entrieses).Sum([](std::pair<Int_t, Long64_t> p) { return p.second; }) << std::endl;
       const UInt_t averageTime = Tron::Linq::From(datimes)
@@ -1805,16 +1883,24 @@ namespace Extinction {
 
       {
         Int_t targetBoard = 0;
-        std::map<Int_t, Bool_t>    spillEnded;
-        std::map<Int_t, Bool_t>    fileEnded;
-        std::map<Int_t, ULong64_t> lastTdcTags;
+        std::map<Int_t, Long64_t>             entries;
+        std::map<Int_t, Long64_t>             lastSpills;
+        std::map<Int_t, Bool_t>               spillEnded;
+        std::map<Int_t, Bool_t>               fileEnded;
+        std::map<Int_t, ULong64_t>            lastTdcTags;
         std::map<Int_t, std::vector<TdcData>> firstData;
         for (auto&& pair : ifilenames) {
           targetBoard = pair.first;
-          spillEnded [pair.first] = false;
-          fileEnded  [pair.first] = false;
-          lastTdcTags[pair.first] = 0;
+          entries         [pair.first] = 0;
+          lastSpills      [pair.first] = -1;
+          spillEnded      [pair.first] = false;
+          fileEnded       [pair.first] = false;
+          lastTdcTags     [pair.first] = 0;
+          firstData       [pair.first] = { };
+          fMrSyncCount    [pair.first] = 0;
+          fMrSyncReference[pair.first] = { };
         }
+        // std::cout << "targetBoard = " << targetBoard << std::endl; 
 
         for (std::size_t count = 0UL;;) {
           {
@@ -1824,7 +1910,7 @@ namespace Extinction {
             TTree*            itree      = itrees     [targetBoard];
             Long64_t&         entry      = entries    [targetBoard];
             const Long64_t    ientries   = entrieses  [targetBoard];
-            for (std::size_t ibuf = 0; ibuf < fBufferSize; ++ibuf, ++count) {
+            for (std::size_t ibuf = 0; ibuf < fBufferSize; ++ibuf, ++count, ++entry) {
               if (count % 1000000UL == 0) {
                 std::cout << ">> " << count << std::endl;
               }
@@ -1834,7 +1920,7 @@ namespace Extinction {
                 fileEnded[targetBoard] = true;
                 break;
 
-              } else if (!itree->GetEntry(entry++)) {
+              } else if (!itree->GetEntry(entry)) {
                 std::cout << "[info] detect file end @ " << targetBoard << " (TTree::GetEntry)" << std::endl;
                 fileEnded[targetBoard] = true;
                 break;
@@ -1882,6 +1968,7 @@ namespace Extinction {
             if (boardNotLoadedYet >= 0) {
               // std::cout << "[info] there is a board not loaded yet @ " << boardNotLoadedYet << std::endl;
               targetBoard = boardNotLoadedYet;
+              // std::cout << "targetBoard = " << targetBoard << std::endl; 
               continue;
             }
           }
@@ -1912,7 +1999,7 @@ namespace Extinction {
               fLastBhData.push_back(data);
 
               fLastBhData.push_back(data);
-              // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::BH));
+           // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::BH));
               FillCoincidence2(data);
 
               if (RemoveOldTdc(&fLastBhData, time) > kHistLimit) {
@@ -1940,7 +2027,7 @@ namespace Extinction {
               fLastHodData.push_back(data);
 
               fLastHodData.push_back(data);
-              // FillCoincidences(CollectCoinExtData(data, CoinOffset::Hod));
+           // FillCoincidences(CollectCoinExtData(data, CoinOffset::Hod));
               FillCoincidence2(data);
 
               if (RemoveOldTdc(&fLastHodData, time) > kHistLimit) {
@@ -1950,7 +2037,7 @@ namespace Extinction {
 
             } else if (ExtinctionDetector::Contains(globalChannel)) {
               const Int_t ch = ExtinctionDetector::GetChannel(globalChannel);
-              const Long64_t tdc     = data.Tdc;
+              const Long64_t tdc = data.Tdc;
 
               hExtEntryByCh     ->Fill(ch);
               ExtinctionDetector::Fill(hExtHitMap, ch);
@@ -1977,7 +2064,7 @@ namespace Extinction {
                 hExtTdcOffset[ch]->Fill(lastCh + CoinOffsetX::BH, lastData.Tdc - tdc);
               }
 
-              // FillCoincidence(data);
+           // FillCoincidence(data);
 
               if (RemoveOldTdc(&fLastExtData, time) > kHistLimit) {
                 std::cerr << "[error] size of fLastExtData reaches " << kHistLimit << std::endl;
@@ -2000,7 +2087,7 @@ namespace Extinction {
               fLastTcData.push_back(data);
 
               fLastTcData.push_back(data);
-              // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::TC));
+           // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::TC));
               FillCoincidence2(data);
 
               if (RemoveOldTdc(&fLastTcData, time) > kHistLimit) {
@@ -2010,6 +2097,14 @@ namespace Extinction {
 
             } else if (MrSync::Contains(globalChannel)) {
               const Int_t ch = MrSync::GetChannel(globalChannel);
+
+              std::size_t& mrSyncCount = fMrSyncCount[board];
+              if        (mrSyncCount == 0             ) {
+                fMrSyncReference[board].first  = data;
+              } else if (mrSyncCount == fMrSyncRefSize) {
+                fMrSyncReference[board].second = data;
+              }
+              ++mrSyncCount;
 
               hMrSyncTdcInSpill[ch]->Fill(time / msec);
 
@@ -2030,11 +2125,11 @@ namespace Extinction {
 
             if (tdcTag == lastTdcTags[board] &&
                 !(spillEnded[board] || fileEnded[board])) {
-              // std::cout << "[info] detect read last buffer @ " << targetBoard << std::endl;
+              // std::cout << "[info] detect read last buffer @ " << board << std::endl;
+              // std::cout << "lastTdcTag =  " << tdcTag << std::endl;
               targetBoard = board;
               break;
             }
-
           }
 
           if (IsAllOfSecondsTrue(spillEnded) || IsAllOfSecondsTrue(fileEnded)) {
@@ -2115,6 +2210,23 @@ namespace Extinction {
               }
             } else {
               fExtinction = 1.0;
+            }
+
+            // Calc TimePerTdc
+            std::cout << "_____ TimePerTdc _____" << std::endl;
+            {
+              for (auto&& pair : fMrSyncReference) {
+                const Int_t board = pair.first;
+                const Long64_t firstTdc = pair.second.first .Tdc;
+                const Long64_t  lastTdc = pair.second.second.Tdc;
+                if (lastTdc - firstTdc > 0) {
+                  fTimePerTdc[board] = (fMrSyncRefSize * fMrSyncRefInterval) / (lastTdc - firstTdc);
+                  std::cout << board << "\t" << fTimePerTdc[board] / nsec << std::endl;
+                } else {
+                  fTimePerTdc[board] = 0.0;
+                  std::cout << "[warning] timePerTdc can not be calculated @ " << board << std::endl;
+                }
+              }
             }
 
             // Calc bunch profile

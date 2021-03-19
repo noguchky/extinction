@@ -346,8 +346,8 @@ namespace Extinction {
       UInt_t    Tdc;      // 27 bit
 
       // Footer
-      UShort_t  EMCount;  // 16 bit
-      UShort_t  WRCount;  // 16 bit
+      Int_t     EMCount;  // 16 bit
+      Int_t     WRCount;  // 16 bit
 
       // Additional
       UInt_t    Overflow; // TrueTdc = Tdc + 0x8000000 * Overflow
@@ -771,9 +771,12 @@ namespace Extinction {
         typename decltype(itr1->second)::const_iterator itr2;
         for (auto&& mppcCh : GetMppcHitChannels()) {
           TdcData datum;
-          datum.Spill   = Spill;
-          datum.Tdc     = tdc;
-          datum.Time    = time;
+          datum.Spill      = Spill;
+          datum.EMCount    = EMCount;
+          datum.Tdc        = tdc;
+          datum.Time       = time;
+          datum.TimePerTdc = TimePerTdc;
+          datum.Board      = board;
           if        ((itr1 = CM::MrSync  .find(board )) != CM::MrSync  .end() &&
                      (itr2 = itr1->second.begin()     ) != itr1->second.end()) {
             datum.MrSyncChannel = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
@@ -786,9 +789,12 @@ namespace Extinction {
         }
         for (auto&& subCh : GetSubHitChannels()) {
           TdcData datum;
-          datum.Spill   = Spill;
-          datum.Tdc     = tdc;
-          datum.Time    = time;
+          datum.Spill      = Spill;
+          datum.EMCount    = EMCount;
+          datum.Tdc        = tdc;
+          datum.Time       = time;
+          datum.TimePerTdc = TimePerTdc;
+          datum.Board      = board;
           if        ((itr1 = CM::MrSync  .find(board)) != CM::MrSync  .end() &&
                      (itr2 = itr1->second.begin()    ) != itr1->second.end()) {
             datum.MrSyncChannel = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
@@ -810,9 +816,12 @@ namespace Extinction {
         }
         if (MrSync) {
           TdcData datum;
-          datum.Spill   = Spill;
-          datum.Tdc     = tdc;
-          datum.Time    = time;
+          datum.Spill      = Spill;
+          datum.EMCount    = EMCount;
+          datum.Tdc        = tdc;
+          datum.Time       = time;
+          datum.TimePerTdc = TimePerTdc;
+          datum.Board      = board;
           if ((itr1 = CM::MrSync  .find(board)) != CM::MrSync  .end() &&
               (itr2 = itr1->second.begin()    ) != itr1->second.end()) {
             datum.Channel       = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;

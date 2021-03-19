@@ -428,7 +428,7 @@ namespace Extinction {
         datum.Board         = board;
         typename decltype(MrSync      )::const_iterator itr1;
         typename decltype(itr1->second)::const_iterator itr2;
-        if        ((itr1 = MrSync      .find(board  )) != Ext         .end() &&
+        if        ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
                    (itr2 = itr1->second.begin()      ) != itr1->second.end()) {
           datum.MrSyncChannel = itr2->second + MrSync::GlobalChannelOffset;
         }

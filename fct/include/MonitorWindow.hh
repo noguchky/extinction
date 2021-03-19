@@ -597,7 +597,7 @@ namespace Extinction {
 
         hExtTdcOffset = new TH2*[ExtinctionDetector::NofChannels];
         for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-          hExtTdcOffset[ch] = new TH2D(Form("hhExtTdcOffset_%03ld", ch),
+          hExtTdcOffset[ch] = new TH2D(Form("hExtTdcOffset_%03ld", ch),
                                        Form("%s, Extinction Detector TDC Offset @ ch%ld;"
                                             "Channel;"
                                             "TDC [count]", tdcName.data(), ch),
@@ -636,6 +636,7 @@ namespace Extinction {
 
       if (fCanvas->cd(++padnumber)) {
         hBhTdcInSpill[0]->Draw();
+        hBhTdcInSpill[0]->SetMinimum(0.2);
         hBhTdcInSpill[0]->GetXaxis()->SetLabelSize(0.07);
         hBhTdcInSpill[0]->GetYaxis()->SetLabelSize(0.07);
         hBhTdcInSpill[0]->GetXaxis()->SetTitleSize(0.07);
@@ -646,6 +647,7 @@ namespace Extinction {
 
       if (fCanvas->cd(++padnumber)) {
         hBhTdcInSpill[1]->Draw();
+        hBhTdcInSpill[1]->SetMinimum(0.2);
         hBhTdcInSpill[1]->GetXaxis()->SetLabelSize(0.07);
         hBhTdcInSpill[1]->GetYaxis()->SetLabelSize(0.07);
         hBhTdcInSpill[1]->GetXaxis()->SetTitleSize(0.07);
@@ -656,6 +658,7 @@ namespace Extinction {
 
       if (fCanvas->cd(++padnumber)) {
         hHodTdcInSpill_Any->Draw();
+        hHodTdcInSpill_Any->SetMinimum(0.2);
         hHodTdcInSpill_Any->GetXaxis()->SetLabelSize(0.07);
         hHodTdcInSpill_Any->GetYaxis()->SetLabelSize(0.07);
         hHodTdcInSpill_Any->GetXaxis()->SetTitleSize(0.07);
@@ -666,6 +669,7 @@ namespace Extinction {
 
       if (fCanvas->cd(++padnumber)) {
         hExtTdcInSpill_Any->Draw();
+        hExtTdcInSpill_Any->SetMinimum(0.2);
         hExtTdcInSpill_Any->GetXaxis()->SetLabelSize(0.07);
         hExtTdcInSpill_Any->GetYaxis()->SetLabelSize(0.07);
         hExtTdcInSpill_Any->GetXaxis()->SetTitleSize(0.07);
@@ -676,6 +680,7 @@ namespace Extinction {
 
       if (fCanvas->cd(++padnumber)) {
         hTcTdcInSpill[0]->Draw();
+        hTcTdcInSpill[0]->SetMinimum(0.2);
         hTcTdcInSpill[0]->GetXaxis()->SetLabelSize(0.07);
         hTcTdcInSpill[0]->GetYaxis()->SetLabelSize(0.07);
         hTcTdcInSpill[0]->GetXaxis()->SetTitleSize(0.07);
@@ -686,6 +691,7 @@ namespace Extinction {
 
       if (fCanvas->cd(++padnumber)) {
         hTcTdcInSpill[1]->Draw();
+        hTcTdcInSpill[1]->SetMinimum(0.2);
         hTcTdcInSpill[1]->GetXaxis()->SetLabelSize(0.07);
         hTcTdcInSpill[1]->GetYaxis()->SetLabelSize(0.07);
         hTcTdcInSpill[1]->GetXaxis()->SetTitleSize(0.07);
@@ -765,6 +771,7 @@ namespace Extinction {
 
         if (fCanvas->cd(++padnumber)) {
           hExtTdcInSync_Any->Draw();
+          hExtTdcInSync_Any->SetMinimum(0.2);
           hExtTdcInSync_Any->GetXaxis()->SetLabelSize(0.05);
           hExtTdcInSync_Any->GetYaxis()->SetLabelSize(0.05);
           hExtTdcInSync_Any->GetXaxis()->SetTitleSize(0.05);

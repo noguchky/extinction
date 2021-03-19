@@ -58,6 +58,7 @@ namespace Extinction {
     }
 
     inline ULong64_t GetTdcTag() const {
+      // return (Tdc < 0 || Channel < 0) ? 0 : (Tdc * 1000ULL + Channel);
       return (Tdc < 0 || Channel < 0) ? 0 : (((ULong64_t)(Time / nsec)) * 1000ULL + Channel);
     }
   };

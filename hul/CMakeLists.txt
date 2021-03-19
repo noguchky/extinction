@@ -60,6 +60,7 @@ add_executable(decoder src/decoder.cc ${headers})
 add_executable(checker src/checker.cc ${headers})
 add_executable(anaRaw  src/anaRaw.cc  ${headers})
 add_executable(anaBeam src/anaBeam.cc ${headers})
+add_executable(genHist src/genHist.cc ${headers})
 
 # Add link libraries
 target_link_libraries(genMock ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
@@ -67,6 +68,7 @@ target_link_libraries(decoder ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(checker ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaRaw  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaBeam ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+target_link_libraries(genHist ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 
 #----------------------------------------------------------------------------
 # Add install directories
@@ -77,3 +79,4 @@ install(TARGETS decoder DESTINATION .)
 install(TARGETS checker DESTINATION .)
 install(TARGETS anaRaw  DESTINATION .)
 install(TARGETS anaBeam DESTINATION .)
+install(TARGETS genHist DESTINATION .)

@@ -15,7 +15,7 @@
 #include "ArgReader.hh"
 #include "Units.hh"
 #include "HistGenerator.hh"
-#include "Fct.hh"
+#include "Hul.hh"
 
 Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
@@ -78,7 +78,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
   conf->ShowContents();
 
-  Extinction::Fct::ChannelMapWithBoard::Load(conf, boards);
+  Extinction::Hul::ChannelMapWithBoard::Load(conf, boards);
 
   std::cout << "--- Initialize style" << std::endl;
   gStyle->SetPalette(1);
@@ -88,7 +88,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   gStyle->SetNdivisions(505, "Y");
 
   std::cout << "--- Initialize histgram generator" << std::endl;
-  Extinction::Fct::FctData defaultProvider;
+  Extinction::Hul::HulData defaultProvider;
   auto generator = new Extinction::Analyzer::HistGenerator(&defaultProvider);
 
   std::map<Int_t, Double_t> timePerTdc;
@@ -188,7 +188,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   auto providers = Tron::Linq::From(boards)
     .ToMap([](Int_t board) { return board; },
-           [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Fct::FctData(); });
+           [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Hul::HulData(); });
 
   auto parser =
     [](const std::string& filename) {
