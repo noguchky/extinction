@@ -129,8 +129,8 @@ Int_t main(Int_t argc, Char_t** argv) {
     }
   } while (false);
 
-  Double_t bunchCenters[Extinction::Analyzer::HistGenerator::kNofBunches] = { 0 };
-  Double_t bunchWidths [Extinction::Analyzer::HistGenerator::kNofBunches] = { 0 };
+  Double_t bunchCenters[Extinction::SpillData::kNofBunches] = { 0 };
+  Double_t bunchWidths [Extinction::SpillData::kNofBunches] = { 0 };
   do {
     const std::string ifilename = conf->GetValue("BunchProfile");
     std::ifstream ifile(ifilename);

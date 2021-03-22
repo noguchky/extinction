@@ -20,6 +20,7 @@
 #include "Units.hh"
 #include "Detector.hh"
 #include "Tdc.hh"
+#include "Spill.hh"
 
 #include "Math.hh"
 #include "Linq.hh"
@@ -32,8 +33,6 @@ namespace Extinction {
 
     class HistGenerator {
     public:
-      static const std::size_t kNofBunches = 4;
-
       struct PlotsProfiles {
         struct {
           Double_t NbinsX, Xmin, Xmax;
@@ -145,24 +144,7 @@ namespace Extinction {
       TTree*                       fSpillTree           = nullptr;
 
       Long64_t                     fSpillCount          = 0;
-      Long64_t                     fCoinCount           = 0;
-      TDatime                      fDate;
-      Int_t                        fYear                = 0;
-      Int_t                        fMonth               = 0;
-      Int_t                        fDay                 = 0;
-      Int_t                        fHour                = 0;
-      Int_t                        fMinute              = 0;
-      Int_t                        fSecond              = 0;
-      Int_t                        fEMCount             = -1;
-      Long64_t                     fEntries[GlobalChannel::NofChannels] = { 0 };
-      Long64_t                     fLeakage             = 0;
-      Long64_t                     fInBunch             = 0;
-      Double_t                     fExtinction          = 1;
-      Double_t                     fExtinctionErr       = 1;
-      Double_t                     fTimePerTdc    [MrSync::NofChannels] = { 0 };
-      Double_t                     fMrSyncInterval[MrSync::NofChannels] = { 0 };
-      Double_t                     fBunchCenters[kNofBunches] = { 0 };
-      Double_t                     fBunchWidths [kNofBunches] = { 0 };
+      SpillData                    fSpillData;
       CoinDiffs                    fCoinDiffs;
 
       CoinDiffs                    fStdCoinDiffs;
@@ -170,8 +152,8 @@ namespace Extinction {
       std::map<Int_t, Double_t>    fStdTimePerTdc;
       std::map<Int_t, Double_t>    fStdMrSyncInterval;
       Double_t                     fStdMrSyncIntervalAverage;
-      Double_t                     fStdBunchCenters[kNofBunches] = { 0 };
-      Double_t                     fStdBunchWidths [kNofBunches] = { 0 };
+      Double_t                     fStdBunchCenters[SpillData::kNofBunches] = { 0 };
+      Double_t                     fStdBunchWidths [SpillData::kNofBunches] = { 0 };
 
       Bool_t                       fCyclicCoincidence   = true;
       Double_t                     fHistoryWidth        = 600.0 * nsec;
@@ -199,8 +181,8 @@ namespace Extinction {
 
       void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
       void                 SetMrSyncInterval(const std::map<Int_t, Double_t>& map);
-      void                 SetBunchCenters(const Double_t bunchCenters[kNofBunches]);
-      void                 SetBunchWidths(const Double_t bunchWidths[kNofBunches]);
+      void                 SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]);
+      void                 SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]);
       Int_t                LoadOffset(const std::string& ffilename);
 
       inline void          SetCyclicCoincidence(Bool_t flag) {
@@ -315,17 +297,17 @@ namespace Extinction {
         .Average();
     }
 
-    void HistGenerator::SetBunchCenters(const Double_t bunchCenters[kNofBunches]) {
+    void HistGenerator::SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]) {
       std::cout << "SetBunchCenters" << std::endl;
-      for (std::size_t i = 0; i < kNofBunches; ++i) {
+      for (std::size_t i = 0; i < SpillData::kNofBunches; ++i) {
         std::cout << i << "\t" << bunchCenters[i] / nsec << " nsec" << std::endl;
       }
       std::memcpy(fStdBunchCenters, bunchCenters, sizeof(fStdBunchCenters));
     }
 
-    void HistGenerator::SetBunchWidths(const Double_t bunchWidths[kNofBunches]) {
+    void HistGenerator::SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]) {
       std::cout << "SetBunchWidths" << std::endl;
-      for (std::size_t i = 0; i < kNofBunches; ++i) {
+      for (std::size_t i = 0; i < SpillData::kNofBunches; ++i) {
         std::cout << i << "\t" << bunchWidths[i] / nsec << " nsec" << std::endl;
       }
       std::memcpy(fStdBunchWidths, bunchWidths, sizeof(fStdBunchWidths));
@@ -403,7 +385,7 @@ namespace Extinction {
       }
 
       {
-        fDate.Set((UInt_t)Tron::ObjectHelper::ReadValue<Long64_t>("Time"));
+        fSpillData.SetDate((UInt_t)Tron::ObjectHelper::ReadValue<Long64_t>("Time"));
       }
 
       {
@@ -766,24 +748,7 @@ namespace Extinction {
       }
 
       fSpillTree = new TTree(treename.data(), "Spill summary");
-      fSpillTree->Branch("date"          , &fDate                                                                        );
-      fSpillTree->Branch("year"          , &fYear          , Form("year"                "/I"                            ));
-      fSpillTree->Branch("month"         , &fMonth         , Form("month"               "/I"                            ));
-      fSpillTree->Branch("day"           , &fDay           , Form("day"                 "/I"                            ));
-      fSpillTree->Branch("hour"          , &fHour          , Form("hour"                "/I"                            ));
-      fSpillTree->Branch("minute"        , &fMinute        , Form("minute"              "/I"                            ));
-      fSpillTree->Branch("second"        , &fSecond        , Form("second"              "/I"                            ));
-      fSpillTree->Branch("emcount"       , &fEMCount       , Form("emcount"             "/I"                            ));      
-      fSpillTree->Branch("entries"       ,  fEntries       , Form("entries"        "[%lu]/L", GlobalChannel::NofChannels));
-      fSpillTree->Branch("coincount"     , &fCoinCount     , Form("coincount"           "/L"                            ));
-      fSpillTree->Branch("leakage"       , &fLeakage       , Form("leakage"             "/L"                            ));
-      fSpillTree->Branch("inbunch"       , &fInBunch       , Form("inbunch"             "/L"                            ));
-      fSpillTree->Branch("extinction"    , &fExtinction    , Form("extinction"          "/D"                            ));
-      fSpillTree->Branch("extinctionerr" , &fExtinctionErr , Form("extinctionerr"       "/D"                            ));
-      fSpillTree->Branch("bunchcenter"   ,  fBunchCenters  , Form("bunchcenter"    "[%lu]/D",                kNofBunches));
-      fSpillTree->Branch("bunchwidth"    ,  fBunchWidths   , Form("bunchwidth"     "[%lu]/D",                kNofBunches));
-      fSpillTree->Branch("mrsyncinterval",  fMrSyncInterval, Form("mrsyncinterval" "[%lu]/D", MrSync       ::NofChannels));
-      fSpillTree->Branch("timepertdc"    ,  fTimePerTdc    , Form("timepertdc"     "[%lu]/D", MrSync       ::NofChannels));
+      fSpillData.CreateBranch(fSpillTree);
     }
 
     void HistGenerator::DrawPlots(const std::string& ofilename) {
@@ -1002,6 +967,7 @@ namespace Extinction {
 
       gPad->Print((ofilename + "]").data());
     }
+
     void HistGenerator::WritePlots(const std::string& ofilename) {
       std::cout << "Write plots" << std::endl;
       TFile* file = new TFile(ofilename.data(), "RECREATE");
@@ -1011,7 +977,7 @@ namespace Extinction {
       }
 
       {
-        Tron::ObjectHelper::WriteValue<Long64_t>(fDate.Convert(), "Time");
+        Tron::ObjectHelper::WriteValue<Long64_t>(fSpillData.Date.Convert(), "Time");
       }
 
       {
@@ -1165,7 +1131,7 @@ namespace Extinction {
       }
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        ofile << ch << "\t" <<  Form("%23.15e", fTimePerTdc[ch] / nsec) << std::endl;
+        ofile << ch << "\t" <<  Form("%23.15e", fSpillData.TimePerTdc[ch] / nsec) << std::endl;
       }
 
       ofile.close();
@@ -1180,7 +1146,7 @@ namespace Extinction {
       }
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        ofile << ch << "\t" <<  Form("%23.15e", fMrSyncInterval[ch]) << std::endl;
+        ofile << ch << "\t" <<  Form("%23.15e", fSpillData.MrSyncInterval[ch]) << std::endl;
       }
 
       ofile.close();
@@ -1194,12 +1160,12 @@ namespace Extinction {
         return;
       }
 
-      for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+      for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
         ofile << bunch << "\t"
-              << Form("%23.15e", fBunchCenters[bunch] / fProvider->GetTimePerTdc()) << "\t"
-              << Form("%23.15e", fBunchCenters[bunch] / nsec                      ) << "\t"
-              << Form("%23.15e", fBunchWidths [bunch] / fProvider->GetTimePerTdc()) << "\t"
-              << Form("%23.15e", fBunchWidths [bunch] / nsec                      ) << std::endl;
+              << Form("%23.15e", fSpillData.BunchCenters[bunch] / fProvider->GetTimePerTdc()) << "\t"
+              << Form("%23.15e", fSpillData.BunchCenters[bunch] / nsec                      ) << "\t"
+              << Form("%23.15e", fSpillData.BunchWidths [bunch] / fProvider->GetTimePerTdc()) << "\t"
+              << Form("%23.15e", fSpillData.BunchWidths [bunch] / nsec                      ) << std::endl;
       }
 
       ofile.close();
@@ -1226,13 +1192,7 @@ namespace Extinction {
     }
 
     void HistGenerator::ClearLastSpill(Bool_t clearHists) {
-      fCoinCount     = 0;
-      fEMCount       = -1;
-      fLeakage       = 0;
-      fExtinction    = 1;
-      fExtinctionErr = 1;
-      std::memset(fEntries    , 0, sizeof(fEntries    ));
-      std::memset(fBunchWidths, 0, sizeof(fBunchWidths));
+      fSpillData.Clear();
 
       fTdcBuffer.clear();
 
@@ -1427,7 +1387,7 @@ namespace Extinction {
         }
 
         if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-          ++fCoinCount;
+          ++fSpillData.CoinCount;
           auto          lastData = fLastMrSyncData[board];
           const Long64_t     tdc = extData.Tdc;
           const Long64_t syncTdc = lastData.Tdc;
@@ -1504,7 +1464,7 @@ namespace Extinction {
         }
 
         if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-          ++fCoinCount;
+          ++fSpillData.CoinCount;
           auto          lastData = fLastMrSyncData[board];
           const Long64_t     tdc = extData.Tdc;
           const Long64_t syncTdc = lastData.Tdc;
@@ -1651,7 +1611,7 @@ namespace Extinction {
           }
 
           if (hits.size()) {
-            ++fCoinCount;
+            ++fSpillData.CoinCount;
             Double_t tdcSum = 0.0;
             for (auto& hitData : hits) {
               auto          lastData = fLastMrSyncData[board];
@@ -1750,7 +1710,7 @@ namespace Extinction {
           }
 
           if (hits.size()) {
-            ++fCoinCount;
+            ++fSpillData.CoinCount;
             Double_t tdcSum = 0.0;
             for (auto& hitData : hits) {
               auto          lastData = fLastMrSyncData[board];
@@ -1873,13 +1833,7 @@ namespace Extinction {
       const UInt_t averageTime = Tron::Linq::From(datimes)
         .Select([](TDatime datime) -> ULong64_t { return datime.Convert(); })
         .Average();
-      fDate.Set(averageTime);
-      fYear   = fDate.GetYear();
-      fMonth  = fDate.GetMonth();
-      fDay    = fDate.GetDay();
-      fHour   = fDate.GetHour();
-      fMinute = fDate.GetMinute();
-      fSecond = fDate.GetSecond();
+      fSpillData.SetDate(averageTime);
 
       {
         Int_t targetBoard = 0;
@@ -1937,12 +1891,12 @@ namespace Extinction {
 
               } else {
                 // std::cout << "[info] detect data @ " << targetBoard << std::endl;
-                if (lastSpill != -1 && fEMCount != provider->GetEMCount()) {
-                  std::cout << "[error] conflict EMCount, " << fEMCount << " <--> " << provider->GetEMCount() << std::endl;
+                if (lastSpill != -1 && fSpillData.EMCount != provider->GetEMCount()) {
+                  std::cout << "[error] conflict EMCount, " << fSpillData.EMCount << " <--> " << provider->GetEMCount() << std::endl;
                   exit(1);
                 }
-                lastSpill = provider->GetSpill();
-                fEMCount  = provider->GetEMCount();
+                lastSpill          = provider->GetSpill();
+                fSpillData.EMCount = provider->GetEMCount();
                 const std::vector<TdcData> tdcData = provider->GetTdcData(targetBoard);
                 for (auto&& data : tdcData) {
                   fTdcBuffer[data.GetTdcTag()] = data;
@@ -2147,10 +2101,10 @@ namespace Extinction {
 
             // Set point of hit count
             const Int_t np = fSpillCount;
-         // gHitInSpill->SetPoint     (np, fSpillCount,     fCoinCount      );
-         // gHitInSpill->SetPoint     (np, fEMCount,        fCoinCount      );
-            gHitInSpill->SetPoint     (np, fDate.Convert(), fCoinCount      );
-         // gHitInSpill->SetPointError(np, 0.0, TMath::Sqrt(fCoinCount     ));
+         // gHitInSpill->SetPoint     (np, fSpillData.SpillCount,     fSpillData.CoinCount      );
+         // gHitInSpill->SetPoint     (np, fSpillData.EMCount,        fSpillData.CoinCount      );
+            gHitInSpill->SetPoint     (np, fSpillData.Date.Convert(), fSpillData.CoinCount      );
+         // gHitInSpill->SetPointError(np, 0.0,           TMath::Sqrt(fSpillData.CoinCount     ));
             ++fSpillCount;
 
             // Get projections
@@ -2163,31 +2117,31 @@ namespace Extinction {
 
             // Get entries
             for (std::size_t ch = 0; ch < BeamlineHodoscope ::NofChannels; ++ch) {
-              fEntries[ch + BeamlineHodoscope ::GlobalChannelOffset] = hBhTdcInSpill    [ch]->GetEntries();
+              fSpillData.Entries[ch + BeamlineHodoscope ::GlobalChannelOffset] = hBhTdcInSpill    [ch]->GetEntries();
             }
             for (std::size_t ch = 0; ch < Hodoscope         ::NofChannels; ++ch) {
-              fEntries[ch + Hodoscope         ::GlobalChannelOffset] = hHodTdcInSpill   [ch]->GetEntries();
+              fSpillData.Entries[ch + Hodoscope         ::GlobalChannelOffset] = hHodTdcInSpill   [ch]->GetEntries();
             }
             for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-              fEntries[ch + ExtinctionDetector::GlobalChannelOffset] = hExtTdcInSpill   [ch]->GetEntries();
+              fSpillData.Entries[ch + ExtinctionDetector::GlobalChannelOffset] = hExtTdcInSpill   [ch]->GetEntries();
             }
             for (std::size_t ch = 0; ch < TimingCounter     ::NofChannels; ++ch) {
-              fEntries[ch + TimingCounter     ::GlobalChannelOffset] = hTcTdcInSpill    [ch]->GetEntries();
+              fSpillData.Entries[ch + TimingCounter     ::GlobalChannelOffset] = hTcTdcInSpill    [ch]->GetEntries();
             }
             for (std::size_t ch = 0; ch < MrSync            ::NofChannels; ++ch) {
-              fEntries[ch + MrSync            ::GlobalChannelOffset] = hMrSyncTdcInSpill[ch]->GetEntries();
+              fSpillData.Entries[ch + MrSync            ::GlobalChannelOffset] = hMrSyncTdcInSpill[ch]->GetEntries();
             }
             for (std::size_t ch = 0; ch < EventMatch        ::NofChannels; ++ch) {
-              fEntries[ch + EventMatch        ::GlobalChannelOffset] = hEvmTdcInSpill   [ch]->GetEntries();
+              fSpillData.Entries[ch + EventMatch        ::GlobalChannelOffset] = hEvmTdcInSpill   [ch]->GetEntries();
             }
 
             // Calc extinction
-            fLeakage = 0;
-            fInBunch = 0;
+            Long64_t leakage = 0;
+            Long64_t inBunch = 0;
             for (Int_t xbin = 1, nbinsx = hCoinTdcInSync->GetNbinsX(); xbin < nbinsx; ++xbin) {
               const Double_t t = hCoinTdcInSync->GetBinCenter(xbin) * fProvider->GetTimePerTdc();
               Bool_t isInBunch = false;
-              for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+              for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
                 if (Tron::Math::Between(t,
                                         fStdBunchCenters[bunch] - fStdBunchWidths[bunch] * 0.5,
                                         fStdBunchCenters[bunch] + fStdBunchWidths[bunch] * 0.5)) {
@@ -2196,21 +2150,12 @@ namespace Extinction {
                 }
               }
               if (isInBunch) {
-                fInBunch += hCoinTdcInSync->GetBinContent(xbin);
+                inBunch += hCoinTdcInSync->GetBinContent(xbin);
               } else {
-                fLeakage += hCoinTdcInSync->GetBinContent(xbin);
+                leakage += hCoinTdcInSync->GetBinContent(xbin);
               }
             }
-            if (fInBunch) {
-              fExtinction = (Double_t)fLeakage / (Double_t)fInBunch;
-              if (fLeakage) {
-                fExtinctionErr = Tron::Math::SqrtOfSumOfSquared(TMath::Sqrt(fLeakage) / fInBunch, fLeakage / TMath::Power((Double_t)fInBunch, 1.5));
-              } else {
-                fExtinctionErr = 1.0 / fInBunch;
-              }
-            } else {
-              fExtinction = 1.0;
-            }
+            fSpillData.SetParticles(leakage, inBunch);
 
             // Calc TimePerTdc
             std::cout << "_____ TimePerTdc _____" << std::endl;
@@ -2220,10 +2165,10 @@ namespace Extinction {
                 const Long64_t firstTdc = pair.second.first .Tdc;
                 const Long64_t  lastTdc = pair.second.second.Tdc;
                 if (lastTdc - firstTdc > 0) {
-                  fTimePerTdc[board] = (fMrSyncRefSize * fMrSyncRefInterval) / (lastTdc - firstTdc);
-                  std::cout << board << "\t" << fTimePerTdc[board] / nsec << std::endl;
+                  fSpillData.TimePerTdc[board] = (fMrSyncRefSize * fMrSyncRefInterval) / (lastTdc - firstTdc);
+                  std::cout << board << "\t" << fSpillData.TimePerTdc[board] / nsec << std::endl;
                 } else {
-                  fTimePerTdc[board] = 0.0;
+                  fSpillData.TimePerTdc[board] = 0.0;
                   std::cout << "[warning] timePerTdc can not be calculated @ " << board << std::endl;
                 }
               }
@@ -2234,7 +2179,7 @@ namespace Extinction {
             {
               Int_t xbin = 1, nbinsx = hExtTdcInSync_Any->GetNbinsX();
               const Double_t ymax = hExtTdcInSync_Any->GetBinContent(hExtTdcInSync_Any->GetMaximumBin());
-              for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+              for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
                 Int_t xbin1 = xbin, xbin2 = xbin;
                 // std::cout << "... search start edge" << std::endl;
                 for (; xbin <= nbinsx && hExtTdcInSync_Any->GetBinContent(xbin) < ymax * 0.10; ++xbin) {
@@ -2254,11 +2199,11 @@ namespace Extinction {
                   fGauss->SetParameters(ymax, center, width / 2.0);
                   hExtTdcInSync_Any->Fit(fGauss, "+", "", center - 3.0 * width, center + 3.0 * width);
 
-                  fBunchCenters[bunch] = fGauss->GetParameter(1) * fProvider->GetTimePerTdc();
-                  fBunchWidths [bunch] = fGauss->GetParameter(2) * fProvider->GetTimePerTdc();
+                  fSpillData.BunchCenters[bunch] = fGauss->GetParameter(1) * fProvider->GetTimePerTdc();
+                  fSpillData.BunchWidths [bunch] = fGauss->GetParameter(2) * fProvider->GetTimePerTdc();
                   std::cout << bunch << "\t"
-                            << fBunchCenters[bunch] / nsec << "\t"
-                            << fBunchWidths [bunch] / nsec << std::endl;
+                            << fSpillData.BunchCenters[bunch] / nsec << "\t"
+                            << fSpillData.BunchWidths [bunch] / nsec << std::endl;
                 } else {
                   std::cout << "[warning] " << (bunch == 0 ? "1st" :
                                                 bunch == 1 ? "2nd" :
@@ -2287,7 +2232,7 @@ namespace Extinction {
               if (ysum) {
                 const Double_t xmean = yxsum / ysum;
                 std::cout << ch << "\t" << xmean << std::endl;
-                fMrSyncInterval[ch] = xmean;
+                fSpillData.MrSyncInterval[ch] = xmean;
               }
             }
 

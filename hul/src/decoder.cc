@@ -66,6 +66,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   Extinction::Hul::Decoder decoder;
+  decoder.Data.ClockFreq = clock;
   std::vector<Extinction::TdcData> emdata;
 
   std::cout << "=== Initialize Tree" << std::endl;
