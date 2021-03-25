@@ -133,8 +133,12 @@ namespace Extinction {
       TH1**                        hExtTdcInSync        = nullptr;
       TH1*                         hExtTdcInSync_Any    = nullptr;
       TH1**                        hTcTdcInSync         = nullptr;
+      TH2**                        hBhMountain          = nullptr;
+      TH2**                        hHodMountain         = nullptr;
+      TH2*                         hHodMountain_Any     = nullptr;
       TH2**                        hExtMountain         = nullptr;
       TH2*                         hExtMountain_Any     = nullptr;
+      TH2**                        hTcMountain          = nullptr;
       TH1*                         hCoinTdcInSync       = nullptr;
       TH2*                         hCoinMountain        = nullptr;
       TGraphErrors*                gHitInSpill          = nullptr;
@@ -469,11 +473,28 @@ namespace Extinction {
         hTcTdcInSync[ch] = dynamic_cast<TH1*>(file->Get(Form("hTcTdcInSync_%03lu", ch)));
       }
 
+      hBhMountain = new TH2*[BeamlineHodoscope::NofChannels];
+      for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+        hBhMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hBhMountain_%03lu", ch)));
+      }
+
+      hHodMountain = new TH2*[Hodoscope::NofChannels];
+      for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
+        hHodMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hHodMountain_%03lu", ch)));
+      } {
+        hHodMountain_Any = dynamic_cast<TH2*>(file->Get("hHodMountain_Any"));
+      }
+
       hExtMountain = new TH2*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtMountain_%03lu", ch)));
       } {
         hExtMountain_Any = dynamic_cast<TH2*>(file->Get("hExtMountain_Any"));
+      }
+
+      hTcMountain = new TH2*[TimingCounter::NofChannels];
+      for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
+        hTcMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hTcMountain_%03lu", ch)));
       }
 
       {
@@ -669,6 +690,38 @@ namespace Extinction {
                                      xbinsInSync, xminInSync, xmaxInSync);
       }
 
+      // Beamline Hodoscope Mountain Plot
+      hBhMountain = new TH2*[BeamlineHodoscope::NofChannels];
+      for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+        hBhMountain[ch] = new TH2D(Form("hBhMountain_%03lu", ch),
+                                   Form("%s, Beamline Hodoscope Mountain Plot @ %lu;"
+                                        "TDC [count];"
+                                        "Time [ms]", tdcName.data(), ch),
+                                   xbinsInSync / 2, xminInSync, xmaxInSync,
+                                   xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+        hBhMountain[ch]->SetStats(false);
+      }
+
+      // Hodoscope Mountain Plot
+      hHodMountain = new TH2*[Hodoscope::NofChannels];
+      for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
+        hHodMountain[ch] = new TH2D(Form("hHodMountain_%03lu", ch),
+                                    Form("%s, Hodoscope Mountain Plot @ %lu;"
+                                         "TDC [count];"
+                                         "Time [ms]", tdcName.data(), ch),
+                                    xbinsInSync / 2, xminInSync, xmaxInSync,
+                                    xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+        hHodMountain[ch]->SetStats(false);
+      }
+
+      hHodMountain_Any = new TH2D("hHodMountain_Any",
+                                  Form("%s, Hodoscope Mountain Plot;"
+                                       "TDC [count];"
+                                       "Time [ms]", tdcName.data()),
+                                  xbinsInSync / 2, xminInSync, xmaxInSync,
+                                  xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+      hHodMountain_Any->SetStats(false);
+
       // Extinction Detector Mountain Plot
       hExtMountain = new TH2*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
@@ -688,6 +741,18 @@ namespace Extinction {
                                   xbinsInSync / 2, xminInSync, xmaxInSync,
                                   xbinsInSpill / 2, xminInSpill, xmaxInSpill);
       hExtMountain_Any->SetStats(false);
+
+      // Timing Counter Mountain Plot
+      hTcMountain = new TH2*[BeamlineHodoscope::NofChannels];
+      for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+        hTcMountain[ch] = new TH2D(Form("hTcMountain_%03lu", ch),
+                                   Form("%s, Beamline Hodoscope Mountain Plot @ %lu;"
+                                        "TDC [count];"
+                                        "Time [ms]", tdcName.data(), ch),
+                                   xbinsInSync / 2, xminInSync, xmaxInSync,
+                                   xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+        hTcMountain[ch]->SetStats(false);
+      }
 
       // Extinction Detector TDC in sync (coincidence)
       hCoinTdcInSync = new TH1D("hCoinTdcInSync",
@@ -913,6 +978,26 @@ namespace Extinction {
       }
       gPad->SetLogy(false);
 
+      for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+        if (hBhMountain[ch]->GetEntries()) {
+          hBhMountain[ch]->Draw("colz");
+          hBhMountain[ch]->SetMinimum(0);
+          gPad->Print(ofilename.data());
+        }
+      }
+
+      for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
+        if (hHodMountain[ch]->GetEntries()) {
+          hHodMountain[ch]->Draw("colz");
+          hHodMountain[ch]->SetMinimum(0);
+          gPad->Print(ofilename.data());
+        }
+      } {
+        hHodMountain_Any->Draw("colz");
+        hHodMountain_Any->SetMinimum(0);
+        gPad->Print(ofilename.data());
+      }
+
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         if (hExtMountain[ch]->GetEntries()) {
           hExtMountain[ch]->Draw("colz");
@@ -923,6 +1008,14 @@ namespace Extinction {
         hExtMountain_Any->Draw("colz");
         hExtMountain_Any->SetMinimum(0);
         gPad->Print(ofilename.data());
+      }
+
+      for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
+        if (hTcMountain[ch]->GetEntries()) {
+          hTcMountain[ch]->Draw("colz");
+          hTcMountain[ch]->SetMinimum(0);
+          gPad->Print(ofilename.data());
+        }
       }
 
       gPad->SetLogy(true);
@@ -1004,79 +1097,71 @@ namespace Extinction {
       }
 
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
-        if (hBhTdcInSpill[ch]->GetEntries()) {
-          hBhTdcInSpill[ch]->Write();
-        }
+        hBhTdcInSpill[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
-        if (hHodTdcInSpill[ch]->GetEntries()) {
-          hHodTdcInSpill[ch]->Write();
-        }
+        hHodTdcInSpill[ch]->Write();
       } {
         hHodTdcInSpill_Any->Write();
       }
 
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-        if (hExtTdcInSpill[ch]->GetEntries()) {
-          hExtTdcInSpill[ch]->Write();
-        }
+        hExtTdcInSpill[ch]->Write();
       } {
         hExtTdcInSpill_Any->Write();
       }
 
       for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
-        if (hTcTdcInSpill[ch]->GetEntries()) {
-          hTcTdcInSpill[ch]->Write();
-        }
+        hTcTdcInSpill[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        if (hMrSyncTdcInSpill[ch]->GetEntries()) {
-          hMrSyncTdcInSpill[ch]->Write();
-        }
+        hMrSyncTdcInSpill[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < EventMatch::NofChannels; ++ch) {
-        if (hEvmTdcInSpill[ch]->GetEntries()) {
-          hEvmTdcInSpill[ch]->Write();
-        }
+        hEvmTdcInSpill[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
-        if (hBhTdcInSync[ch]->GetEntries()) {
-          hBhTdcInSync[ch]->Write();
-        }
+        hBhTdcInSync[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
-        if (hHodTdcInSync[ch]->GetEntries()) {
-          hHodTdcInSync[ch]->Write();
-        }
+        hHodTdcInSync[ch]->Write();
       } {
         hHodTdcInSync_Any->Write();
       }
 
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-        if (hExtTdcInSync[ch]->GetEntries()) {
-          hExtTdcInSync[ch]->Write();
-        }
+        hExtTdcInSync[ch]->Write();
       } {
         hExtTdcInSync_Any->Write();
       }
 
       for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
-        if (hTcTdcInSync[ch]->GetEntries()) {
-          hTcTdcInSync[ch]->Write();
-        }
+        hTcTdcInSync[ch]->Write();
+      }
+
+      for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+        hBhMountain[ch]->Write();
+      }
+
+      for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
+        hHodMountain[ch]->Write();
+      } {
+        hHodMountain_Any->Write();
       }
 
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-        if (hExtMountain[ch]->GetEntries()) {
-          hExtMountain[ch]->Write();
-        }
+        hExtMountain[ch]->Write();
       } {
         hExtMountain_Any->Write();
+      }
+
+      for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
+        hTcMountain[ch]->Write();
       }
 
       {
@@ -1092,15 +1177,11 @@ namespace Extinction {
       }
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        if (hMrSyncInterval[ch]->GetEntries()) {
-          hMrSyncInterval[ch]->Write();
-        }
+        hMrSyncInterval[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-        if (hExtTdcOffset[ch]->GetEntries()) {
-          hExtTdcOffset[ch]->Write();
-        }
+        hExtTdcOffset[ch]->Write();
       }
 
       file->Close();
@@ -1192,7 +1273,7 @@ namespace Extinction {
     }
 
     void HistGenerator::ClearLastSpill(Bool_t clearHists) {
-      fSpillData.Clear();
+      // fSpillData.Clear();
 
       fTdcBuffer.clear();
 
@@ -1266,10 +1347,24 @@ namespace Extinction {
           hTcTdcInSync[ch]->Reset();
         }
 
+        for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
+          hBhMountain[ch]->Reset();
+        }
+
+        for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
+          hHodMountain[ch]->Reset();
+        } {
+          hHodMountain_Any->Reset();
+        }
+
         for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
           hExtMountain[ch]->Reset();
         } {
           hExtMountain_Any->Reset();
+        }
+
+        for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
+          hTcMountain[ch]->Reset();
         }
 
         {
@@ -1946,6 +2041,8 @@ namespace Extinction {
 
               hBhTdcInSync[ch]->Fill(tdc - syncTdc);
 
+              hBhMountain[ch]->Fill(tdc - syncTdc, time / msec);
+
               for (auto&& lastData : fLastExtData) {
                 auto lastCh   = ExtinctionDetector::GetChannel(lastData.Channel);
                 hExtTdcOffset[lastCh]->Fill(ch + CoinOffsetX::BH, tdc - lastData.Tdc);
@@ -1973,6 +2070,9 @@ namespace Extinction {
 
               hHodTdcInSync[ch]->Fill(tdc - syncTdc);
               hHodTdcInSync_Any->Fill(tdc - syncTdc);
+
+              hHodMountain[ch]->Fill(tdc - syncTdc, time / msec);
+              hHodMountain_Any->Fill(tdc - syncTdc, time / msec);
 
               for (auto&& lastData : fLastExtData) {
                 auto lastCh = ExtinctionDetector::GetChannel(lastData.Channel);
@@ -2033,6 +2133,8 @@ namespace Extinction {
               hTcTdcInSpill[ch]->Fill(time / msec);
 
               hTcTdcInSync[ch]->Fill(tdc - syncTdc);
+
+              hTcMountain[ch]->Fill(tdc - syncTdc, time / msec);
 
               for (auto&& lastData : fLastExtData) {
                 auto lastCh = ExtinctionDetector::GetChannel(lastData.Channel);
@@ -2177,6 +2279,11 @@ namespace Extinction {
             // Calc bunch profile
             std::cout << "_____ Bunch Profile _____" << std::endl;
             {
+              for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
+                fSpillData.BunchCenters[bunch] = 0.0;
+                fSpillData.BunchWidths [bunch] = 0.0;
+              }
+              
               Int_t xbin = 1, nbinsx = hExtTdcInSync_Any->GetNbinsX();
               const Double_t ymax = hExtTdcInSync_Any->GetBinContent(hExtTdcInSync_Any->GetMaximumBin());
               for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
@@ -2218,6 +2325,7 @@ namespace Extinction {
             std::cout << "_____ MR Sync Interval _____" << std::endl;
             for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
               if (!hMrSyncInterval[ch]->GetEntries()) {
+                fSpillData.MrSyncInterval[ch] = 0.0;
                 continue;
               }
 
@@ -2240,6 +2348,9 @@ namespace Extinction {
             std::cout << "_____ Offset _____" << std::endl;
             for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
               if (!hExtTdcOffset[ch]->GetEntries()) {
+                for (std::size_t i = 0; i < CoinOffset::N; ++i) {
+                  fCoinDiffs[ch][i] = 0.0;
+                }
                 continue;
               }
 
@@ -2247,7 +2358,7 @@ namespace Extinction {
 
               // Beamline Hodoscope 1, 2
               for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
-                const std::size_t i    = bhCh + CoinOffsetX::BH;
+                const std::size_t i    = bhCh + CoinOffset ::BH;
                 const Int_t       xbin = bhCh + CoinOffsetX::BH + 1;
                 Double_t maxsum = 0.0; Int_t maxbin = 0;
                 for (Int_t ybin = 1; ybin <= ybins; ++ybin) {
@@ -2271,7 +2382,7 @@ namespace Extinction {
 
               // Hodoscope
               {
-                const std::size_t i     = CoinOffsetX::Hod;
+                const std::size_t i     = CoinOffset ::Hod;
                 const Int_t       xbin1 = CoinOffsetX::Hod + 1;
                 const Int_t       xbin2 = CoinOffsetX::Hod + Hodoscope::NofChannels;
                 Double_t maxsum = 0.0; Int_t maxbin = 0;
@@ -2301,7 +2412,7 @@ namespace Extinction {
 
               // Timing Counter 1, 2
               for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
-                const std::size_t i    = tcCh + CoinOffsetX::Hod + 1;
+                const std::size_t i    = tcCh + CoinOffset ::TC;
                 const Int_t       xbin = tcCh + CoinOffsetX::TC + 1;
                 Double_t maxsum = 0.0; Int_t maxbin = 0;
                 for (Int_t ybin = 1; ybin <= ybins; ++ybin) {
