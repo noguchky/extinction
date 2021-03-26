@@ -239,7 +239,7 @@ namespace Extinction {
       }
       inline std::size_t   GetMrSyncRefSize() const { return fMrSyncRefSize; }
 
-      void                 ReadPlots(const std::string& ifilename);
+      Int_t                ReadPlots(const std::string& ifilename);
       void                 InitializePlots(const PlotsProfiles& profile);
       void                 InitializeSpillSummary(const std::string& filename, const std::string& treename = "spilltree");
 
@@ -389,11 +389,11 @@ namespace Extinction {
       return fStdCoinDiffs.size();
     }
 
-    void HistGenerator::ReadPlots(const std::string& ifilename) {
+    Int_t HistGenerator::ReadPlots(const std::string& ifilename) {
       TFile* file = new TFile(ifilename.data(), "READ");
       if (!file->IsOpen()) {
         std::cout << "[error] input file is not opened, " << ifilename << std::endl;
-        return;
+        return 1;
       }
 
       {
@@ -550,6 +550,8 @@ namespace Extinction {
       }
       
       file->Close();
+
+      return 0;
     }
 
     void HistGenerator::InitializePlots(const PlotsProfiles& profile) {
