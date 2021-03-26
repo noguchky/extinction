@@ -1185,7 +1185,7 @@ namespace Extinction {
         }
       }
 
-
+      gPad->SetLogy(true);
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         if (hExtTdcCrosstalkBottom [ch]->GetEntries() ||
             hExtTdcCrosstalkCenter1[ch]->GetEntries() ||
@@ -1199,10 +1199,12 @@ namespace Extinction {
           hExtTdcCrosstalkBottom [ch]->SetMaximum(2.0 * Tron::Math::Greatest(hExtTdcCrosstalkBottom [ch]->GetBinContent(hExtTdcCrosstalkBottom [ch]->GetMaximumBin()),
                                                                              hExtTdcCrosstalkCenter1[ch]->GetBinContent(hExtTdcCrosstalkCenter1[ch]->GetMaximumBin()),
                                                                              hExtTdcCrosstalkCenter2[ch]->GetBinContent(hExtTdcCrosstalkCenter2[ch]->GetMaximumBin()),
-                                                                             hExtTdcCrosstalkTop    [ch]->GetBinContent(hExtTdcCrosstalkTop    [ch]->GetMaximumBin())));
+                                                                             hExtTdcCrosstalkTop    [ch]->GetBinContent(hExtTdcCrosstalkTop    [ch]->GetMaximumBin()),
+                                                                             1.0));
           gPad->Print(ofilename.data());
         }
       }
+      gPad->SetLogy(false);
 
       gPad->Print((ofilename + "]").data());
     }
@@ -2458,6 +2460,10 @@ namespace Extinction {
                 hExtTdcCrosstalkCenter1[ch]->SetBinError  (xbin, TMath::Sqrt(sumCenter1));
                 hExtTdcCrosstalkCenter2[ch]->SetBinError  (xbin, TMath::Sqrt(sumCenter2));
                 hExtTdcCrosstalkTop    [ch]->SetBinError  (xbin, TMath::Sqrt(sumTop    ));
+                hExtTdcCrosstalkBottom [ch]->SetEntries(hExtTdcCrosstalkBottom [ch]->GetEntries() - 1 + sumBottom );
+                hExtTdcCrosstalkCenter1[ch]->SetEntries(hExtTdcCrosstalkCenter1[ch]->GetEntries() - 1 + sumCenter1);
+                hExtTdcCrosstalkCenter2[ch]->SetEntries(hExtTdcCrosstalkCenter2[ch]->GetEntries() - 1 + sumCenter2);
+                hExtTdcCrosstalkTop    [ch]->SetEntries(hExtTdcCrosstalkTop    [ch]->GetEntries() - 1 + sumTop    );
               }
             }
 
