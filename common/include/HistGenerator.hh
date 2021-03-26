@@ -1343,6 +1343,19 @@ namespace Extinction {
         hExtTdcExtOffsetTop    [ch]->Write();
       }
 
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcCrosstalkBottom [ch]->Write();
+      }
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcCrosstalkCenter1[ch]->Write();
+      }
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcCrosstalkCenter2[ch]->Write();
+      }
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcCrosstalkTop    [ch]->Write();
+      }
+
       file->Close();
     }
 
@@ -1455,8 +1468,12 @@ namespace Extinction {
         hHodHitMap   ->Reset();
         hHodEntryByCh->Reset();
 
-        hExtHitMap   ->Reset();
-        hExtEntryByCh->Reset();
+        hExtHitMap          ->Reset();
+        hExtEntryByCh       ->Reset();
+        hExtEntryByChBottom ->Reset();
+        hExtEntryByChCenter1->Reset();
+        hExtEntryByChCenter2->Reset();
+        hExtEntryByChTop    ->Reset();
 
         for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
           hBhTdcInSpill[ch]->Reset();
@@ -1540,6 +1557,20 @@ namespace Extinction {
 
         for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
           hExtTdcOffset[ch]->Reset();
+        }
+
+        for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+          hExtTdcExtOffsetBottom [ch]->Reset();
+          hExtTdcExtOffsetCenter1[ch]->Reset();
+          hExtTdcExtOffsetCenter2[ch]->Reset();
+          hExtTdcExtOffsetTop    [ch]->Reset();
+        }
+
+        for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+          hExtTdcCrosstalkBottom [ch]->Reset();
+          hExtTdcCrosstalkCenter1[ch]->Reset();
+          hExtTdcCrosstalkCenter2[ch]->Reset();
+          hExtTdcCrosstalkTop    [ch]->Reset();
         }
       }
     }
@@ -2407,6 +2438,27 @@ namespace Extinction {
               hExtEntryByChCenter1->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 2));
               hExtEntryByChCenter2->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 3));
               hExtEntryByChTop    ->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 4));
+            }
+            for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+              const Int_t ybin1 = hExtTdcExtOffsetBottom[ch]->GetYaxis()->FindBin(-1.0 * fCoinTimeWidth / fProvider->GetTimePerTdc());
+              const Int_t ybin2 = hExtTdcExtOffsetBottom[ch]->GetYaxis()->FindBin(+1.0 * fCoinTimeWidth / fProvider->GetTimePerTdc());
+              for (Int_t xbin = 1, nbinsx = hExtHitMap->GetNbinsX(); xbin <= nbinsx; ++xbin) {
+                Double_t sumBottom = 0.0, sumCenter1 = 0.0, sumCenter2 = 0.0, sumTop = 0.0;
+                for (Int_t ybin = ybin1; ybin <= ybin2; ++ybin) {
+                  sumBottom  += hExtTdcExtOffsetBottom [ch]->GetBinContent(xbin, ybin);
+                  sumCenter1 += hExtTdcExtOffsetCenter1[ch]->GetBinContent(xbin, ybin);
+                  sumCenter2 += hExtTdcExtOffsetCenter2[ch]->GetBinContent(xbin, ybin);
+                  sumTop     += hExtTdcExtOffsetTop    [ch]->GetBinContent(xbin, ybin);
+                }
+                hExtTdcCrosstalkBottom [ch]->SetBinContent(xbin,             sumBottom  );
+                hExtTdcCrosstalkCenter1[ch]->SetBinContent(xbin,             sumCenter1 );
+                hExtTdcCrosstalkCenter2[ch]->SetBinContent(xbin,             sumCenter2 );
+                hExtTdcCrosstalkTop    [ch]->SetBinContent(xbin,             sumTop     );
+                hExtTdcCrosstalkBottom [ch]->SetBinError  (xbin, TMath::Sqrt(sumBottom ));
+                hExtTdcCrosstalkCenter1[ch]->SetBinError  (xbin, TMath::Sqrt(sumCenter1));
+                hExtTdcCrosstalkCenter2[ch]->SetBinError  (xbin, TMath::Sqrt(sumCenter2));
+                hExtTdcCrosstalkTop    [ch]->SetBinError  (xbin, TMath::Sqrt(sumTop    ));
+              }
             }
 
             // Get entries
