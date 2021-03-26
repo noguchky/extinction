@@ -942,10 +942,10 @@ namespace Extinction {
         hExtEntryByCh->SetMinimum(0.2);
         gPad->Print(ofilename.data());
       } {
-        hExtEntryByChBottom ->Draw();
-        hExtEntryByChCenter1->Draw("same");
-        hExtEntryByChCenter2->Draw("same");
-        hExtEntryByChTop    ->Draw("same");
+        hExtEntryByChBottom ->Draw("hist");
+        hExtEntryByChCenter1->Draw("histsame");
+        hExtEntryByChCenter2->Draw("histsame");
+        hExtEntryByChTop    ->Draw("histsame");
         hExtEntryByChBottom->SetMinimum(0.2);
         hExtEntryByChBottom->SetMaximum(2.0 * hExtHitMap->GetBinContent(hExtHitMap->GetMaximumBin()));
         gPad->Print(ofilename.data());
@@ -1191,10 +1191,10 @@ namespace Extinction {
             hExtTdcCrosstalkCenter1[ch]->GetEntries() ||
             hExtTdcCrosstalkCenter2[ch]->GetEntries() ||
             hExtTdcCrosstalkTop    [ch]->GetEntries()) {
-          hExtTdcCrosstalkBottom [ch]->Draw();
-          hExtTdcCrosstalkCenter1[ch]->Draw("same");
-          hExtTdcCrosstalkCenter2[ch]->Draw("same");
-          hExtTdcCrosstalkTop    [ch]->Draw("same");
+          hExtTdcCrosstalkBottom [ch]->Draw("hist");
+          hExtTdcCrosstalkCenter1[ch]->Draw("histsame");
+          hExtTdcCrosstalkCenter2[ch]->Draw("histsame");
+          hExtTdcCrosstalkTop    [ch]->Draw("histsame");
           hExtTdcCrosstalkBottom [ch]->SetMinimum(0.2);
           hExtTdcCrosstalkBottom [ch]->SetMaximum(2.0 * Tron::Math::Greatest(hExtTdcCrosstalkBottom [ch]->GetBinContent(hExtTdcCrosstalkBottom [ch]->GetMaximumBin()),
                                                                              hExtTdcCrosstalkCenter1[ch]->GetBinContent(hExtTdcCrosstalkCenter1[ch]->GetMaximumBin()),
@@ -2440,6 +2440,10 @@ namespace Extinction {
               hExtEntryByChCenter1->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 2));
               hExtEntryByChCenter2->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 3));
               hExtEntryByChTop    ->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 4));
+              hExtEntryByChBottom ->SetBinError  (xbin, hExtHitMap->GetBinError  (xbin, 1));
+              hExtEntryByChCenter1->SetBinError  (xbin, hExtHitMap->GetBinError  (xbin, 2));
+              hExtEntryByChCenter2->SetBinError  (xbin, hExtHitMap->GetBinError  (xbin, 3));
+              hExtEntryByChTop    ->SetBinError  (xbin, hExtHitMap->GetBinError  (xbin, 4));
             }
             for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
               const Int_t ybin1 = hExtTdcExtOffsetBottom[ch]->GetYaxis()->FindBin(-1.0 * fCoinTimeWidth / fProvider->GetTimePerTdc());
