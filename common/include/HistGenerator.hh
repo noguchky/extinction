@@ -148,6 +148,10 @@ namespace Extinction {
       TH2**                        hExtTdcExtOffsetCenter1 = nullptr;
       TH2**                        hExtTdcExtOffsetCenter2 = nullptr;
       TH2**                        hExtTdcExtOffsetTop     = nullptr;
+      TH1**                        hExtTdcCrosstalkBottom  = nullptr;
+      TH1**                        hExtTdcCrosstalkCenter1 = nullptr;
+      TH1**                        hExtTdcCrosstalkCenter2 = nullptr;
+      TH1**                        hExtTdcCrosstalkTop     = nullptr;
       TFile*                       fSpillFile              = nullptr;
       TTree*                       fSpillTree              = nullptr;
 
@@ -534,6 +538,17 @@ namespace Extinction {
         hExtTdcExtOffsetTop    [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetTop_%03lu", ch)));
       }
 
+      hExtTdcCrosstalkBottom  = new TH1*[ExtinctionDetector::NofChannels];
+      hExtTdcCrosstalkCenter1 = new TH1*[ExtinctionDetector::NofChannels];
+      hExtTdcCrosstalkCenter2 = new TH1*[ExtinctionDetector::NofChannels];
+      hExtTdcCrosstalkTop     = new TH1*[ExtinctionDetector::NofChannels];
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcCrosstalkBottom [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkBottom_%03lu", ch)));
+        hExtTdcCrosstalkCenter1[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkCenter1_%03lu", ch)));
+        hExtTdcCrosstalkCenter2[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkCenter2_%03lu", ch)));
+        hExtTdcCrosstalkTop    [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkTop_%03lu", ch)));
+      }
+      
       file->Close();
     }
 
@@ -851,6 +866,26 @@ namespace Extinction {
         hExtTdcExtOffsetCenter2[ch]->SetStats(false);
         hExtTdcExtOffsetTop    [ch]->SetStats(false);
       }
+
+      hExtTdcCrosstalkBottom  = new TH1*[ExtinctionDetector::NofChannels];
+      hExtTdcCrosstalkCenter1 = new TH1*[ExtinctionDetector::NofChannels];
+      hExtTdcCrosstalkCenter2 = new TH1*[ExtinctionDetector::NofChannels];
+      hExtTdcCrosstalkTop     = new TH1*[ExtinctionDetector::NofChannels];
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcCrosstalkBottom [ch] = hExtTdcExtOffsetBottom [ch]->ProjectionX(Form("hExtTdcCrosstalkBottom_%03lu",  ch));
+        hExtTdcCrosstalkCenter1[ch] = hExtTdcExtOffsetCenter1[ch]->ProjectionX(Form("hExtTdcCrosstalkCenter1_%03lu", ch));
+        hExtTdcCrosstalkCenter2[ch] = hExtTdcExtOffsetCenter2[ch]->ProjectionX(Form("hExtTdcCrosstalkCenter2_%03lu", ch));
+        hExtTdcCrosstalkTop    [ch] = hExtTdcExtOffsetTop    [ch]->ProjectionX(Form("hExtTdcCrosstalkTop_%03lu",     ch));
+        hExtTdcCrosstalkBottom [ch]->SetLineColor(kBlue   + 1);
+        hExtTdcCrosstalkCenter1[ch]->SetLineColor(kRed    + 1);
+        hExtTdcCrosstalkCenter2[ch]->SetLineColor(kOrange + 1);
+        hExtTdcCrosstalkTop    [ch]->SetLineColor(kGreen  + 1);
+        hExtTdcCrosstalkBottom [ch]->SetStats(false);
+        hExtTdcCrosstalkCenter1[ch]->SetStats(false);
+        hExtTdcCrosstalkCenter2[ch]->SetStats(false);
+        hExtTdcCrosstalkTop    [ch]->SetStats(false);
+      }
+      
     }
 
     void HistGenerator::InitializeSpillSummary(const std::string& filename, const std::string& treename) {
@@ -1146,6 +1181,25 @@ namespace Extinction {
           hExtTdcExtOffsetTop    [ch]->Draw("colz");
           hExtTdcExtOffsetTop    [ch]->SetMinimum(0);
        // hExtTdcExtOffsetTop    [ch]->SetMinimum(-0.001);
+          gPad->Print(ofilename.data());
+        }
+      }
+
+
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        if (hExtTdcCrosstalkBottom [ch]->GetEntries() ||
+            hExtTdcCrosstalkCenter1[ch]->GetEntries() ||
+            hExtTdcCrosstalkCenter2[ch]->GetEntries() ||
+            hExtTdcCrosstalkTop    [ch]->GetEntries()) {
+          hExtTdcCrosstalkBottom [ch]->Draw();
+          hExtTdcCrosstalkCenter1[ch]->Draw("same");
+          hExtTdcCrosstalkCenter2[ch]->Draw("same");
+          hExtTdcCrosstalkTop    [ch]->Draw("same");
+          hExtTdcCrosstalkBottom [ch]->SetMinimum(0.2);
+          hExtTdcCrosstalkBottom [ch]->SetMaximum(2.0 * Tron::Math::Greatest(hExtTdcCrosstalkBottom [ch]->GetBinContent(hExtTdcCrosstalkBottom [ch]->GetMaximumBin()),
+                                                                             hExtTdcCrosstalkCenter1[ch]->GetBinContent(hExtTdcCrosstalkCenter1[ch]->GetMaximumBin()),
+                                                                             hExtTdcCrosstalkCenter2[ch]->GetBinContent(hExtTdcCrosstalkCenter2[ch]->GetMaximumBin()),
+                                                                             hExtTdcCrosstalkTop    [ch]->GetBinContent(hExtTdcCrosstalkTop    [ch]->GetMaximumBin())));
           gPad->Print(ofilename.data());
         }
       }

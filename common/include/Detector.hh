@@ -248,7 +248,7 @@ namespace Extinction {
       }
     }
 
-    inline void Fill(TH2* hBottom, TH2* hCenter1, TH2* hCenter2, TH2* hTop, Double_t y, std::size_t channel) {
+    inline void Fill(TH2* hBottom, TH2* hCenter1, TH2* hCenter2, TH2* hTop, Double_t y, std::size_t channel, Bool_t norm = false) {
       const Int_t    type = GetType(channel);
       const Double_t area = GetArea(type) / cm2;
       switch (type) {
@@ -264,8 +264,13 @@ namespace Extinction {
           TH2*              hist     = (boardYi ? hCenter1 : hCenter2);
           const Int_t       bin      = hist->FindBin(boardX, y);
           const Double_t    content  = hist->GetBinContent(bin);
-          hist->SetBinContent(bin, content + 1.0 / area);
-          hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area) / area));
+          if (norm) {
+            hist->SetBinContent(bin, content + 1.0 / area);
+            hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area) / area));
+          } else {
+            hist->SetBinContent(bin, content + 1.0);
+            hist->SetBinError(bin, TMath::Sqrt(content + 1.0));
+          }
         }
         break;
 
@@ -282,8 +287,13 @@ namespace Extinction {
           const Int_t       ybin        = hist->GetYaxis()->FindBin(y);
           const Double_t    content     = hist->GetBinContent(xbin1, ybin);
           for (Int_t xbin = xbin1; xbin <= xbin2; ++xbin) {
-            hist->SetBinContent(xbin, ybin, content + 1.0 / area);
-            hist->SetBinError(xbin, ybin, TMath::Sqrt((content + 1.0 / area) / area));
+            if (norm) {
+              hist->SetBinContent(xbin, content + 1.0 / area);
+              hist->SetBinError(xbin, TMath::Sqrt((content + 1.0 / area) / area));
+            } else {
+              hist->SetBinContent(xbin, ybin, content + 1.0);
+              hist->SetBinError(xbin, ybin, TMath::Sqrt(content + 1.0));
+            }
           }
         }
         break;
@@ -300,16 +310,26 @@ namespace Extinction {
             TH2*              hist        = (boardYi ? hBottom  : hTop    );
             const Int_t       bin         = hist->FindBin(boardX, y);
             const Double_t    content     = hist->GetBinContent(bin);
-            const Double_t    area2       = area * 0.7;
-            hist->SetBinContent(bin, content + 1.0 / area2);
-            hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area2) / area2));
+            if (norm) {
+              const Double_t    area2       = area * 0.7;
+              hist->SetBinContent(bin, content + 1.0 / area2);
+              hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area2) / area2));
+            } else {
+              hist->SetBinContent(bin, content + 1.0);
+              hist->SetBinError(bin, TMath::Sqrt(content + 1.0));
+            }
           } {
             TH2*              hist        = (boardYi ? hCenter1 : hCenter2);
             const Int_t       bin         = hist->FindBin(boardX, y);
             const Double_t    content     = hist->GetBinContent(bin);
-            const Double_t    area2       = area * 0.3;
-            hist->SetBinContent(bin, content + 1.0 / area2);
-            hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area2) / area2));
+            if (norm) {
+              const Double_t    area2       = area * 0.3;
+              hist->SetBinContent(bin, content + 1.0 / area2);
+              hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area2) / area2));
+            } else {
+              hist->SetBinContent(bin, content + 1.0);
+              hist->SetBinError(bin, TMath::Sqrt(content + 1.0));
+            }
           }
         }
         break;
