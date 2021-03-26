@@ -395,122 +395,153 @@ namespace Extinction {
         std::cout << "[error] input file is not opened, " << ifilename << std::endl;
         return 1;
       }
+      file->ls();
 
       {
         fSpillData.SetDate((UInt_t)Tron::ObjectHelper::ReadValue<Long64_t>("Time"));
       }
 
       {
-        hHodHitMap     = dynamic_cast<TH2*>  (file->Get("hExtHitMap"    ));      
-        lHodBorderLine = dynamic_cast<TList*>(file->Get("lExtBorderLine"));
+        hHodHitMap     = dynamic_cast<TH2*>  (file->Get("hHodHitMap"    ));
+        lHodBorderLine = dynamic_cast<TList*>(file->Get("lHodBorderLine"));
+        hHodHitMap->SetDirectory(nullptr);
       }
 
       {
         hHodEntryByCh = dynamic_cast<TH1*>(file->Get("hHodEntryByCh"));
+        hHodEntryByCh->SetDirectory(nullptr);
       }
 
       {
         hExtHitMap     = dynamic_cast<TH2*>  (file->Get("hExtHitMap"    ));
         lExtBorderLine = dynamic_cast<TList*>(file->Get("lExtBorderLine"));
+        hExtHitMap->SetDirectory(nullptr);
       }
 
       {
         hExtEntryByCh = dynamic_cast<TH1*>(file->Get("hExtEntryByCh"));
+        hExtEntryByCh->SetDirectory(nullptr);
       } {
         hExtEntryByChBottom  = dynamic_cast<TH1*>(file->Get("hExtEntryByChBottom" ));
         hExtEntryByChCenter1 = dynamic_cast<TH1*>(file->Get("hExtEntryByChCenter1"));
         hExtEntryByChCenter2 = dynamic_cast<TH1*>(file->Get("hExtEntryByChCenter2"));
         hExtEntryByChTop     = dynamic_cast<TH1*>(file->Get("hExtEntryByChTop"    ));
+        hExtEntryByChBottom ->SetDirectory(nullptr);
+        hExtEntryByChCenter1->SetDirectory(nullptr);
+        hExtEntryByChCenter2->SetDirectory(nullptr);
+        hExtEntryByChTop    ->SetDirectory(nullptr);
       }
 
       hBhTdcInSpill = new TH1*[BeamlineHodoscope::NofChannels];
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
         hBhTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hBhTdcInSpill_%03lu", ch)));
+        hBhTdcInSpill[ch]->SetDirectory(nullptr);
       }
 
       hHodTdcInSpill = new TH1*[Hodoscope::NofChannels];
       for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
         hHodTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hHodTdcInSpill_%03lu", ch)));
+        hHodTdcInSpill[ch]->SetDirectory(nullptr);
       } {
         hHodTdcInSpill_Any = dynamic_cast<TH1*>(file->Get("hHodTdcInSpill_Any"));
+        hHodTdcInSpill_Any->SetDirectory(nullptr);
       }
 
       hExtTdcInSpill = new TH1*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hExtTdcInSpill_%03lu", ch)));
+        hExtTdcInSpill[ch]->SetDirectory(nullptr);
       } {
         hExtTdcInSpill_Any = dynamic_cast<TH1*>(file->Get("hExtTdcInSpill_Any"));
+        hExtTdcInSpill_Any->SetDirectory(nullptr);
       }
 
       hTcTdcInSpill = new TH1*[TimingCounter::NofChannels];
       for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
         hTcTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hTcTdcInSpill_%03lu", ch)));
+        hTcTdcInSpill[ch]->SetDirectory(nullptr);
       }
 
       hMrSyncTdcInSpill = new TH1*[MrSync::NofChannels];
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        hMrSyncTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hMrSyncInSpill_%03lu", ch)));
+        hMrSyncTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hMrSyncTdcInSpill_%03lu", ch)));
+        hMrSyncTdcInSpill[ch]->SetDirectory(nullptr);
       }
 
       hEvmTdcInSpill = new TH1*[EventMatch::NofChannels];
       for (std::size_t ch = 0; ch < EventMatch::NofChannels; ++ch) {
         hEvmTdcInSpill[ch] = dynamic_cast<TH1*>(file->Get(Form("hEvmTdcInSpill_%03lu", ch)));
+        hEvmTdcInSpill[ch]->SetDirectory(nullptr);
       }
 
       hBhTdcInSync = new TH1*[BeamlineHodoscope::NofChannels];
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
         hBhTdcInSync[ch] = dynamic_cast<TH1*>(file->Get(Form("hBhTdcInSync_%03lu", ch)));
+        hBhTdcInSync[ch]->SetDirectory(nullptr);
       }
 
       hHodTdcInSync = new TH1*[Hodoscope::NofChannels];
       for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
         hHodTdcInSync[ch] = dynamic_cast<TH1*>(file->Get(Form("hHodTdcInSync_%03lu", ch)));
+        hHodTdcInSync[ch]->SetDirectory(nullptr);
       } {
         hHodTdcInSync_Any = dynamic_cast<TH1*>(file->Get("hHodTdcInSync_Any"));
+        hHodTdcInSync_Any->SetDirectory(nullptr);
       }
 
       hExtTdcInSync = new TH1*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtTdcInSync[ch] = dynamic_cast<TH1*>(file->Get(Form("hExtTdcInSync_%03lu", ch)));
+        hExtTdcInSync[ch]->SetDirectory(nullptr);
       } {
         hExtTdcInSync_Any = dynamic_cast<TH1*>(file->Get("hExtTdcInSync_Any"));
+        hExtTdcInSync_Any->SetDirectory(nullptr);
       }
 
       hTcTdcInSync = new TH1*[TimingCounter::NofChannels];
       for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
         hTcTdcInSync[ch] = dynamic_cast<TH1*>(file->Get(Form("hTcTdcInSync_%03lu", ch)));
+        hTcTdcInSync[ch]->SetDirectory(nullptr);
       }
 
       hBhMountain = new TH2*[BeamlineHodoscope::NofChannels];
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
         hBhMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hBhMountain_%03lu", ch)));
+        hBhMountain[ch]->SetDirectory(nullptr);
       }
 
       hHodMountain = new TH2*[Hodoscope::NofChannels];
       for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
         hHodMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hHodMountain_%03lu", ch)));
+        hHodMountain[ch]->SetDirectory(nullptr);
       } {
         hHodMountain_Any = dynamic_cast<TH2*>(file->Get("hHodMountain_Any"));
+        hHodMountain_Any->SetDirectory(nullptr);
       }
 
       hExtMountain = new TH2*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtMountain_%03lu", ch)));
+        hExtMountain[ch]->SetDirectory(nullptr);
       } {
         hExtMountain_Any = dynamic_cast<TH2*>(file->Get("hExtMountain_Any"));
+        hExtMountain_Any->SetDirectory(nullptr);
       }
 
       hTcMountain = new TH2*[TimingCounter::NofChannels];
       for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
         hTcMountain[ch] = dynamic_cast<TH2*>(file->Get(Form("hTcMountain_%03lu", ch)));
+        hTcMountain[ch]->SetDirectory(nullptr);
       }
 
       {
         hCoinTdcInSync = dynamic_cast<TH1*>(file->Get("hCoinTdcInSync"));
+        hCoinTdcInSync->SetDirectory(nullptr);
       }
 
       {
         hCoinMountain = dynamic_cast<TH2*>(file->Get("hCoinMountain"));
+        hCoinMountain->SetDirectory(nullptr);
       }
 
       {
@@ -520,11 +551,13 @@ namespace Extinction {
       hMrSyncInterval = new TH1*[MrSync::NofChannels];
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
         hMrSyncInterval[ch] = dynamic_cast<TH1*>(file->Get(Form("hMrSyncInterval_%03lu", ch)));
+        hMrSyncInterval[ch]->SetDirectory(nullptr);
       }
 
       hExtTdcOffset = new TH2*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtTdcOffset[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcOffset_%03lu", ch)));
+        hExtTdcOffset[ch]->SetDirectory(nullptr);
       }
 
       hExtTdcExtOffsetBottom  = new TH2*[ExtinctionDetector::NofChannels];
@@ -536,6 +569,10 @@ namespace Extinction {
         hExtTdcExtOffsetCenter1[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetCenter1_%03lu", ch)));
         hExtTdcExtOffsetCenter2[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetCenter2_%03lu", ch)));
         hExtTdcExtOffsetTop    [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetTop_%03lu", ch)));
+        hExtTdcExtOffsetBottom [ch]->SetDirectory(nullptr);
+        hExtTdcExtOffsetCenter1[ch]->SetDirectory(nullptr);
+        hExtTdcExtOffsetCenter2[ch]->SetDirectory(nullptr);
+        hExtTdcExtOffsetTop    [ch]->SetDirectory(nullptr);
       }
 
       hExtTdcCrosstalkBottom  = new TH1*[ExtinctionDetector::NofChannels];
@@ -543,10 +580,14 @@ namespace Extinction {
       hExtTdcCrosstalkCenter2 = new TH1*[ExtinctionDetector::NofChannels];
       hExtTdcCrosstalkTop     = new TH1*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-        hExtTdcCrosstalkBottom [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkBottom_%03lu", ch)));
-        hExtTdcCrosstalkCenter1[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkCenter1_%03lu", ch)));
-        hExtTdcCrosstalkCenter2[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkCenter2_%03lu", ch)));
-        hExtTdcCrosstalkTop    [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcCrosstalkTop_%03lu", ch)));
+        hExtTdcCrosstalkBottom [ch] = dynamic_cast<TH1*>(file->Get(Form("hExtTdcCrosstalkBottom_%03lu", ch)));
+        hExtTdcCrosstalkCenter1[ch] = dynamic_cast<TH1*>(file->Get(Form("hExtTdcCrosstalkCenter1_%03lu", ch)));
+        hExtTdcCrosstalkCenter2[ch] = dynamic_cast<TH1*>(file->Get(Form("hExtTdcCrosstalkCenter2_%03lu", ch)));
+        hExtTdcCrosstalkTop    [ch] = dynamic_cast<TH1*>(file->Get(Form("hExtTdcCrosstalkTop_%03lu", ch)));
+        hExtTdcCrosstalkBottom [ch]->SetDirectory(nullptr);
+        hExtTdcCrosstalkCenter1[ch]->SetDirectory(nullptr);
+        hExtTdcCrosstalkCenter2[ch]->SetDirectory(nullptr);
+        hExtTdcCrosstalkTop    [ch]->SetDirectory(nullptr);
       }
       
       file->Close();
