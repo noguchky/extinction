@@ -107,47 +107,51 @@ namespace Extinction {
       };
 
     private:
-      ITdcDataProvider*            fProvider            = nullptr;
+      ITdcDataProvider*            fProvider               = nullptr;
 
-      TH2*                         hHodHitMap           = nullptr;
-      TList*                       lHodBorderLine       = nullptr;
-      TH1*                         hHodEntryByCh        = nullptr;
-      TH2*                         hExtHitMap           = nullptr;
-      TList*                       lExtBorderLine       = nullptr;
-      TH1*                         hExtEntryByCh        = nullptr;
-      TH1*                         hExtEntryByChBottom  = nullptr;
-      TH1*                         hExtEntryByChCenter1 = nullptr;
-      TH1*                         hExtEntryByChCenter2 = nullptr;
-      TH1*                         hExtEntryByChTop     = nullptr;
-      TH1**                        hBhTdcInSpill        = nullptr;
-      TH1**                        hHodTdcInSpill       = nullptr;
-      TH1*                         hHodTdcInSpill_Any   = nullptr;
-      TH1**                        hExtTdcInSpill       = nullptr;
-      TH1*                         hExtTdcInSpill_Any   = nullptr;
-      TH1**                        hTcTdcInSpill        = nullptr;
-      TH1**                        hMrSyncTdcInSpill    = nullptr;
-      TH1**                        hEvmTdcInSpill       = nullptr;
-      TH1**                        hBhTdcInSync         = nullptr;
-      TH1**                        hHodTdcInSync        = nullptr;
-      TH1*                         hHodTdcInSync_Any    = nullptr;
-      TH1**                        hExtTdcInSync        = nullptr;
-      TH1*                         hExtTdcInSync_Any    = nullptr;
-      TH1**                        hTcTdcInSync         = nullptr;
-      TH2**                        hBhMountain          = nullptr;
-      TH2**                        hHodMountain         = nullptr;
-      TH2*                         hHodMountain_Any     = nullptr;
-      TH2**                        hExtMountain         = nullptr;
-      TH2*                         hExtMountain_Any     = nullptr;
-      TH2**                        hTcMountain          = nullptr;
-      TH1*                         hCoinTdcInSync       = nullptr;
-      TH2*                         hCoinMountain        = nullptr;
-      TGraphErrors*                gHitInSpill          = nullptr;
-      TH1**                        hMrSyncInterval      = nullptr;
-      TH2**                        hExtTdcOffset        = nullptr;
-      TFile*                       fSpillFile           = nullptr;
-      TTree*                       fSpillTree           = nullptr;
+      TH2*                         hHodHitMap              = nullptr;
+      TList*                       lHodBorderLine          = nullptr;
+      TH1*                         hHodEntryByCh           = nullptr;
+      TH2*                         hExtHitMap              = nullptr;
+      TList*                       lExtBorderLine          = nullptr;
+      TH1*                         hExtEntryByCh           = nullptr;
+      TH1*                         hExtEntryByChBottom     = nullptr;
+      TH1*                         hExtEntryByChCenter1    = nullptr;
+      TH1*                         hExtEntryByChCenter2    = nullptr;
+      TH1*                         hExtEntryByChTop        = nullptr;
+      TH1**                        hBhTdcInSpill           = nullptr;
+      TH1**                        hHodTdcInSpill          = nullptr;
+      TH1*                         hHodTdcInSpill_Any      = nullptr;
+      TH1**                        hExtTdcInSpill          = nullptr;
+      TH1*                         hExtTdcInSpill_Any      = nullptr;
+      TH1**                        hTcTdcInSpill           = nullptr;
+      TH1**                        hMrSyncTdcInSpill       = nullptr;
+      TH1**                        hEvmTdcInSpill          = nullptr;
+      TH1**                        hBhTdcInSync            = nullptr;
+      TH1**                        hHodTdcInSync           = nullptr;
+      TH1*                         hHodTdcInSync_Any       = nullptr;
+      TH1**                        hExtTdcInSync           = nullptr;
+      TH1*                         hExtTdcInSync_Any       = nullptr;
+      TH1**                        hTcTdcInSync            = nullptr;
+      TH2**                        hBhMountain             = nullptr;
+      TH2**                        hHodMountain            = nullptr;
+      TH2*                         hHodMountain_Any        = nullptr;
+      TH2**                        hExtMountain            = nullptr;
+      TH2*                         hExtMountain_Any        = nullptr;
+      TH2**                        hTcMountain             = nullptr;
+      TH1*                         hCoinTdcInSync          = nullptr;
+      TH2*                         hCoinMountain           = nullptr;
+      TGraphErrors*                gHitInSpill             = nullptr;
+      TH1**                        hMrSyncInterval         = nullptr;
+      TH2**                        hExtTdcOffset           = nullptr;
+      TH2**                        hExtTdcExtOffsetBottom  = nullptr;
+      TH2**                        hExtTdcExtOffsetCenter1 = nullptr;
+      TH2**                        hExtTdcExtOffsetCenter2 = nullptr;
+      TH2**                        hExtTdcExtOffsetTop     = nullptr;
+      TFile*                       fSpillFile              = nullptr;
+      TTree*                       fSpillTree              = nullptr;
 
-      Long64_t                     fSpillCount          = 0;
+      Long64_t                     fSpillCount             = 0;
       SpillData                    fSpillData;
       CoinDiffs                    fCoinDiffs;
 
@@ -159,13 +163,13 @@ namespace Extinction {
       Double_t                     fStdBunchCenters[SpillData::kNofBunches] = { 0 };
       Double_t                     fStdBunchWidths [SpillData::kNofBunches] = { 0 };
 
-      Bool_t                       fCyclicCoincidence   = true;
-      Double_t                     fHistoryWidth        = 600.0 * nsec;
-      Double_t                     fCoinTimeWidth       =  10.0 * nsec;
-      std::size_t                  fBufferSize          = 5000;
-      std::size_t                  fBufferMargin        =  100;
-      Double_t                     fMrSyncRefInterval   = 5.257665092140706e+03 * nsec;
-      std::size_t                  fMrSyncRefSize       = 200000;
+      Bool_t                       fCyclicCoincidence      = true;
+      Double_t                     fHistoryWidth           = 600.0 * nsec;
+      Double_t                     fCoinTimeWidth          =  10.0 * nsec;
+      std::size_t                  fBufferSize             = 5000;
+      std::size_t                  fBufferMargin           =  100;
+      Double_t                     fMrSyncRefInterval      = 5.257665092140706e+03 * nsec;
+      std::size_t                  fMrSyncRefSize          = 200000;
 
       std::map<ULong64_t, TdcData> fTdcBuffer;
       std::vector<TdcData>         fLastBhData;
@@ -177,7 +181,7 @@ namespace Extinction {
       std::map<Int_t, std::size_t> fMrSyncCount;
       std::map<Int_t, TdcPair>     fMrSyncReference;
 
-      TF1*                         fGauss               = nullptr;
+      TF1*                         fGauss                  = nullptr;
 
     public:
       HistGenerator(ITdcDataProvider* provider);
@@ -519,6 +523,17 @@ namespace Extinction {
         hExtTdcOffset[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcOffset_%03lu", ch)));
       }
 
+      hExtTdcExtOffsetBottom  = new TH2*[ExtinctionDetector::NofChannels];
+      hExtTdcExtOffsetCenter1 = new TH2*[ExtinctionDetector::NofChannels];
+      hExtTdcExtOffsetCenter2 = new TH2*[ExtinctionDetector::NofChannels];
+      hExtTdcExtOffsetTop     = new TH2*[ExtinctionDetector::NofChannels];
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcExtOffsetBottom [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetBottom_%03lu", ch)));
+        hExtTdcExtOffsetCenter1[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetCenter1_%03lu", ch)));
+        hExtTdcExtOffsetCenter2[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetCenter2_%03lu", ch)));
+        hExtTdcExtOffsetTop    [ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcExtOffsetTop_%03lu", ch)));
+      }
+
       file->Close();
     }
 
@@ -801,6 +816,41 @@ namespace Extinction {
                                      xbinsInDiff, xminInDiff, xmaxInDiff);
         hExtTdcOffset[ch]->SetStats(false);
       }
+
+      hExtTdcExtOffsetBottom  = new TH2*[ExtinctionDetector::NofChannels];
+      hExtTdcExtOffsetCenter1 = new TH2*[ExtinctionDetector::NofChannels];
+      hExtTdcExtOffsetCenter2 = new TH2*[ExtinctionDetector::NofChannels];
+      hExtTdcExtOffsetTop     = new TH2*[ExtinctionDetector::NofChannels];
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcExtOffsetBottom [ch] = new TH2D(Form("hExtTdcExtOffsetBottom_%03lu", ch),
+                                                Form("%s, Extinction Detector TDC Offset (Bottom) @ ch%ld;"
+                                                     "x [cm];"
+                                                     "TDC [count]", tdcName.data(), ch),
+                                                hExtHitMap->GetXaxis()->GetNbins(), hExtHitMap->GetXaxis()->GetXbins()->fArray,
+                                                xbinsInDiff, xminInDiff, xmaxInDiff);
+        hExtTdcExtOffsetCenter1[ch] = new TH2D(Form("hExtTdcExtOffsetCenter1_%03lu", ch),
+                                                Form("%s, Extinction Detector TDC Offset (Center1) @ ch%ld;"
+                                                     "x [cm];"
+                                                     "TDC [count]", tdcName.data(), ch),
+                                                hExtHitMap->GetXaxis()->GetNbins(), hExtHitMap->GetXaxis()->GetXbins()->fArray,
+                                                xbinsInDiff, xminInDiff, xmaxInDiff);
+        hExtTdcExtOffsetCenter2[ch] = new TH2D(Form("hExtTdcExtOffsetCenter2_%03lu", ch),
+                                                Form("%s, Extinction Detector TDC Offset (Center2) @ ch%ld;"
+                                                     "x [cm];"
+                                                     "TDC [count]", tdcName.data(), ch),
+                                                hExtHitMap->GetXaxis()->GetNbins(), hExtHitMap->GetXaxis()->GetXbins()->fArray,
+                                                xbinsInDiff, xminInDiff, xmaxInDiff);
+        hExtTdcExtOffsetTop    [ch] = new TH2D(Form("hExtTdcExtOffsetTop_%03lu", ch),
+                                                Form("%s, Extinction Detector TDC Offset (Top) @ ch%ld;"
+                                                     "x [cm];"
+                                                     "TDC [count]", tdcName.data(), ch),
+                                                hExtHitMap->GetXaxis()->GetNbins(), hExtHitMap->GetXaxis()->GetXbins()->fArray,
+                                                xbinsInDiff, xminInDiff, xmaxInDiff);
+        hExtTdcExtOffsetBottom [ch]->SetStats(false);
+        hExtTdcExtOffsetCenter1[ch]->SetStats(false);
+        hExtTdcExtOffsetCenter2[ch]->SetStats(false);
+        hExtTdcExtOffsetTop    [ch]->SetStats(false);
+      }
     }
 
     void HistGenerator::InitializeSpillSummary(const std::string& filename, const std::string& treename) {
@@ -821,15 +871,18 @@ namespace Extinction {
       if (!gPad) {
         TCanvas::MakeDefCanvas();
       }
+      gPad->SetGrid(true, true);
       gPad->SetLogy(false);
       gPad->Print((ofilename + "[").data());
 
+      gPad->SetGrid(false, false);
       {
         hHodHitMap->Draw("col");
         lHodBorderLine->Draw();
         hHodHitMap->SetMinimum(-0.001);
         gPad->Print(ofilename.data());
       }
+      gPad->SetGrid(true, true);
 
       gPad->SetLogy(true);
       {
@@ -839,12 +892,14 @@ namespace Extinction {
       }
       gPad->SetLogy(false);
 
+      gPad->SetGrid(false, false);
       {
         hExtHitMap->Draw("col");
         lExtBorderLine->Draw();
         hExtHitMap->SetMinimum(-0.001);
         gPad->Print(ofilename.data());
       }
+      gPad->SetGrid(true, true);
 
       gPad->SetLogy(true);
       {
@@ -978,6 +1033,7 @@ namespace Extinction {
       }
       gPad->SetLogy(false);
 
+      gPad->SetGrid(false, true);
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
         if (hBhMountain[ch]->GetEntries()) {
           hBhMountain[ch]->Draw("colz");
@@ -985,7 +1041,9 @@ namespace Extinction {
           gPad->Print(ofilename.data());
         }
       }
+      gPad->SetGrid(true, true);
 
+      gPad->SetGrid(false, true);
       for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch) {
         if (hHodMountain[ch]->GetEntries()) {
           hHodMountain[ch]->Draw("colz");
@@ -997,7 +1055,9 @@ namespace Extinction {
         hHodMountain_Any->SetMinimum(0);
         gPad->Print(ofilename.data());
       }
+      gPad->SetGrid(true, true);
 
+      gPad->SetGrid(false, true);
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         if (hExtMountain[ch]->GetEntries()) {
           hExtMountain[ch]->Draw("colz");
@@ -1009,7 +1069,9 @@ namespace Extinction {
         hExtMountain_Any->SetMinimum(0);
         gPad->Print(ofilename.data());
       }
+      gPad->SetGrid(true, true);
 
+      gPad->SetGrid(false, true);
       for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch) {
         if (hTcMountain[ch]->GetEntries()) {
           hTcMountain[ch]->Draw("colz");
@@ -1017,6 +1079,7 @@ namespace Extinction {
           gPad->Print(ofilename.data());
         }
       }
+      gPad->SetGrid(true, true);
 
       gPad->SetLogy(true);
       {
@@ -1026,11 +1089,13 @@ namespace Extinction {
       }
       gPad->SetLogy(false);
 
+      gPad->SetGrid(false, true);
       {
         hCoinMountain->Draw("colz");
         hCoinMountain->SetMinimum(0);
         gPad->Print(ofilename.data());
       }
+      gPad->SetGrid(true, true);
 
       gPad->SetLogy(true);
       {
@@ -1053,7 +1118,34 @@ namespace Extinction {
         if (hExtTdcOffset[ch]->GetEntries()) {
           hExtTdcOffset[ch]->Draw("col");
           hExtTdcOffset[ch]->SetMinimum(0);
-          // hExtTdcOffset[ch]->SetMinimum(-0.001);
+       // hExtTdcOffset[ch]->SetMinimum(-0.001);
+          gPad->Print(ofilename.data());
+        }
+      }
+
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        if (hExtTdcExtOffsetBottom [ch]->GetEntries() ||
+            hExtTdcExtOffsetCenter1[ch]->GetEntries() ||
+            hExtTdcExtOffsetCenter2[ch]->GetEntries() ||
+            hExtTdcExtOffsetTop    [ch]->GetEntries()) {
+          hExtTdcExtOffsetBottom [ch]->Draw("colz");
+          hExtTdcExtOffsetBottom [ch]->SetMinimum(0);
+       // hExtTdcExtOffsetBottom [ch]->SetMinimum(-0.001);
+          gPad->Print(ofilename.data());
+
+          hExtTdcExtOffsetCenter1[ch]->Draw("colz");
+          hExtTdcExtOffsetCenter1[ch]->SetMinimum(0);
+       // hExtTdcExtOffsetCenter1[ch]->SetMinimum(-0.001);
+          gPad->Print(ofilename.data());
+
+          hExtTdcExtOffsetCenter2[ch]->Draw("colz");
+          hExtTdcExtOffsetCenter2[ch]->SetMinimum(0);
+       // hExtTdcExtOffsetCenter2[ch]->SetMinimum(-0.001);
+          gPad->Print(ofilename.data());
+
+          hExtTdcExtOffsetTop    [ch]->Draw("colz");
+          hExtTdcExtOffsetTop    [ch]->SetMinimum(0);
+       // hExtTdcExtOffsetTop    [ch]->SetMinimum(-0.001);
           gPad->Print(ofilename.data());
         }
       }
@@ -1182,6 +1274,19 @@ namespace Extinction {
 
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtTdcOffset[ch]->Write();
+      }
+
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcExtOffsetBottom [ch]->Write();
+      }
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcExtOffsetCenter1[ch]->Write();
+      }
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcExtOffsetCenter2[ch]->Write();
+      }
+      for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
+        hExtTdcExtOffsetTop    [ch]->Write();
       }
 
       file->Close();
@@ -1386,6 +1491,10 @@ namespace Extinction {
     }
 
     void HistGenerator::FillCoincidence(const TdcData& extData) {
+      if (std::any_of(fLastMrSyncData.begin(), fLastMrSyncData.end(), [](std::pair<Int_t, TdcData> pair) { return pair.second.Channel == -1; })) {
+        return;
+      }
+
       const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
       const Double_t    time  = extData.Time;
       const Int_t       board = extData.Board;
@@ -1576,6 +1685,10 @@ namespace Extinction {
     }
 
     void HistGenerator::FillCoincidence2(const TdcData& tdcData) {
+      if (std::any_of(fLastMrSyncData.begin(), fLastMrSyncData.end(), [](std::pair<Int_t, TdcData> pair) { return pair.second.Channel == -1; })) {
+        return;
+      }
+
       const Double_t    time  = tdcData.Time;
       const Int_t       board = tdcData.Board;
       std::size_t tdcCh = 0;
@@ -1823,6 +1936,10 @@ namespace Extinction {
     }
 
     std::vector<TdcData> HistGenerator::CollectCoinExtData(const TdcData& tdcData, std::size_t i) {
+      if (std::any_of(fLastMrSyncData.begin(), fLastMrSyncData.end(), [](std::pair<Int_t, TdcData> pair) { return pair.second.Channel == -1; })) {
+        return { };
+      }
+
       const Double_t time = tdcData.Time;
 
       std::vector<TdcData> coinExtData;
@@ -1974,7 +2091,9 @@ namespace Extinction {
                 fileEnded[targetBoard] = true;
                 break;
 
-              } else if (!provider->IsData()) {
+              }
+
+              if (!provider->IsData()) {
                 continue;
 
               } else if (lastSpill != -1 && lastSpill != provider->GetSpill()) {
@@ -2039,9 +2158,10 @@ namespace Extinction {
 
               hBhTdcInSpill[ch]->Fill(time / msec);
 
-              hBhTdcInSync[ch]->Fill(tdc - syncTdc);
-
-              hBhMountain[ch]->Fill(tdc - syncTdc, time / msec);
+              if (syncTdc) {
+                hBhTdcInSync[ch]->Fill(tdc - syncTdc);
+                hBhMountain[ch]->Fill(tdc - syncTdc, time / msec);
+              }
 
               for (auto&& lastData : fLastExtData) {
                 auto lastCh   = ExtinctionDetector::GetChannel(lastData.Channel);
@@ -2049,7 +2169,6 @@ namespace Extinction {
               }
               fLastBhData.push_back(data);
 
-              fLastBhData.push_back(data);
            // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::BH));
               FillCoincidence2(data);
 
@@ -2068,11 +2187,12 @@ namespace Extinction {
               hHodTdcInSpill[ch]->Fill(time / msec);
               hHodTdcInSpill_Any->Fill(time / msec);
 
-              hHodTdcInSync[ch]->Fill(tdc - syncTdc);
-              hHodTdcInSync_Any->Fill(tdc - syncTdc);
-
-              hHodMountain[ch]->Fill(tdc - syncTdc, time / msec);
-              hHodMountain_Any->Fill(tdc - syncTdc, time / msec);
+              if (syncTdc) {
+                hHodTdcInSync[ch]->Fill(tdc - syncTdc);
+                hHodTdcInSync_Any->Fill(tdc - syncTdc);
+                hHodMountain[ch]->Fill(tdc - syncTdc, time / msec);
+                hHodMountain_Any->Fill(tdc - syncTdc, time / msec);
+              }
 
               for (auto&& lastData : fLastExtData) {
                 auto lastCh = ExtinctionDetector::GetChannel(lastData.Channel);
@@ -2080,7 +2200,6 @@ namespace Extinction {
               }
               fLastHodData.push_back(data);
 
-              fLastHodData.push_back(data);
            // FillCoincidences(CollectCoinExtData(data, CoinOffset::Hod));
               FillCoincidence2(data);
 
@@ -2099,11 +2218,30 @@ namespace Extinction {
               hExtTdcInSpill[ch]->Fill(time / msec);
               hExtTdcInSpill_Any->Fill(time / msec);
 
-              hExtTdcInSync[ch]->Fill(tdc - syncTdc);
-              hExtTdcInSync_Any->Fill(tdc - syncTdc);
+              if (syncTdc) {
+                hExtTdcInSync[ch]->Fill(tdc - syncTdc);
+                hExtTdcInSync_Any->Fill(tdc - syncTdc);
+                hExtMountain[ch]->Fill(tdc - syncTdc, time / msec);
+                hExtMountain_Any->Fill(tdc - syncTdc, time / msec);
+              }
 
-              hExtMountain[ch]->Fill(tdc - syncTdc, time / msec);
-              hExtMountain_Any->Fill(tdc - syncTdc, time / msec);
+              ExtinctionDetector::Fill(hExtTdcExtOffsetBottom [ch],
+                                       hExtTdcExtOffsetCenter1[ch],
+                                       hExtTdcExtOffsetCenter2[ch],
+                                       hExtTdcExtOffsetTop    [ch],
+                                       0.0, ch);
+              for (auto&& lastData : fLastExtData) {
+                ExtinctionDetector::Fill(hExtTdcExtOffsetBottom [ch],
+                                         hExtTdcExtOffsetCenter1[ch],
+                                         hExtTdcExtOffsetCenter2[ch],
+                                         hExtTdcExtOffsetTop    [ch],
+                                         lastData.Tdc - tdc, lastData.Channel);
+                ExtinctionDetector::Fill(hExtTdcExtOffsetBottom [lastData.Channel],
+                                         hExtTdcExtOffsetCenter1[lastData.Channel],
+                                         hExtTdcExtOffsetCenter2[lastData.Channel],
+                                         hExtTdcExtOffsetTop    [lastData.Channel],
+                                         tdc - lastData.Tdc, ch);
+              }
 
               for (auto&& lastData : fLastHodData) {
                 auto lastCh = Hodoscope::GetChannel(lastData.Channel);
@@ -2132,9 +2270,10 @@ namespace Extinction {
 
               hTcTdcInSpill[ch]->Fill(time / msec);
 
-              hTcTdcInSync[ch]->Fill(tdc - syncTdc);
-
-              hTcMountain[ch]->Fill(tdc - syncTdc, time / msec);
+              if (syncTdc) {
+                hTcTdcInSync[ch]->Fill(tdc - syncTdc);
+                hTcMountain[ch]->Fill(tdc - syncTdc, time / msec);
+              }
 
               for (auto&& lastData : fLastExtData) {
                 auto lastCh = ExtinctionDetector::GetChannel(lastData.Channel);
@@ -2142,7 +2281,6 @@ namespace Extinction {
               }
               fLastTcData.push_back(data);
 
-              fLastTcData.push_back(data);
            // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::TC));
               FillCoincidence2(data);
 

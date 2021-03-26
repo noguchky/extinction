@@ -247,6 +247,74 @@ namespace Extinction {
 
       }
     }
+
+    inline void Fill(TH2* hBottom, TH2* hCenter1, TH2* hCenter2, TH2* hTop, Double_t y, std::size_t channel) {
+      const Int_t    type = GetType(channel);
+      const Double_t area = GetArea(type) / cm2;
+      switch (type) {
+      case ChannelType::Center:
+        {
+          const std::size_t centerCh = channel - ChannelOffset::Center;
+          const std::size_t boardId  = (centerCh / 16);
+          const std::size_t boardCh  = (centerCh % 16);
+          const std::size_t boardXi  = boardCh % 8;
+          const std::size_t boardYi  = boardCh / 8;
+          const Double_t    boardX   = 6.4 * (boardId - 3.0) + 0.8 * (boardXi - 3.5);
+       // const Double_t    boardY   = (boardYi ? -3.0 : +3.0);
+          TH2*              hist     = (boardYi ? hCenter1 : hCenter2);
+          const Int_t       bin      = hist->FindBin(boardX, y);
+          const Double_t    content  = hist->GetBinContent(bin);
+          hist->SetBinContent(bin, content + 1.0 / area);
+          hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area) / area));
+        }
+        break;
+
+      case ChannelType::TopBottom:
+        {
+          const std::size_t topBottomCh = channel - ChannelOffset::TopBottom;
+          const std::size_t boardXi     = (topBottomCh % 8);
+          const std::size_t boardYi     = (topBottomCh / 8);
+          const Double_t    boardX      = 5.6 * (boardXi - 3.5);
+       // const Double_t    boardY      = (boardYi ? -13.0 : +13.0);
+          TH2*              hist        = (boardYi ? hBottom : hTop);
+          const Int_t       xbin1       = hist->GetXaxis()->FindBin(boardX - 2.7);
+          const Int_t       xbin2       = hist->GetXaxis()->FindBin(boardX + 2.7);
+          const Int_t       ybin        = hist->GetYaxis()->FindBin(y);
+          const Double_t    content     = hist->GetBinContent(xbin1, ybin);
+          for (Int_t xbin = xbin1; xbin <= xbin2; ++xbin) {
+            hist->SetBinContent(xbin, ybin, content + 1.0 / area);
+            hist->SetBinError(xbin, ybin, TMath::Sqrt((content + 1.0 / area) / area));
+          }
+        }
+        break;
+
+      case ChannelType::LeftRight:
+        {
+          const std::size_t leftRightCh = channel - ChannelOffset::LeftRight;
+          const std::size_t boardXi     = (leftRightCh % 2);
+          const std::size_t boardYi     = (leftRightCh / 2);
+          const Double_t    boardX      = (boardXi ? +27.4 : -27.4);
+       // const Double_t    boardY1     = (boardYi ? - 3.0 : + 3.0);
+       // const Double_t    boardY2     = (boardYi ? -13.0 : +13.0);
+          {
+            TH2*              hist        = (boardYi ? hBottom  : hTop    );
+            const Int_t       bin         = hist->FindBin(boardX, y);
+            const Double_t    content     = hist->GetBinContent(bin);
+            const Double_t    area2       = area * 0.7;
+            hist->SetBinContent(bin, content + 1.0 / area2);
+            hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area2) / area2));
+          } {
+            TH2*              hist        = (boardYi ? hCenter1 : hCenter2);
+            const Int_t       bin         = hist->FindBin(boardX, y);
+            const Double_t    content     = hist->GetBinContent(bin);
+            const Double_t    area2       = area * 0.3;
+            hist->SetBinContent(bin, content + 1.0 / area2);
+            hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area2) / area2));
+          }
+        }
+        break;
+      }
+    }
   }
 
   namespace Hodoscope {
