@@ -61,8 +61,8 @@ Tron::LinearFittingParam_t<Number_t> Tron::LinearLeastSquareMethod::Fit(Int_t n,
     const Number_t denominator = 1.0 / (sumN * sumXX - sumX * sumX);
     result.Intercept.Value = (sumN  * sumXY - sumX  * sumY) * denominator;
     result.Slope    .Value = (sumXX * sumY  - sumXY * sumX) * denominator;
-    result.Intercept.Error = sumN  * denominator;
-    result.Slope    .Error = sumXX * denominator;
+    result.Intercept.Error = std::sqrt(sumN  * denominator);
+    result.Slope    .Error = std::sqrt(sumXX * denominator);
   }
 
   return result;
@@ -72,12 +72,12 @@ template <typename Number_t>
 Tron::LinearFittingParam_t<Number_t> Tron::LinearLeastSquareMethod::Fit(Int_t n, Number_t *x, Number_t *y, Number_t* yerr) {
   Number_t sumN = 0.0, sumX = 0.0, sumY = 0.0, sumXX = 0.0, sumXY = 0.0;
   for (Int_t i = 0; i < n; ++i, ++x, ++y, ++yerr) {
-    const Number_t denominator = 1.0 / *yerr / *yerr;
-    sumN  += 1.0     * denominator;
-    sumX  += *x      * denominator;
-    sumY  += *y      * denominator;
-    sumXX += *x * *x * denominator;
-    sumXY += *x * *y * denominator;
+    const Number_t weight = 1.0 / *yerr / *yerr;
+    sumN  += 1.0     * weight;
+    sumX  += *x      * weight;
+    sumY  += *y      * weight;
+    sumXX += *x * *x * weight;
+    sumXY += *x * *y * weight;
   }
 
   LinearFittingParam_t<Number_t> result;
@@ -85,8 +85,8 @@ Tron::LinearFittingParam_t<Number_t> Tron::LinearLeastSquareMethod::Fit(Int_t n,
     const Number_t denominator = 1.0 / (sumN * sumXX - sumX * sumX);
     result.Intercept.Value = (sumN  * sumXY - sumX  * sumY) * denominator;
     result.Slope    .Value = (sumXX * sumY  - sumXY * sumX) * denominator;
-    result.Intercept.Error = sumN  * denominator;
-    result.Slope    .Error = sumXX * denominator;
+    result.Intercept.Error = std::sqrt(sumN  * denominator);
+    result.Slope    .Error = std::sqrt(sumXX * denominator);
   }
 
   return result;
