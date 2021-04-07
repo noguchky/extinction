@@ -59,10 +59,10 @@ Tron::LinearFittingParam_t<Number_t> Tron::LinearLeastSquareMethod::Fit(Int_t n,
   LinearFittingParam_t<Number_t> result;
   {
     const Number_t denominator = 1.0 / (sumN * sumXX - sumX * sumX);
-    result.Intercept.Value = (sumN  * sumXY - sumX  * sumY) * denominator;
-    result.Slope    .Value = (sumXX * sumY  - sumXY * sumX) * denominator;
-    result.Intercept.Error = std::sqrt(sumN  * denominator);
-    result.Slope    .Error = std::sqrt(sumXX * denominator);
+    result.Slope    .Value = (sumN  * sumXY - sumX  * sumY) * denominator;
+    result.Intercept.Value = (sumXX * sumY  - sumXY * sumX) * denominator;
+    result.Slope    .Error = std::sqrt(sumN  * denominator);
+    result.Intercept.Error = std::sqrt(sumXX * denominator);
   }
 
   return result;
@@ -83,10 +83,10 @@ Tron::LinearFittingParam_t<Number_t> Tron::LinearLeastSquareMethod::Fit(Int_t n,
   LinearFittingParam_t<Number_t> result;
   {
     const Number_t denominator = 1.0 / (sumN * sumXX - sumX * sumX);
-    result.Intercept.Value = (sumN  * sumXY - sumX  * sumY) * denominator;
-    result.Slope    .Value = (sumXX * sumY  - sumXY * sumX) * denominator;
-    result.Intercept.Error = std::sqrt(sumN  * denominator);
-    result.Slope    .Error = std::sqrt(sumXX * denominator);
+    result.Slope    .Value = (sumN  * sumXY - sumX  * sumY) * denominator;
+    result.Intercept.Value = (sumXX * sumY  - sumXY * sumX) * denominator;
+    result.Slope    .Error = std::sqrt(sumN  * denominator);
+    result.Intercept.Error = std::sqrt(sumXX * denominator);
   }
 
   return result;
