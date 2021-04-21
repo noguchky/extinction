@@ -61,6 +61,31 @@ namespace Extinction {
       // return (Tdc < 0 || Channel < 0) ? 0 : (Tdc * 1000ULL + Channel);
       return (Tdc < 0 || Channel < 0) ? 0 : (((ULong64_t)(Time / nsec)) * 1000ULL + Channel);
     }
+
+    inline void CreateBranch(TTree* tree) {
+      // std::cout << "TdcData::CreateBranch()" << std::endl;
+      tree->Branch("spill"        , &Spill        , "spill"        "/I");
+      tree->Branch("emcount"      , &EMCount      , "emcount"      "/I");
+      tree->Branch("ch"           , &Channel      , "ch"           "/I");
+      tree->Branch("tdc"          , &Tdc          , "tdc"          "/L");
+      tree->Branch("time"         , &Time         , "time"         "/D");
+      tree->Branch("mrSyncChannel", &MrSyncChannel, "mrSyncChannel""/I");
+      tree->Branch("timePerTDc"   , &TimePerTdc   , "timePerTDc"   "/D");
+      tree->Branch("board"        , &Board        , "board"        "/I");
+    }
+
+    inline void SetBranchAddress(TTree* tree) {
+      // std::cout << "TdcData::SetBranchAddress()" << std::endl;
+      tree->SetBranchAddress("spill"        , &Spill        );
+      tree->SetBranchAddress("emcount"      , &EMCount      );
+      tree->SetBranchAddress("ch"           , &Channel      );
+      tree->SetBranchAddress("tdc"          , &Tdc          );
+      tree->SetBranchAddress("time"         , &Time         );
+      tree->SetBranchAddress("mrSyncChannel", &MrSyncChannel);
+      tree->SetBranchAddress("timePerTDc"   , &TimePerTdc   );
+      tree->SetBranchAddress("board"        , &Board        );
+    }
+
   };
 
   class ITdcDataProvider {
