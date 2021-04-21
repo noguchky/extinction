@@ -2230,7 +2230,7 @@ namespace Extinction {
                 std::cout << "[info] detect spill end @ " << targetBoard << std::endl;
                 lastSpill               = provider->GetSpill();
                 spillEnded[targetBoard] = true;
-                firstData [targetBoard] = provider->GetTdcData();
+                firstData [targetBoard] = provider->GetTdcData(targetBoard);
                 break;
 
               } else {
