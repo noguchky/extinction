@@ -59,7 +59,7 @@ struct JmaData {
   const std::string              ofilename;
 };
 
-Int_t plotJmaData() {
+Int_t plotJma() {
   const std::vector<std::string> march
     {
       "2021-03-10",
@@ -77,6 +77,27 @@ Int_t plotJmaData() {
       "2021-03-22",
       "2021-03-23",
       "2021-03-24",
+      "2021-03-25",
+      "2021-03-26",
+      "2021-03-27",
+      "2021-03-28",
+      "2021-03-29",
+      "2021-03-30",
+      "2021-03-31",
+      "2021-04-01",
+      "2021-04-02",
+      "2021-04-03",
+      "2021-04-04",
+      "2021-04-05",
+      "2021-04-06",
+      "2021-04-07",
+      "2021-04-08",
+      "2021-04-09",
+      "2021-04-10",
+      "2021-04-11",
+      "2021-04-12",
+      "2021-04-13",
+      "2021-04-14",
     };
 
   const std::vector<std::string> may
@@ -109,28 +130,28 @@ Int_t plotJmaData() {
   std::vector<JmaData> data
     {
       { new Mito(),
-        "./dataj/jma_mito_",
+        "./data_jma/jma_mito_",
         ".txt",
         march,
-        "./dataj/jma_mito_2021-03.root" },
+        "./data_jma/jma_mito_2021-03.root" },
 
       { new Hitachi(),
-        "./dataj/jma_hitachi_",
+        "./data_jma/jma_hitachi_",
         ".txt",
         march,
-        "./dataj/jma_hitachi_2021-03.root" },
+        "./data_jma/jma_hitachi_2021-03.root" },
 
       { new Mito(),
-        "./dataj/jma_mito_",
+        "./data_jma/jma_mito_",
         ".txt",
         may,
-        "./dataj/jma_mito_2020-05.root" },
+        "./data_jma/jma_mito_2020-05.root" },
 
       { new Hitachi(),
-        "./dataj/jma_hitachi_",
+        "./data_jma/jma_hitachi_",
         ".txt",
         may,
-        "./dataj/jma_hitachi_2020-05.root" },
+        "./data_jma/jma_hitachi_2020-05.root" },
     };
 
   for (auto&& datum : data) {
@@ -146,6 +167,8 @@ Int_t plotJmaData() {
     gTemp->SetMaximum(30);
     gTemp->GetXaxis()->SetTimeDisplay(true);
     gTemp->GetXaxis()->SetTimeOffset(0);
+    gTemp->GetXaxis()->SetTimeFormat("#splitline{%m/%d}{%H:%M}");
+    gTemp->GetXaxis()->SetLabelOffset(0.03);
 
     std::string buff;
     TDatime datime;
