@@ -84,7 +84,7 @@ std::string Tron::String::Replace(const std::string& str, const std::string& pat
   const std::string::size_type replaceLength = replacement.length();
   if (patternLength != 0) {
     std::string::size_type pos = 0;
-    while ((pos = str.find(pattern, 0)) != std::string::npos) {
+    while ((pos = buf.find(pattern, 0)) != std::string::npos) {
       buf.replace(pos, patternLength, replacement);
       pos += replaceLength;
     }
