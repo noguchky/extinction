@@ -12,7 +12,7 @@ if [ "${hv}" = "on" ]; then
     ./setHV.py 5 57
     ./setHV.py 6 57
     ./setHV.py 7 57
-    ./setHV.py 8 55
+    ./setHV.py 8 56
 
     set +x
 elif [ "${hv}" = "off" ]; then
