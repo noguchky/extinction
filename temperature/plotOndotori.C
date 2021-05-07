@@ -54,6 +54,9 @@ Int_t plotOndotori() {
       { new OndotoriDataReader(),
         "./data_ondotori/521455AD.1619407372.csv",
         "./data_ondotori/521455AD.1619407372.root" },
+      { new OndotoriDataReader(),
+        "./data_ondotori/521455AD.1619745196.csv",
+        "./data_ondotori/521455AD.1619745196.root" },
     };
 
   for (auto&& datum : data) {

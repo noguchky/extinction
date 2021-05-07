@@ -108,7 +108,7 @@ Int_t compOndotoriAndGL820() {
     graph->SetMarkerStyle(marker);
     graph->SetMarkerSize(0.4);
     graph->SetLineColor(color);
-    graph->SetLineWidth(4);
+    graph->SetLineWidth(1);
     graph->SetTitle(Form("%s;T_{%s} [#circC];T_{Ondotori} [#circC]", label.data(), label.data()));
   }
 
