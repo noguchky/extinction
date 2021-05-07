@@ -65,7 +65,7 @@ namespace Extinction {
       inline std::size_t   GetReadBufferMargin() const { return fBufferMargin; }
 
       Int_t                ReadPlots(const std::string& ifilename);
-      void                 InitializeTree(const std::string& filename,
+      Int_t                InitializeTree(const std::string& filename,
                                           const std::string& treename);
       void                 WriteTree();
 
@@ -104,23 +104,25 @@ namespace Extinction {
       fStdTimePerTdc = map;
     }
 
-    void TreeMarger::InitializeTree(const std::string& filename,
-                                    const std::string& treename) {
+    Int_t TreeMarger::InitializeTree(const std::string& filename,
+                                     const std::string& treename) {
       std::cout << "Initialize tree" << std::endl;
       fMargedFile = new TFile(filename.data(), "RECREATE");
       if (!fMargedFile->IsOpen()) {
         std::cout << "[error] output file is not opened, " << filename << std::endl;
         delete fMargedFile; fMargedFile = nullptr;
-        return;
+        return 1;
       }
 
       fMargedTree = new TTree(treename.data(), "");
       fTdcData.CreateBranch(fMargedTree);
       fMargedTree->AutoSave();
+      return 0;
     }
 
     void TreeMarger::WriteTree() {
       if (fMargedFile && fMargedTree) {
+        fMargedFile->cd();
         fMargedTree->Write();
         fMargedFile->Close();
         delete fMargedFile; fMargedFile = nullptr; fMargedTree = nullptr;

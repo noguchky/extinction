@@ -189,9 +189,9 @@ namespace Extinction {
       }
     }
 
-    inline void Fill(TH2* hist, std::size_t channel) {
+    inline void Fill(TH2* hist, std::size_t channel, Bool_t norm = true) {
       const Int_t    type = GetType(channel);
-      const Double_t area = GetArea(type) / cm2;
+      const Double_t area = norm ? GetArea(type) / cm2 : 1.0;
       switch (type) {
       case ChannelType::Center:
         {
@@ -339,7 +339,7 @@ namespace Extinction {
 
   namespace Hodoscope {
     constexpr std::size_t NofChannels         = 16U;
-    constexpr std::size_t GlobalChannelOffset = ExtinctionDetector::GlobalChannelOffset + ExtinctionDetector::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = ExtinctionDetector::GlobalChannelOffset + ExtinctionDetector::NofChannels; // 132
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
@@ -451,7 +451,7 @@ namespace Extinction {
 
   namespace TimingCounter {
     constexpr std::size_t NofChannels         = 2U;
-    constexpr std::size_t GlobalChannelOffset = Hodoscope::GlobalChannelOffset + Hodoscope::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = Hodoscope::GlobalChannelOffset + Hodoscope::NofChannels; // 132 + 16 = 148
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
@@ -467,7 +467,7 @@ namespace Extinction {
 
   namespace BeamlineHodoscope {
     constexpr std::size_t NofChannels         = 2U;
-    constexpr std::size_t GlobalChannelOffset = TimingCounter::GlobalChannelOffset + TimingCounter::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = TimingCounter::GlobalChannelOffset + TimingCounter::NofChannels; // 148 + 2 = 150
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
@@ -483,7 +483,7 @@ namespace Extinction {
 
   namespace MrRf {
     constexpr std::size_t NofChannels         = 1U;
-    constexpr std::size_t GlobalChannelOffset = BeamlineHodoscope::GlobalChannelOffset + BeamlineHodoscope::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = BeamlineHodoscope::GlobalChannelOffset + BeamlineHodoscope::NofChannels; // 150 + 2 = 152
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
@@ -499,7 +499,7 @@ namespace Extinction {
 
   namespace MrP3 {
     constexpr std::size_t NofChannels         = 8U;
-    constexpr std::size_t GlobalChannelOffset = MrRf::GlobalChannelOffset + MrRf::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = MrRf::GlobalChannelOffset + MrRf::NofChannels; // 152 + 1 = 153
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
@@ -515,7 +515,7 @@ namespace Extinction {
 
   namespace MrSync {
     constexpr std::size_t NofChannels         = 8U;
-    constexpr std::size_t GlobalChannelOffset = MrP3::GlobalChannelOffset + MrP3::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = MrP3::GlobalChannelOffset + MrP3::NofChannels; // 153 + 8 = 161
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
@@ -531,7 +531,7 @@ namespace Extinction {
 
   namespace EventMatch {
     constexpr std::size_t NofChannels         = 8U;
-    constexpr std::size_t GlobalChannelOffset = MrSync::GlobalChannelOffset + MrSync::NofChannels;
+    constexpr std::size_t GlobalChannelOffset = MrSync::GlobalChannelOffset + MrSync::NofChannels; // 161 + 8 = 169
 
     inline Bool_t Contains(std::size_t globalChannel) {
       return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;

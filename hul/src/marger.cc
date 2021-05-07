@@ -22,7 +22,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddArg<std::string>("ConfFilename",                "Set configure filename");
   args->AddArg<std::string>("Boards"      ,                "Set comma separated board numbers");
   args->AddArg<std::string>("Input"       ,                "Set comma separated root filenames");
-  args->AddOpt<std::string>("Output"      , 'o', "output", "Set output filename", "");
+  args->AddArg<std::string>("Output"      ,                "Set output filename", "");
   args->AddOpt             ("Help"        , 'h', "help"  , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -60,6 +60,9 @@ Int_t main(Int_t argc, Char_t** argv) {
   std::cout << "--- Initialize tree marger" << std::endl;
   Extinction::Hul::HulData defaultProvider;
   auto marger = new Extinction::Analyzer::TreeMarger(&defaultProvider);
+  if (marger->InitializeTree(ofilename, "tree")) {
+    return 1;
+  }
 
   std::map<Int_t, Double_t> timePerTdc;
   do {
@@ -88,7 +91,11 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([](Int_t board) { return board; },
            [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Hul::HulData(); });
 
+  std::cout << "--- Marge tree" << std::endl;
+  marger->MargeTree(providers, ifilenames, "tree");
+
   std::cout << "--- Output tree" << std::endl;
+  marger->WriteTree();
 
   return 0;
 }
