@@ -13,6 +13,7 @@
 #include <mutex>
 #include <limits>
 #include <sys/inotify.h>
+#include <dirent.h>
 #include <pthread.h>
 #include <regex>
 
@@ -86,6 +87,28 @@ namespace {
     }
   }
 
+  void AddSubDirectory(int fd, std::map<int, std::string>& paths, const std::string& path) {
+    DIR*    dir;
+    dirent* ent;
+    if ((dir = opendir(path.data())) != nullptr) {
+      // print all the files and directories within directory
+      while ((ent = readdir(dir)) != nullptr) {
+        const std::string dirname = ent->d_name;
+        if (dirname != "." && dirname != "..") {
+          const std::string newpath = path + "/" + ent->d_name;
+          const int newwd = inotify_add_watch(fd, newpath.data(),  IN_ALL_EVENTS);
+          paths[newwd] = newpath;
+          std::cout << newpath << std::endl;
+          AddSubDirectory(fd, paths, newpath);
+        }
+      }
+      closedir(dir);
+    } else {
+      // could not open directory
+      perror("could not open directory");
+    }
+  }
+  
   struct InotifyEventArgs {
     int                        board;
     int                        fd;
@@ -389,7 +412,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     for (auto&& pair : paths) {
       const int         board = pair.first;
       const std::string path  = pair.second;
-    
+
       // Initialize inotify
       int fd = inotify_init();
       if (fd == -1) {
@@ -398,11 +421,14 @@ Int_t main(Int_t argc, Char_t** argv) {
       }
 
       // Add monitor directory
+      std::map<int, std::string> paths;
       int wd = inotify_add_watch(fd, path.data(), IN_ALL_EVENTS);
       if (wd < 0) {
         std::cerr << "[error] directory was not opened, " << path << std::endl;
         exit(EXIT_FAILURE);
       }
+      paths[wd] = path;
+      AddSubDirectory(fd, paths, path.data());
 
       // Create argument
       auto eventArg = new InotifyEventArgs();
@@ -410,7 +436,7 @@ Int_t main(Int_t argc, Char_t** argv) {
       eventArg->fd    = fd;
       // eventArg->wds   = { wd };
       // eventArg->path  = path;
-      eventArg->paths = { { wd, path } };
+      eventArg->paths = paths;
 
       // Set write monitor
       pthread_t* pthread = new pthread_t();
