@@ -87,26 +87,31 @@ namespace {
   }
 
   struct InotifyEventArgs {
-    int         fd;
-    int         wd;
-    int         board;
-    std::string path;
+    int                        board;
+    int                        fd;
+    std::map<int, std::string> paths;
+    // std::vector<int> wds; 
+    // std::string      path;
   };
 
   void* InotifyEventListener(void* arg) {
     constexpr int BufferSize = 65536;
 
-    const InotifyEventArgs* eventArg = static_cast<InotifyEventArgs*>(arg);
-    const int         fd    = eventArg->fd;
-    const int         wd    = eventArg->wd;
-    const int         board = eventArg->board;
-    const std::string path  = eventArg->path;
+    const InotifyEventArgs*    eventArg = static_cast<InotifyEventArgs*>(arg);
+    const int                  fd       = eventArg->fd;
+    const int                  board    = eventArg->board;
+    std::map<int, std::string> paths    = eventArg->paths;
+    // std::vector<int>        wds      = eventArg->wds;
+    // const std::string       path     = eventArg->path;
     // std::cout << "InotifyEventListener" << std::endl
-    //           << "  fd     = " << fd    << std::endl
-    //           << "  wd     = " << wd    << std::endl
-    //           << "  board  = " << board << std::endl
+    //           << "  fd     = " << fd    << std::endl;
+    // for (auto&& wd : wds) {
+    //   std::cout << "  wd     = " << wd    << std::endl;
+    // }
+    // std::cout << "  board  = " << board << std::endl
     //           << "  path   = " << path  << std::endl;
 
+    bool is_created = false;
     char buffer[BufferSize];
     for (int aux = 0; !monitor->IsTerminated();) {
       // Read events
@@ -152,14 +157,35 @@ namespace {
             inotify_p->mask & IN_MOVED_TO) {
           // std::cerr << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
           std::lock_guard<std::mutex> lock(filenamesMutex);
-          filenames[board] = (path + "/" + inotify_p->name);
+          if (paths.find(inotify_p->wd) != paths.end()) {
+            const std::string path = paths[inotify_p->wd];
+            filenames[board] = (path + "/" + inotify_p->name);
+          } else {
+            std::cout << "[warning] unknown wd of inotify" << std::endl;
+          }
+        }
+
+        if (is_created &&
+            inotify_p->mask & IN_ISDIR) {
+          const std::string path    = paths[inotify_p->wd];
+          const std::string dirname = inotify_p->name;
+          const std::string newpath = path + "/" + dirname;
+          int newwd = inotify_add_watch(fd, newpath.data(), IN_ALL_EVENTS);
+          paths[newwd] = newpath;
+        }
+
+        if (inotify_p->mask & IN_CREATE) {
+          is_created = true;
+        } else {
+          is_created = false;
         }
         i += size;
       }
     }
 
     // Remove monitor
-    {
+    for (auto& pair : paths) {
+      const int wd = pair.first;
       int ret = inotify_rm_watch(fd, wd);
       if (ret == -1) {
         perror("inotify_rm_watch");
@@ -380,10 +406,11 @@ Int_t main(Int_t argc, Char_t** argv) {
 
       // Create argument
       auto eventArg = new InotifyEventArgs();
-      eventArg->fd    = fd;
-      eventArg->wd    = wd;
       eventArg->board = board;
-      eventArg->path  = path;
+      eventArg->fd    = fd;
+      // eventArg->wds   = { wd };
+      // eventArg->path  = path;
+      eventArg->paths = { { wd, path } };
 
       // Set write monitor
       pthread_t* pthread = new pthread_t();
