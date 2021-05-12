@@ -20,6 +20,7 @@
 #include "MonitorWindow.hh"
 
 #include "Linq.hh"
+#include "String.hh"
 #include "ArgReader.hh"
 #include "ConfReader.hh"
 #include "ScopeSubstituter.hh"
@@ -28,7 +29,7 @@ namespace {
 
   auto parser =
     [](const std::string& filename) {
-      static const std::regex pattern(R"((\d+)-(\d+)-(\d+)_(\d+)-(\d+)-(\d+))");
+      static const std::regex pattern(R"(fct_id\d\d\d\d_(\d\d\d\d)(\d\d)(\d\d)(\d\d)(\d\d)(\d\d))");
 
       std::cmatch match;
       if (std::regex_search(filename.data(), match, pattern)) {
@@ -94,7 +95,7 @@ namespace {
       // print all the files and directories within directory
       while ((ent = readdir(dir)) != nullptr) {
         const std::string dirname = ent->d_name;
-        if (dirname != "." && dirname != "..") {
+        if (ent->d_type == DT_DIR && dirname != "." && dirname != "..") {
           const std::string newpath = path + "/" + ent->d_name;
           const int newwd = inotify_add_watch(fd, newpath.data(),  IN_ALL_EVENTS);
           paths[newwd] = newpath;
@@ -124,15 +125,6 @@ namespace {
     const int                  fd       = eventArg->fd;
     const int                  board    = eventArg->board;
     std::map<int, std::string> paths    = eventArg->paths;
-    // std::vector<int>        wds      = eventArg->wds;
-    // const std::string       path     = eventArg->path;
-    // std::cout << "InotifyEventListener" << std::endl
-    //           << "  fd     = " << fd    << std::endl;
-    // for (auto&& wd : wds) {
-    //   std::cout << "  wd     = " << wd    << std::endl;
-    // }
-    // std::cout << "  board  = " << board << std::endl
-    //           << "  path   = " << path  << std::endl;
 
     bool is_created = false;
     char buffer[BufferSize];
@@ -178,14 +170,16 @@ namespace {
 
         if (inotify_p->mask & IN_CLOSE_WRITE ||
             inotify_p->mask & IN_MOVED_TO) {
-          // std::cerr << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
-          std::lock_guard<std::mutex> lock(filenamesMutex);
-          if (paths.find(inotify_p->wd) != paths.end()) {
-            const std::string path = paths[inotify_p->wd];
-            filenames[board] = (path + "/" + inotify_p->name);
-          } else {
-            std::cout << "[warning] unknown wd of inotify" << std::endl;
-          }
+	  if (Tron::String::EndWith(inotify_p->name, ".dat")) {
+	    std::cerr << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
+	    std::lock_guard<std::mutex> lock(filenamesMutex);
+	    if (paths.find(inotify_p->wd) != paths.end()) {
+	      const std::string path = paths[inotify_p->wd];
+	      filenames[board] = (path + "/" + inotify_p->name);
+	    } else {
+	      std::cout << "[warning] unknown wd of inotify" << std::endl;
+	    }
+	  }
         }
 
         if (is_created &&
