@@ -9,6 +9,7 @@ namespace Extinction {
 
   class TdcData {
   public:
+    ULong64_t Date;
     Int_t     Spill;
     Int_t     EMCount;
     Int_t     Channel;
@@ -22,7 +23,8 @@ namespace Extinction {
       Clear();
     }
     TdcData(const TdcData& data)
-      : Spill        (data.Spill        ),
+      : Date         (data.Date         ),
+        Spill        (data.Spill        ),
         EMCount      (data.EMCount      ),
         Channel      (data.Channel      ),
         Tdc          (data.Tdc          ),
@@ -35,6 +37,7 @@ namespace Extinction {
     }
 
     TdcData& operator=(const TdcData& data) {
+      Date          = data.Date;
       Spill         = data.Spill;
       EMCount       = data.EMCount;
       Channel       = data.Channel;
@@ -47,6 +50,7 @@ namespace Extinction {
     }
 
     inline void Clear() {
+      Date          = 0;
       Spill         = -1;
       EMCount       = -1;
       Channel       = -1;
@@ -64,6 +68,7 @@ namespace Extinction {
 
     inline void CreateBranch(TTree* tree) {
       // std::cout << "TdcData::CreateBranch()" << std::endl;
+      tree->Branch("date"         , &Date         , "date"         "/l");
       tree->Branch("spill"        , &Spill        , "spill"        "/I");
       tree->Branch("emcount"      , &EMCount      , "emcount"      "/I");
       tree->Branch("ch"           , &Channel      , "ch"           "/I");
@@ -76,6 +81,7 @@ namespace Extinction {
 
     inline void SetBranchAddress(TTree* tree) {
       // std::cout << "TdcData::SetBranchAddress()" << std::endl;
+      tree->SetBranchAddress("date"         , &Date         );
       tree->SetBranchAddress("spill"        , &Spill        );
       tree->SetBranchAddress("emcount"      , &EMCount      );
       tree->SetBranchAddress("ch"           , &Channel      );
@@ -97,6 +103,7 @@ namespace Extinction {
     virtual void                 SetBranchAddress(TTree*) = 0;
     virtual Bool_t               IsData() const = 0;
     virtual Bool_t               IsFooter() const = 0;
+    virtual ULong64_t            GetDate() const = 0;
     virtual Int_t                GetSpill() const = 0;
     virtual Int_t                GetEMCount() const = 0;
     virtual Double_t             GetTime() const = 0;

@@ -15,7 +15,9 @@
 #include "ConfReader.hh"
 #include "String.hh"
 
-#define KC705_FORMAT_VERSION 2
+// #define KC705_FORMAT_VERSION 1 // initial version                  ---           ~2021/01/??
+#define KC705_FORMAT_VERSION 2 // header/footer format is modified --- 2021/01/??~2021/05/11
+// #define KC705_FORMAT_VERSION 3 // w/ timestamp after header        --- 2021/05/12~
 
 namespace Extinction {
 
@@ -333,6 +335,8 @@ namespace Extinction {
 
     class Kc705Data : public ITdcDataProvider {
     public:
+      ULong64_t Date;
+      
       Char_t    Type;
 
       // Header
@@ -359,7 +363,8 @@ namespace Extinction {
         Clear();
       }
       Kc705Data(const Kc705Data& data)
-        : Type    (data.Type    ),
+        : Date    (data.Date    ),
+          Type    (data.Type    ),
           BoardId (data.BoardId ),
           Spill   (data.Spill   ),
           MppcBit (data.MppcBit ),
@@ -373,6 +378,7 @@ namespace Extinction {
         std::memcpy( Subs, data. Subs,  SubNch);
       }
       Kc705Data& operator=(const Kc705Data& data) {
+        Date     = data.Date;
         Type     = data.Type;
         BoardId  = data.BoardId;
         Spill    = data.Spill;
@@ -389,6 +395,7 @@ namespace Extinction {
       }
 
       inline void Clear() {
+        Date     = 0;
         Type     = DataType::None;
         BoardId  = 0;
         Spill    = -1;
@@ -535,13 +542,23 @@ namespace Extinction {
       std::basic_istream<char>& ReadHeader(std::basic_istream<char>& file,
                                            Packet_t* packet = nullptr) {
         Packet_t buff;
-        auto& ret = file.read((char*)buff, sizeof(Packet_t));
-        if (!ret) {
-          return ret;
+        auto& ret1 = file.read((char*)buff, sizeof(Packet_t));
+        if (!ret1) {
+          return ret1;
         }
 
         if (Kc705::IsHeader(buff)) {
           SetDataAsHeader(buff);
+#if   KC705_FORMAT_VERSION == 1
+          // No time stamp
+#elif KC705_FORMAT_VERSION == 2
+          // No time stamp
+#else 
+          auto& ret2 = file.read((char*)Date, sizeof(ULong64_t));
+          if (!ret2) {
+            return ret2;
+          }
+#endif
         } else if (Type == DataType::HeaderError) {
           // Nothing to do
         } else {
@@ -554,7 +571,7 @@ namespace Extinction {
           std::memcpy(*packet, buff, sizeof(Packet_t));
         }
 
-        return ret;
+        return file;
       }
 
       std::basic_istream<char>& ReadDataOrFooter(std::basic_istream<char>& file,
@@ -575,7 +592,7 @@ namespace Extinction {
           std::memcpy(*packet, buff, sizeof(Packet_t));
         }
 
-        return ret;
+        return file;
       }
 
       inline Bool_t IsMppcHit(Int_t ch) const {
@@ -622,6 +639,7 @@ namespace Extinction {
 
       inline void CreateBranch(TTree* tree) {
         // std::cout << "Kc705::Kc705Data::CreateBranch()" << std::endl;
+        tree->Branch("date"    , &Date    , "date"    "/l");
         tree->Branch("type"    , &Type    , "type"    "/B");
         tree->Branch("boardId" , &BoardId , "boardId" "/b");
         tree->Branch("spill"   , &Spill   , "spillC"  "/I");
@@ -640,6 +658,7 @@ namespace Extinction {
 
       inline virtual void SetBranchAddress(TTree* tree) override {
         // std::cout << "Kc705::Kc705Data::SetBranchAddress()" << std::endl;
+        tree->SetBranchAddress("date"    , &Date    );
         tree->SetBranchAddress("type"    , &Type    );
         tree->SetBranchAddress("boardId" , &BoardId );
         tree->SetBranchAddress("spill"   , &Spill   );
@@ -700,7 +719,11 @@ namespace Extinction {
       inline virtual Bool_t IsFooter() const override {
         return Type == DataType::Footer;
       }
-      
+
+      inline virtual ULong64_t GetDate() const override {
+        return Date;
+      }
+
       inline virtual Int_t GetSpill() const override {
         return Spill;
       }

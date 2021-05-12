@@ -15,6 +15,9 @@
 #include "String.hh"
 #include "Linq.hh"
 
+#define FCT_FORMAT_VERSION 1 // initial version           ---           ~2021/05/11
+// #define FCT_FORMAT_VERSION 2 // w/ timestamp after header --- 2021/05/12~
+
 namespace Extinction {
 
   namespace Fct {
@@ -194,17 +197,18 @@ namespace Extinction {
     
     class FctData : public ITdcDataProvider {
     public:
-      Int_t    Type;
-      Int_t    Spill;
-      Int_t    EMCount;
-      Int_t    Channel;
-      Int_t    Tdc;
-      Int_t    Carry;
+      ULong64_t Date;
+      Int_t     Type;
+      Int_t     Spill;
+      Int_t     EMCount;
+      Int_t     Channel;
+      Int_t     Tdc;
+      Int_t     Carry;
 
-      Double_t TimePerTdc = 7.5 * nsec;
+      Double_t  TimePerTdc = 7.5 * nsec;
 
-      Int_t    PreviousCarry[NofChannels];
-      UInt_t   PreviousTdc  [NofChannels];
+      Int_t     PreviousCarry[NofChannels];
+      UInt_t    PreviousTdc  [NofChannels];
 
       FctData() {
         Clear();
@@ -236,6 +240,7 @@ namespace Extinction {
       }
 
       inline void Clear() {
+        Date      = 0;
         Type      = DataType::None;
         Spill     = -1;
         EMCount   = -1;
@@ -306,13 +311,21 @@ namespace Extinction {
       std::basic_istream<char>& Read(std::basic_istream<char>& file,
                                      Packet_t* packet = nullptr) {
         Packet_t buff;
-        auto& ret = file.read((char*)&buff, sizeof(Packet_t));
-        if (!ret) {
-          return ret;
+        auto& ret1 = file.read((char*)&buff, sizeof(Packet_t));
+        if (!ret1) {
+          return ret1;
         }
 
         if        (Fct::IsHeader(buff)) {
           SetDataAsHeader(buff);
+#if FCT_FORMAT_VERSION == 1
+          // No time stamp
+#else
+          auto& ret2 = file.read((char*)&Date, sizeof(ULong64_t));
+          if (!ret2) {
+            return ret2;
+          }
+#endif
         } else if (Fct::IsGateStart(buff)) {
           SetDataAsGateStart(buff);
         } else if (Fct::IsGateEnd(buff)) {
@@ -329,7 +342,7 @@ namespace Extinction {
           *packet = buff;
         }
 
-        return ret;
+        return file;
       }
 
       inline virtual void     SetTimePerTdc(Double_t timePerTdc) override {
@@ -345,9 +358,10 @@ namespace Extinction {
 
       inline void CreateBranch(TTree* tree) {
         // std::cout << "Fct::FctData::CreateBranch()" << std::endl;
-        tree->Branch("ch"   , &Channel, "ch" "/I");
-        tree->Branch("tdc"  , &Tdc    , "tdc""/I");
-        tree->Branch("spill", &Spill  , "spill/I");
+        tree->Branch("date" , &Date   , "date" "/l");
+        tree->Branch("ch"   , &Channel, "ch"   "/I");
+        tree->Branch("tdc"  , &Tdc    , "tdc"  "/I");
+        tree->Branch("spill", &Spill  , "spill""/I");
       }
       inline TBranch* AddEMBranch(TTree* tree) {
         return tree->Branch("emcount", &EMCount, "emcount/I");
@@ -356,6 +370,7 @@ namespace Extinction {
       inline virtual void SetBranchAddress(TTree* tree) override {
         // std::cout << "Fct::FctData::SetBranchAddress()" << std::endl;
         Type = DataType::Data;
+        tree->SetBranchAddress("date"   , &Date   );
         tree->SetBranchAddress("ch"     , &Channel);
         tree->SetBranchAddress("tdc"    , &Tdc    );
         tree->SetBranchAddress("spill"  , &Spill  );
@@ -379,6 +394,10 @@ namespace Extinction {
 
       inline virtual Bool_t IsFooter() const override {
         return Type == DataType::GateEnd;
+      }
+
+      inline virtual ULong64_t GetDate() const override {
+        return Date;
       }
 
       inline virtual Int_t GetSpill() const override {

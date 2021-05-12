@@ -13,6 +13,9 @@
 #include "String.hh"
 #include "Linq.hh"
 
+#define HUL_FORMAT_VERSION 1 // initial version           ---           ~2021/05/11
+// #define HUL_FORMAT_VERSION 2 // w/ timestamp after header --- 2021/05/12~
+
 namespace Extinction {
 
   namespace Hul {
@@ -185,22 +188,24 @@ namespace Extinction {
 
     class HulData : public ITdcDataProvider {
     public:
-      UChar_t  Type;
-      Int_t    Spill;     // log_2(60 * 60 * 24) = 16.39 -> need more than 16 bit
-      Int_t    EMCount;
-      UShort_t Channel;
-      UInt_t   Tdc;       // 19 bit
-      UShort_t Heartbeat; // 16 bit
+      ULong64_t Date;
+      UChar_t   Type;
+      Int_t     Spill;     // log_2(60 * 60 * 24) = 16.39 -> need more than 16 bit
+      Int_t     EMCount;
+      UShort_t  Channel;
+      UInt_t    Tdc;       // 19 bit
+      UShort_t  Heartbeat; // 16 bit
       // TDC (19 bit) + Heartbeat (16 bit) = 35 bit
       // 1.04 GHz sampling -> max 33 sec
-      Double_t ClockFreq;
+      Double_t  ClockFreq;
 
       HulData()
         : ClockFreq(1.04 * GHz) {
         Clear();
       }
       HulData(const HulData& data)
-        : Type     (data.Type     ),
+        : Date     (data.Date     ),
+          Type     (data.Type     ),
           Spill    (data.Spill    ),
           EMCount  (data.EMCount  ),
           Channel  (data.Channel  ),
@@ -209,6 +214,7 @@ namespace Extinction {
           ClockFreq(data.ClockFreq) {
       }
       HulData& operator=(const HulData& data) {
+        Date      = data.Date;
         Type      = data.Type;
         Spill     = data.Spill;
         EMCount   = data.EMCount;
@@ -220,6 +226,7 @@ namespace Extinction {
       }
 
       inline void Clear() {
+        Date      = 0;
         Type      = DataType::None;
         Spill     = -1;
         EMCount   = -1;
@@ -235,13 +242,13 @@ namespace Extinction {
         Tdc     = 0;
 
         Packet1_t buff1;
-        std::basic_istream<char>& ret1 = file.read((char*)&buff1, sizeof(Packet1_t));
+        auto& ret1 = file.read((char*)&buff1, sizeof(Packet1_t));
         if (!ret1) {
           return ret1;
         }
 
         Packet2_t buff2;
-        std::basic_istream<char>& ret2 = file.read((char*)&buff2, sizeof(Packet2_t));
+        auto& ret2 = file.read((char*)&buff2, sizeof(Packet2_t));
         if (!ret2) {
           return ret2;
         }
@@ -249,22 +256,41 @@ namespace Extinction {
         Type = Hul::GetType(buff2);
         switch (Type) {
         case DataType::SpillStart:
-          ++Spill;
-          Heartbeat = 0;
+          {
+            ++Spill;
+            Heartbeat = 0;
+#if HUL_FORMAT_VERSION == 1
+            // No time stamp
+#else
+            auto& ret3 = file.read((char*)&Date, sizeof(ULong64_t));
+            if (!ret3) {
+              return ret3;
+            }
+#endif
+          }
           break;
         case DataType::SpillEnd:
+          {
+            // No action
+          }
           break;
         case DataType::Data:
-          Channel = Hul::GetChannel(buff1);
-          Tdc     = Hul::GetTdc(buff1);
+          {
+            Channel = Hul::GetChannel(buff1);
+            Tdc     = Hul::GetTdc(buff1);
+          }
           break;
         case DataType::Error:
-          Heartbeat = Hul::GetHeartbeat(buff1);
-          std::cerr << "error detected, spill = " << Spill
-                    << ", heartbeat = " << Heartbeat << std::endl;
+          {
+            Heartbeat = Hul::GetHeartbeat(buff1);
+            std::cerr << "error detected, spill = " << Spill
+                      << ", heartbeat = " << Heartbeat << std::endl;
+          }
           break;
         case DataType::Heartbeat:
-          Heartbeat = Hul::GetHeartbeat(buff1);
+          {
+            Heartbeat = Hul::GetHeartbeat(buff1);
+          }
           break;
         }
 
@@ -273,7 +299,7 @@ namespace Extinction {
           packet->Packet2 = buff2;
         }
 
-        return ret2;
+        return file;
       }
 
       inline Long64_t GetTdc2() const {
@@ -294,6 +320,7 @@ namespace Extinction {
 
       inline void CreateBranch(TTree* tree) {
         // std::cout << "Hul::HulData::CreateBranch()" << std::endl;
+        tree->Branch("date"     , &Date     , "date"   "/l");
         tree->Branch("type"     , &Type     , "type"   "/b");
         tree->Branch("spill"    , &Spill    , "spill"  "/I");
         tree->Branch("ch"       , &Channel  , "ch"     "/s");
@@ -307,6 +334,7 @@ namespace Extinction {
 
       inline virtual void SetBranchAddress(TTree* tree) override {
         // std::cout << "Hul::HulData::SetBranchAddress()" << std::endl;
+        tree->SetBranchAddress("date"     , &Date     );
         tree->SetBranchAddress("type"     , &Type     );
         tree->SetBranchAddress("spill"    , &Spill    );
         tree->SetBranchAddress("emcount"  , &EMCount  );
@@ -340,6 +368,10 @@ namespace Extinction {
 
       inline virtual Bool_t IsFooter() const override {
         return Type == DataType::SpillEnd;
+      }
+
+      inline virtual ULong64_t GetDate() const override {
+        return Date;
       }
 
       inline virtual Int_t GetSpill() const override {
