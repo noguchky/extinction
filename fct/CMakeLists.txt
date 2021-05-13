@@ -60,6 +60,7 @@ link_directories(${TRON_LIBRARY_DIR})
 
 # Add the executable
 add_executable(genMock src/genMock.cc ${headers})
+add_executable(emcount src/emcount.cc ${headers})
 add_executable(decoder src/decoder.cc ${headers})
 add_executable(marger  src/marger.cc  ${headers})
 add_executable(anaRaw  src/anaRaw.cc  ${headers})
@@ -72,6 +73,7 @@ endif()
 
 # Add link libraries
 target_link_libraries(genMock ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+target_link_libraries(emcount ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(decoder ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(marger  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(anaRaw  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
@@ -87,6 +89,7 @@ endif()
 #
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install(TARGETS genMock DESTINATION .)
+install(TARGETS emcount DESTINATION .)
 install(TARGETS decoder DESTINATION .)
 install(TARGETS marger  DESTINATION .)
 install(TARGETS anaRaw  DESTINATION .)
