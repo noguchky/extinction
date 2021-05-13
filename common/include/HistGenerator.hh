@@ -890,9 +890,9 @@ namespace Extinction {
       hMrSyncTdcOffset = new TH2D("hMrSyncTdcOffset",
                                   Form("%s, MrSync TDC Offset from Board 0;"
                                        "Board;"
-                                       "TDC [count]", tdcName.data()),
+                                       "Time [usec]", tdcName.data()),
                                   MrSync::NofChannels, 0 - 0.5, MrSync::NofChannels - 0.5,
-                                  xbinsInDiff, xminInDiff, xmaxInDiff);
+                                  200, -10, 10);
       hMrSyncTdcOffset->SetStats(false);
 
       hExtTdcOffset = new TH2*[ExtinctionDetector::NofChannels];
@@ -2506,10 +2506,10 @@ namespace Extinction {
                   if (lastData.Board == 0) {
                     // hMrSyncTdcOffset->Fill(ch, 0.0);
                   } else {
-                    hMrSyncTdcOffset->Fill(ch, (lastData.Time - data.Time) / msec);
+                    hMrSyncTdcOffset->Fill(MrSync::GetChannel(lastData.Time), (lastData.Time - data.Time) / usec);
                   }
                 } else if (lastData.Board == 0) {
-                  hMrSyncTdcOffset->Fill(ch, (data.Time - lastData.Time) / msec);
+                  hMrSyncTdcOffset->Fill(ch, (data.Time - lastData.Time) / usec);
                 }
               }
 
