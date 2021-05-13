@@ -273,9 +273,22 @@ namespace Extinction {
           }
 
           for (auto&& itr = fTdcBuffer.begin(); itr != fTdcBuffer.end(); itr = fTdcBuffer.begin()) {
-            fTdcData = itr->second;
-            fMargedTree->Fill();
+            const ULong64_t tdcTag = itr->first;
+            const TdcData&  data   = itr->second;
             fTdcBuffer.erase(itr);
+
+            const Int_t board = data.Board;
+
+            fTdcData = data;
+            fMargedTree->Fill();
+
+            if (tdcTag == lastTdcTags[board] &&
+                !(spillEnded[board] || fileEnded[board])) {
+              // std::cout << "[info] detect read last buffer @ " << board << std::endl;
+              // std::cout << "lastTdcTag =  " << tdcTag << std::endl;
+              targetBoard = board;
+              break;
+            }
           }
 
           if (IsAllOfSecondsTrue(spillEnded) || IsAllOfSecondsTrue(fileEnded)) {
