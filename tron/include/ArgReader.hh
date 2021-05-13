@@ -73,7 +73,7 @@ namespace Tron {
     void                        Add(const std::string& key, const std::string& value);
     void                        Unset(const std::string& key);
 
-    void                        ShowUsage() const;
+    void                        ShowUsage(std::ostream& stream = std::cout) const;
     
     template <typename Value_t = std::string>
     inline std::vector<Value_t> GetValues(const std::string& key, const Char_t* optoin = "") const;

@@ -84,7 +84,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   gStyle->SetPalette(1);
   gStyle->SetOptStat(111111);
   gStyle->SetOptFit(1);
-  gStyle->SetNdivisions(505, "X");
+  gStyle->SetNdivisions(520, "X");
   gStyle->SetNdivisions(505, "Y");
 
   std::cout << "--- Initialize histgram generator" << std::endl;

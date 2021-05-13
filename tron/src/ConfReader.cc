@@ -141,7 +141,7 @@ int Tron::ConfReader::ReadFile(const std::string& filename) {
   //--- Open File
   std::ifstream file(filename);
   if (!file || !file.is_open()) {
-    std::cout << "ConfReader::ReadFile() [error] file is not open, " << String::Wrap(filename) << std::endl;
+    std::cerr << "ConfReader::ReadFile() [error] file is not open, " << String::Wrap(filename) << std::endl;
     return 0;
   }
   fFilenames.push_back(filename);

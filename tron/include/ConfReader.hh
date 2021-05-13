@@ -82,7 +82,7 @@ Value_t Tron::ConfReader::GetValue(const std::string& key, const Char_t* option)
   auto valuepart = GetValuePart(linestr);
   auto value     = String::Convert<Value_t>(valuepart, option);
   if (linestr.empty()) {
-    std::cout << "[warning] key is not found, " << key << std::endl;
+    std::cerr << "[warning] key is not found, " << key << std::endl;
   }
 
   std::string opt = String::ToLower(option);
@@ -101,7 +101,7 @@ std::vector<Value_t> Tron::ConfReader::GetValues(const std::string& key, const C
   auto valuepart = GetValuePart(linestr);
   auto values    = String::Converts<Value_t>(valuepart, option);
   if (linestr.empty()) {
-    std::cout << "[warning] key is not found, " << key << std::endl;
+    std::cerr << "[warning] key is not found, " << key << std::endl;
   }
 
   std::string opt = String::ToLower(option);

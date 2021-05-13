@@ -109,7 +109,7 @@ std::string Tron::String::ToUpper(const std::string& str) {
 std::string Tron::String::ToString(double number, const std::string& format) {
   // std::cout << "String::ToString" << std::endl; 
   if (format.empty()) {
-    // std::cout << "String::ToString [trace] format is empty" << std::endl;
+    // std::cerr << "String::ToString [trace] format is empty" << std::endl;
     return std::to_string(number);
   }
 

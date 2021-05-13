@@ -132,7 +132,7 @@ namespace Extinction {
                   .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == (Int_t)ch; })
                   .Count();
                 if (count > 1) {
-                  std::cout << "[warning] channel duplicate at " << name << "'s ch" << ch << std::endl;
+                  std::cerr << "[warning] channel duplicate at " << name << "'s ch" << ch << std::endl;
                 }
               }
             }
@@ -499,7 +499,7 @@ namespace Extinction {
         const std::size_t kEventMatchSize = 19;
         Int_t eventMatchNumber = -1;
         if (eventMatchData.size() < kHeaderSize) {
-          std::cout << "[warning] event match data is empty" << std::endl;
+          std::cerr << "[warning] event match data is empty" << std::endl;
         } else {
           Int_t eventMatchBits[kEventMatchSize] = { 0 };
           // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
@@ -514,7 +514,7 @@ namespace Extinction {
             } else {
               // Maybe second event match signals
               break;
-              // std::cout << "[warning] invalid event match tdc" << std::endl;
+              // std::cerr << "[warning] invalid event match tdc" << std::endl;
               // std::cout << "(" << data.Tdc << " - " << eventMatchData[0].Tdc << ") / "
               //           << "(" << eventMatchData[1].Tdc << " - " << eventMatchData[0].Tdc << ")" << std::endl
               //           << "-> " << data.Tdc - eventMatchData[0].Tdc
@@ -530,11 +530,11 @@ namespace Extinction {
           }
           // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
           if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
-            std::cout << "[warning] invalid parity bit" << std::endl;
+            std::cerr << "[warning] invalid parity bit" << std::endl;
             for (auto&& data : eventMatchData) {
               const Double_t norm = (Double_t)(data.Tdc - eventMatchData[0].Tdc) / (Double_t)(eventMatchData[1].Tdc - eventMatchData[0].Tdc);
               const std::size_t bit = TMath::Nint(norm);
-              std::cout << bit << ": " << data.Tdc << std::endl;
+              std::cerr << bit << ": " << data.Tdc << std::endl;
             }
           } else {
             eventMatchNumber = 0;
@@ -572,7 +572,7 @@ namespace Extinction {
         // std::cout << "Fct::Decoder::Decode()" << std::endl;
         std::size_t count = 0UL;
         if (!Tree) {
-          std::cout << "[warning] tree has not initialized yet" << std::endl;
+          std::cerr << "[warning] tree has not initialized yet" << std::endl;
         } else {
           for (; Read(file); ++count) {
             // Data.Show();

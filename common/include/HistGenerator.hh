@@ -143,6 +143,7 @@ namespace Extinction {
       TH2*                         hCoinMountain           = nullptr;
       TGraphErrors*                gHitInSpill             = nullptr;
       TH1**                        hMrSyncInterval         = nullptr;
+      TH2**                        hMrSyncInterval2        = nullptr;
       TH2**                        hExtTdcOffset           = nullptr;
       TH2**                        hExtTdcExtOffsetBottom  = nullptr;
       TH2**                        hExtTdcExtOffsetCenter1 = nullptr;
@@ -554,6 +555,12 @@ namespace Extinction {
         hMrSyncInterval[ch]->SetDirectory(nullptr);
       }
 
+      hMrSyncInterval2 = new TH2*[MrSync::NofChannels];
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hMrSyncInterval2[ch] = dynamic_cast<TH2*>(file->Get(Form("hMrSyncInterval2_%03lu", ch)));
+        hMrSyncInterval2[ch]->SetDirectory(nullptr);
+      }
+
       hExtTdcOffset = new TH2*[ExtinctionDetector::NofChannels];
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         hExtTdcOffset[ch] = dynamic_cast<TH2*>(file->Get(Form("hExtTdcOffset_%03lu", ch)));
@@ -862,6 +869,16 @@ namespace Extinction {
                                             "TDC [count];"
                                             "", tdcName.data(), ch),
                                        xbinsInt, xminInt, xmaxInt);
+      }
+
+      hMrSyncInterval2 = new TH2*[MrSync::NofChannels];
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hMrSyncInterval2[ch] = new TH2D(Form("hMrSyncInterval2_%03lu", ch),
+                                        Form("%s, MR Sync TDC Interval @ ch%ld;"
+                                             "TDC [count];"
+                                             "Time [ms]", tdcName.data(), ch),
+                                        xbinsInt, xminInt, xmaxInt,
+                                        xbinsInSpill, xminInSpill, xmaxInSpill);
       }
 
       hExtTdcOffset = new TH2*[ExtinctionDetector::NofChannels];
@@ -1192,6 +1209,13 @@ namespace Extinction {
       }
       gPad->SetLogy(false);
 
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        if (hMrSyncInterval2[ch]->GetEntries()) {
+          hMrSyncInterval2[ch]->Draw("colz");
+          gPad->Print(ofilename.data());
+        }
+      }
+
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         if (hExtTdcOffset[ch]->GetEntries()) {
           hExtTdcOffset[ch]->Draw("col");
@@ -1369,6 +1393,10 @@ namespace Extinction {
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
         hMrSyncInterval[ch]->Write();
+      }
+
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hMrSyncInterval2[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
@@ -1598,6 +1626,10 @@ namespace Extinction {
 
         for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
           hMrSyncInterval[ch]->Reset();
+        }
+
+        for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+          hMrSyncInterval2[ch]->Reset();
         }
 
         for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
@@ -2434,7 +2466,8 @@ namespace Extinction {
 
               decltype(fLastMrSyncData)::const_iterator itr;
               if ((itr = fLastMrSyncData.find(data.Board)) != fLastMrSyncData.end()) {
-                hMrSyncInterval[data.Board]->Fill(data.Tdc - itr->second.Tdc);
+                hMrSyncInterval [data.Board]->Fill(data.Tdc - itr->second.Tdc);
+                hMrSyncInterval2[data.Board]->Fill(data.Tdc - itr->second.Tdc, data.Time / msec);
               }
 
               fLastMrSyncData[board] = data;
