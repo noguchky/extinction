@@ -54,7 +54,7 @@ bool Tron::ArgReader::Parse(int argc, char** argv, const Char_t* coption) {
 
     if (configs.empty()) {
       if (String::Contains(String::ToLower(coption), "v")) {
-        std::cout << "ArgReader::Parse [error] unknown option " << String::Wrap((char)optopt) << std::endl;
+        std::cerr << "ArgReader::Parse [error] unknown option " << String::Wrap((char)optopt) << std::endl;
       }
       return false;
     }
@@ -96,7 +96,7 @@ bool Tron::ArgReader::HasUnsetRequired() const {
     return false;
   }
 
-  // std::cout << "ArgReader::Parse [error] do not meet requirement for " << String::Wrap(notSatisfied.front()->Key) << std::endl;
+  // std::cerr << "ArgReader::Parse [error] do not meet requirement for " << String::Wrap(notSatisfied.front()->Key) << std::endl;
   return true;
 }
 
@@ -106,7 +106,7 @@ bool Tron::ArgReader::IsSet(const std::string& name) const {
 
 void Tron::ArgReader::Set(const std::string& key, const std::string& value) {
   if (fConfigs.find(key) == fConfigs.end()) {
-    std::cout << "ArgReader::Set [error] do not exist " << String::Wrap(key) << std::endl;
+    std::cerr << "ArgReader::Set [error] do not exist " << String::Wrap(key) << std::endl;
     return;
   }
 
@@ -117,7 +117,7 @@ void Tron::ArgReader::Set(const std::string& key, const std::string& value) {
 
 void Tron::ArgReader::Add(const std::string& key, const std::string& value) {
   if (fConfigs.find(key) == fConfigs.end()) {
-    std::cout << "ArgReader::Set [error] do not exist " << String::Wrap(key) << std::endl;
+    std::cerr << "ArgReader::Set [error] do not exist " << String::Wrap(key) << std::endl;
     return;
   }
 
@@ -127,7 +127,7 @@ void Tron::ArgReader::Add(const std::string& key, const std::string& value) {
 
 void Tron::ArgReader::Unset(const std::string& key) {
   if (fConfigs.find(key) == fConfigs.end()) {
-    std::cout << "ArgReader::Unset [error] do not exist " << String::Wrap(key) << std::endl;
+    std::cerr << "ArgReader::Unset [error] do not exist " << String::Wrap(key) << std::endl;
     return;
   }
 
@@ -135,7 +135,7 @@ void Tron::ArgReader::Unset(const std::string& key) {
   values.clear();
 }
 
-void Tron::ArgReader::ShowUsage() const {
+void Tron::ArgReader::ShowUsage(std::ostream& ostream) const {
   std::stringstream message, help1, help2;
 
   message << "Usage: " << fAppName;
@@ -199,12 +199,12 @@ void Tron::ArgReader::ShowUsage() const {
     help2 << config->Description << std::endl;
   }
 
-  std::cout << message.str() << std::endl;
+  ostream << message.str() << std::endl;
   if (!fArgConfigs.empty()) {
-    std::cout << help1.str();
+    ostream << help1.str();
   }
   if (!fOptConfigs.empty()) {
-    std::cout << std::endl
-              << help2.str();
+    ostream << std::endl
+            << help2.str();
   }
 }

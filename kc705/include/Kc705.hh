@@ -562,7 +562,7 @@ namespace Extinction {
         } else if (Type == DataType::HeaderError) {
           // Nothing to do
         } else {
-          std::cout << "[error] invalid header, maybe "
+          std::cerr << "[error] invalid header, maybe "
                     << (Kc705::IsFooter(buff) ? "footer" : "data") << std::endl;
           Type = DataType::HeaderError;
         }
@@ -992,7 +992,7 @@ namespace Extinction {
         // std::cout << "Kc705::Decoder::Decode()" << std::endl;
         std::size_t count = 0UL;
         if (!Tree) {
-          std::cout << "[warning] tree has not initialized yet" << std::endl;
+          std::cerr << "[warning] tree has not initialized yet" << std::endl;
         } else {
           for (; Read(file); ++count) {
             // Data.Show();
@@ -1025,7 +1025,7 @@ namespace Extinction {
         case DataType::Data:
           return Data.ReadDataOrFooter(file, packet);
         default:
-          std::cout << "[error] invalid data type" << std::endl;
+          std::cerr << "[error] invalid data type" << std::endl;
           exit(1);
         }
       }
