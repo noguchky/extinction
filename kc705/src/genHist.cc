@@ -3,6 +3,7 @@
 #include <map>
 #include <regex>
 #include "TROOT.h"
+#include "TApplication.h"
 #include "TStyle.h"
 #include "TFile.h"
 #include "TTree.h"
@@ -23,6 +24,8 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddArg<std::string>("Boards"      ,                "Set comma separated board numbers");
   args->AddArg<std::string>("Input"       ,                "Set comma separated root filenames");
   args->AddOpt<std::string>("Output"      , 'o', "output", "Set prefix of output filename", "");
+  args->AddOpt             ("Event"       , 'e', "event" , "Show coincidence mppc events");
+  args->AddOpt<std::size_t>("EventSize"   , 'n', "num"   , "Show coincidence mppc number", "2");
   args->AddOpt             ("Help"        , 'h', "help"  , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -39,6 +42,13 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([&](std::pair<std::string, Int_t> pair) { return pair.second; },
            [&](std::pair<std::string, Int_t> pair) { return pair.first;  });
   const auto ofilename    = args->GetValue("Output");
+  const auto showEvents   = args->IsSet("Event");
+  const auto showSize     = args->GetValue<std::size_t>("EventSize");
+
+  TApplication* app = nullptr;
+  if (showEvents) {
+    app = new TApplication("app", nullptr, nullptr);
+  }
 
   std::string ofileprefix;
   if (ofilename.empty()) {
@@ -169,6 +179,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   generator->SetMrSyncInterval   (                             mrSyncInterval     );
   generator->SetBunchCenters     (                             bunchCenters       );
   generator->SetBunchWidths      (                             bunchWidths        );
+  generator->SetShowHitEvents    (showEvents,                  showSize           );
 
   Extinction::Analyzer::HistGenerator::PlotsProfiles profile;
   profile.TimeInSpill   .NbinsX   = conf->GetValue<Double_t>("TimeInSpill.NbinsX" );
@@ -219,6 +230,9 @@ Int_t main(Int_t argc, Char_t** argv) {
   generator->WriteMrSyncInterval(ofilenameMrSync);
   generator->WriteBunchProfile  (ofilenameBunch );
   generator->WriteOffset        (ofilenameOffset);
+
+  delete app;
+  app = nullptr;
 
   return 0;
 }

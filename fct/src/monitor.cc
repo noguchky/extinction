@@ -109,7 +109,7 @@ namespace {
       perror("could not open directory");
     }
   }
-  
+
   struct InotifyEventArgs {
     int                        board;
     int                        fd;
@@ -170,16 +170,16 @@ namespace {
 
         if (inotify_p->mask & IN_CLOSE_WRITE ||
             inotify_p->mask & IN_MOVED_TO) {
-	  if (Tron::String::EndWith(inotify_p->name, ".dat")) {
-	    std::cerr << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
-	    std::lock_guard<std::mutex> lock(filenamesMutex);
-	    if (paths.find(inotify_p->wd) != paths.end()) {
-	      const std::string path = paths[inotify_p->wd];
-	      filenames[board] = (path + "/" + inotify_p->name);
-	    } else {
-	      std::cout << "[warning] unknown wd of inotify" << std::endl;
-	    }
-	  }
+          if (Tron::String::EndWith(inotify_p->name, ".dat")) {
+            std::cerr << "[info] file was closed \"" << inotify_p->name << "\"" << std::endl;
+            std::lock_guard<std::mutex> lock(filenamesMutex);
+            if (paths.find(inotify_p->wd) != paths.end()) {
+              const std::string path = paths[inotify_p->wd];
+              filenames[board] = (path + "/" + inotify_p->name);
+            } else {
+              std::cout << "[warning] unknown wd of inotify" << std::endl;
+            }
+          }
         }
 
         if (is_created &&
@@ -222,7 +222,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddOpt<Int_t>      ("Boards"          , 'b', "boards"  , "Set comma-separated input boards");
   args->AddOpt<std::string>("Filenames"       , 'f', "files"   , "Set comma-separated input filenames (no wait to be written)");
   args->AddOpt<std::string>("ChannelAlign"    , 'a', "align"   , "Set channel align (raw/projection)", "raw");
-  args->AddOpt<std::string>("MonitorMode"     , 'm', "mode"    , "Set monitor mode (channel/mppc/hod/offset/coincidence)", "coincidence");
+  args->AddOpt<std::string>("MonitorMode"     , 'm', "mode"    , "Set monitor mode (channel/ext/hod/offset/coincidence)", "coincidence");
   args->AddOpt<Int_t>      ("MonitorChannel"  , 'c', "channel" , "Set monitor channel by global channel", "-1");
   args->AddOpt<std::string>("OffsetFilename"  , 'o', "offset"  , "Set output offset filename", "");
   args->AddOpt<std::string>("IntervalFilename", 'i', "interval", "Set output mr-sync interval filename", "");

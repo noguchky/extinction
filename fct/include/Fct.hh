@@ -15,8 +15,8 @@
 #include "String.hh"
 #include "Linq.hh"
 
-#define FCT_FORMAT_VERSION 1 // initial version           ---           ~2021/05/11
-// #define FCT_FORMAT_VERSION 2 // w/ timestamp after header --- 2021/05/12~
+// #define FCT_FORMAT_VERSION 1 // initial version           ---           ~2021/05/11
+#define FCT_FORMAT_VERSION 2    // w/ timestamp after header --- 2021/05/12~
 
 namespace Extinction {
 

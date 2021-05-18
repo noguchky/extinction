@@ -61,9 +61,9 @@ namespace Extinction {
       Board         = 0;
     }
 
-    inline ULong64_t GetTdcTag() const {
+    inline ULong64_t GetTdcTag(std::size_t mrcount, Long64_t mrtdc) const {
       // return (Tdc < 0 || Channel < 0) ? 0 : (Tdc * 1000ULL + Channel);
-      return (Tdc < 0 || Channel < 0) ? 0 : (((ULong64_t)(Time / nsec)) * 1000ULL + Channel);
+      return (Tdc < 0 || Channel < 0) ? 0 : ((mrcount * 10000000000ULL + (Tdc - mrtdc)) * 1000ULL + Channel);
     }
 
     inline void CreateBranch(TTree* tree) {

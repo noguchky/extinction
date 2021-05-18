@@ -44,6 +44,7 @@ namespace Extinction {
       std::size_t                  fBufferSize             = 5000;
       std::size_t                  fBufferMargin           =  100;
 
+      std::map<Int_t, TdcData>     fInitEmData;
       std::map<ULong64_t, TdcData> fTdcBuffer;
 
     public:
@@ -181,6 +182,8 @@ namespace Extinction {
 
       {
         Int_t targetBoard = 0;
+        std::map<Int_t, std::size_t>          mrcount;
+        std::map<Int_t, Long64_t>             mrtdc;
         std::map<Int_t, Long64_t>             entries;
         std::map<Int_t, Long64_t>             lastSpills;
         std::map<Int_t, Bool_t>               spillEnded;
@@ -232,6 +235,7 @@ namespace Extinction {
                 lastSpill               = provider->GetSpill();
                 spillEnded[targetBoard] = true;
                 firstData [targetBoard] = provider->GetTdcData(targetBoard);
+                fInitEmData.clear();
                 break;
 
               } else {
@@ -240,16 +244,25 @@ namespace Extinction {
                   std::cout << "[error] conflict EMCount, " << lastEMCount << " <--> " << provider->GetEMCount() << std::endl;
                   exit(1);
                 }
-                lastSpill   = provider->GetSpill();
-                lastEMCount = provider->GetEMCount();
-                const std::vector<TdcData> tdcData = provider->GetTdcData(targetBoard);
+                lastSpill    = provider->GetSpill();
+                lastEMCount  = provider->GetEMCount();
+                auto tdcData = provider->GetTdcData(targetBoard);
+
                 for (auto&& data : tdcData) {
-                  fTdcBuffer[data.GetTdcTag()] = data;
-                }
-                if (ibuf < fBufferSize - fBufferMargin) {
-                  lastTdcTag = tdcData.back().GetTdcTag();
+                  if (MrSync::Contains(data.Channel)) {
+                    mrcount[data.Board]++;
+                    mrtdc  [data.Board] = data.Tdc;
+                  }
                 }
 
+                ULong64_t tdcTag = 0;
+                for (auto&& data : tdcData) {
+                  tdcTag             = data.GetTdcTag(mrcount[data.Board], mrtdc[data.Board]);
+                  fTdcBuffer[tdcTag] = data;
+                }
+                if (ibuf < fBufferSize - fBufferMargin) {
+                  lastTdcTag = tdcTag;
+                }
               }
             }
           }
@@ -293,13 +306,19 @@ namespace Extinction {
 
           if (IsAllOfSecondsTrue(spillEnded) || IsAllOfSecondsTrue(fileEnded)) {
             std::cout << "[info] end of spill" << std::endl;
+            mrcount.clear();
+            mrtdc  .clear();
             for (auto&& pair : firstData) {
               auto& board      = pair.first;
               auto& tdcData    = pair.second;
               auto& lastTdcTag = lastTdcTags[board];
               for (auto&& data : tdcData) {
-                fTdcBuffer[data.GetTdcTag()] = data;
-                lastTdcTag = data.GetTdcTag();
+                if (MrSync::Contains(data.Channel)) {
+                  mrcount[data.Board]++;
+                  mrtdc  [data.Board] = data.Tdc;
+                }
+                lastTdcTag = data.GetTdcTag(mrcount[data.Board], mrtdc[data.Board]);
+                fTdcBuffer[lastTdcTag] = data;
               }
               tdcData.clear();
             }

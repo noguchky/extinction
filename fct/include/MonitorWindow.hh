@@ -1426,10 +1426,12 @@ namespace Extinction {
 
       {
         Int_t targetBoard = 0;
-        std::map<Int_t, Bool_t>    gateStarted;
-        std::map<Int_t, Bool_t>    gateEnded;
-        std::map<Int_t, Bool_t>    fileEnded;
-        std::map<Int_t, ULong64_t> lastTdcTags;
+        std::map<Int_t, std::size_t> mrcount;
+        std::map<Int_t, Long64_t>    mrtdc;
+        std::map<Int_t, Bool_t>      gateStarted;
+        std::map<Int_t, Bool_t>      gateEnded;
+        std::map<Int_t, Bool_t>      fileEnded;
+        std::map<Int_t, ULong64_t>   lastTdcTags;
         for (auto&& pair : ifilenames) {
           targetBoard = pair.first;
           gateStarted[pair.first] = false;
@@ -1446,6 +1448,9 @@ namespace Extinction {
           for (std::size_t ibuf = 0; ibuf < fBufferSize; ++ibuf, ++count) {
             if (count % 1000000UL == 0) {
               std::cout << ">> " << count << std::endl;
+            }
+            if (count % 3000000UL == 0) {
+              DrawPlots();
             }
 
             if (!decoder.Read(ifiles[targetBoard], &packet)) {
@@ -1471,14 +1476,23 @@ namespace Extinction {
 
               } else {
                 // std::cout << "[info] detect data @ " << targetBoard << std::endl;
-                const std::vector<TdcData> tdcData = decoder.Data.GetTdcData(targetBoard);
+                auto tdcData = decoder.Data.GetTdcData(targetBoard);
+
                 for (auto&& data : tdcData) {
-                  fTdcBuffer[data.GetTdcTag()] = data;
-                }
-                if (ibuf < fBufferSize - fBufferMargin) {
-                  lastTdcTag = tdcData.back().GetTdcTag();
+                  if (MrSync::Contains(data.Channel)) {
+                    mrcount[data.Board]++;
+                    mrtdc  [data.Board] = data.Tdc;
+                  }
                 }
 
+                ULong64_t tdcTag = 0;
+                for (auto&& data : tdcData) {
+                  tdcTag             = data.GetTdcTag(mrcount[data.Board], mrtdc[data.Board]);
+                  fTdcBuffer[tdcTag] = data;
+                }
+                if (ibuf < fBufferSize - fBufferMargin) {
+                  lastTdcTag = tdcTag;
+                }
               }
             }
           }

@@ -16,8 +16,8 @@
 #include "String.hh"
 
 // #define KC705_FORMAT_VERSION 1 // initial version                  ---           ~2021/01/??
-#define KC705_FORMAT_VERSION 2 // header/footer format is modified --- 2021/01/??~2021/05/11
-// #define KC705_FORMAT_VERSION 3 // w/ timestamp after header        --- 2021/05/12~
+// #define KC705_FORMAT_VERSION 2 // header/footer format is modified --- 2021/01/??~2021/05/11
+#define KC705_FORMAT_VERSION 3    // w/ timestamp after header        --- 2021/05/12~
 
 namespace Extinction {
 
@@ -554,7 +554,7 @@ namespace Extinction {
 #elif KC705_FORMAT_VERSION == 2
           // No time stamp
 #else 
-          auto& ret2 = file.read((char*)Date, sizeof(ULong64_t));
+          auto& ret2 = file.read((char*)&Date, sizeof(ULong64_t));
           if (!ret2) {
             return ret2;
           }
