@@ -226,6 +226,8 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddOpt<Int_t>      ("MonitorChannel"  , 'c', "channel" , "Set monitor channel by global channel", "-1");
   args->AddOpt<std::string>("OffsetFilename"  , 'o', "offset"  , "Set output offset filename", "");
   args->AddOpt<std::string>("IntervalFilename", 'i', "interval", "Set output mr-sync interval filename", "");
+  args->AddOpt             ("Sum"             , 's', "sum"     , "Sum coincidence hist");
+  args->AddOpt             ("Leakage"         , 'l', "leakage" , "Coincidence only leakage");
   args->AddOpt             ("Help"            , 'h', "help"    , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -250,6 +252,8 @@ Int_t main(Int_t argc, Char_t** argv) {
   const Bool_t      isFilenamesSet   = args->IsSet("Filenames");
   const std::string offsetFilename   = args->GetValue("OffsetFilename");
   const std::string intervalFilename = args->GetValue("IntervalFilename");
+  const Bool_t      accumulate       = args->IsSet("Sum");
+  const Bool_t      leakageMode      = args->IsSet("Leakage");
 
   const Bool_t isWatchingMode = !isFilenamesSet;
 
@@ -289,12 +293,6 @@ Int_t main(Int_t argc, Char_t** argv) {
   const std::map<int, std::string> paths = Tron::Linq::From(boards)
     .ToMap([&](int board) { return board; },
            [&](int board) { return conf->GetValue(Form("Path.%d", board)); });
-  const std::map<Int_t, Double_t> timePerTdc = Tron::Linq::From(boards)
-    .ToMap([&](int board) { return board; },
-           [&](int board) { return conf->GetValue<Double_t>(Form("TimePerTdc.%d", board)) * Extinction::nsec; });
-  const std::map<Int_t, Double_t> mrSyncInterval = Tron::Linq::From(boards)
-    .ToMap([&](int board) { return board; },
-           [&](int board) { return conf->GetValue<Double_t>(Form("MrSyncInterval.%d", board)); });
 
   const Double_t    historyWidth     = conf->GetValue<Double_t   >("HistoryWidth");
   const Double_t    coinTimeWidth    = conf->GetValue<Double_t   >("CoinTimeWidth");
@@ -317,12 +315,6 @@ Int_t main(Int_t argc, Char_t** argv) {
              [&](std::pair<Int_t, std::string> pair) { return pair.second; });
   }
 
-  const std::string ffilename = conf->GetValue("Offset");
-  if (ffilename.empty()) {
-    std::cerr << "[error] offset was not configured" << std::endl;
-    return 1;
-  }
-
   Extinction::Fct::ChannelMapWithBoard::Load(conf, boards);
 
   std::cout << "--- Initialize style" << std::endl;
@@ -335,9 +327,71 @@ Int_t main(Int_t argc, Char_t** argv) {
   std::cout << "--- Initialize monitor window" << std::endl;
   monitor = new Extinction::Fct::MonitorWindow();
 
-  if (monitor->LoadOffset(ffilename) == 0) {
-    std::cerr << "[error] offset file was not found" << std::endl;
-    exit(1);
+  std::map<Int_t, Double_t> timePerTdc;
+  do {
+    const std::string ifilename = conf->GetValue("TimePerTdc");
+    std::ifstream ifile(ifilename);
+    if (!ifile) {
+      std::cout << "[warning] time resolution file was not opened, " << ifilename << std::endl;
+      break;
+    }
+
+    std::string buff;
+    Int_t board; Double_t resolution;
+    while (std::getline(ifile, buff)) {
+      std::stringstream line(buff);
+      if (line >> board >> resolution) {
+        timePerTdc[board] = resolution * Extinction::nsec;
+      }
+    }
+  } while (false);
+
+  std::map<Int_t, Double_t> mrSyncInterval;
+  do {
+    const std::string ifilename = conf->GetValue("MrSyncInterval");
+    std::ifstream ifile(ifilename);
+    if (!ifile) {
+      std::cout << "[warning] MR Sync interval file was not opened, " << ifilename << std::endl;
+      break;
+    }
+
+    std::string buff;
+    Int_t board; Double_t interval;
+    while (std::getline(ifile, buff)) {
+      std::stringstream line(buff);
+      if (line >> board >> interval) {
+        mrSyncInterval[board] = interval;
+      }
+    }
+  } while (false);
+
+  Double_t bunchCenters[Extinction::SpillData::kNofBunches] = { 0 };
+  Double_t bunchWidths [Extinction::SpillData::kNofBunches] = { 0 };
+  do {
+    const std::string ifilename = conf->GetValue("BunchProfile");
+    std::ifstream ifile(ifilename);
+    if (!ifile) {
+      std::cout << "[warning] bunch profile file was not opened, " << ifilename << std::endl;
+      break;
+    }
+
+    std::string buff;
+    Int_t bunch; Double_t center, width;
+    while (std::getline(ifile, buff)) {
+      std::stringstream line(buff);
+      if (line >> bunch >> buff >> center >> buff >> width) {
+        bunchCenters[bunch] = center * Extinction::nsec;
+     // bunchWidths [bunch] = width  * Extinction::nsec;
+        bunchWidths [bunch] = 200.0  * Extinction::nsec;
+      }
+    }
+  } while (false);
+
+  {
+    const std::string ifilename = conf->GetValue("Offset");
+    if (monitor->LoadOffset(ifilename) == 0) {
+      std::cerr << "[warning] offset file was not found, " << ifilename << std::endl;
+    }
   }
 
   if        (channelAlign == "raw"       ) {
@@ -365,6 +419,9 @@ Int_t main(Int_t argc, Char_t** argv) {
     monitor->SetMonitorMode(Extinction::Fct::MonitorWindow::MonitorMode::Coincidence);
   }
 
+  monitor->SetAccumulate(accumulate);
+  monitor->SetLeakageMode(leakageMode);
+  
   monitor->SetHistoryWidth(historyWidth);
   monitor->SetCoinTimeWidth(coinTimeWidth);
   monitor->SetSpillLimit(spillLimit);
@@ -373,6 +430,8 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   monitor->SetTimePerTdc(timePerTdc);
   monitor->SetMrSyncInterval(mrSyncInterval);
+  monitor->SetBunchCenters(bunchCenters);
+  monitor->SetBunchWidths(bunchWidths);
   monitor->InitializeWindow(windowWidth ? windowWidth : 1600, windowHeight ? windowHeight : 1200);
   monitor->InitializePlots(profile);
   monitor->DrawPlots();

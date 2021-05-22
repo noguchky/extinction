@@ -46,7 +46,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   std::cout << "=== Get Tree" << std::endl;
-  TTree* tree = dynamic_cast<TTree*>(file->Get("FCTTDC"));
+  TTree* tree = dynamic_cast<TTree*>(file->Get("tree"));
   if (!tree) {
     std::cout << "[error] input tree is not found" << std::endl;
     return 1;
@@ -81,6 +81,26 @@ Int_t main(Int_t argc, Char_t** argv) {
                                 32, 0.0 - 0.5, 32.0 - 0.5,
                                 200, 0, entries);
 
+  TH1** hTdcInSpill = new TH1*[32];
+  TH1** hTdcInSync  = new TH1*[32];
+  TH2** hTdcMount   = new TH2*[32];
+  for (std::size_t ch = 0; ch < 32; ++ch) {
+    hTdcInSpill[ch] = new TH1D(Form("hTdcInSpill_%03lu", ch),
+                               Form("hTdcUnSync_%03lu;ms", ch),
+                               170, -100, 1600);
+    hTdcInSync [ch] = new TH1D(Form("hTdcInSync_%03lu", ch),
+                               Form("hTdcUnSync_%03lu;TDC", ch),
+                               200, -100, 900);
+    hTdcMount  [ch] = new TH2D(Form("hTdcMount_%03lu", ch),
+                               Form("hTdcUnSync_%03lu;TDC;ms", ch),
+                               200, -100, 900,
+                               170, -100, 1600);
+  }
+
+  const Int_t mrSyncCh = 26;
+
+  Long64_t syncTdc = 0;
+  
   std::cout << "=== Get Entry " << std::endl;
   for (Long64_t entry = 0; entry < entries; ++entry) {
     if (entry % 1000000 == 0) {
@@ -91,6 +111,14 @@ Int_t main(Int_t argc, Char_t** argv) {
 
     hFctEntryByCh->Fill(data.Channel);
     hFctEntryVsCh->Fill(data.Channel, entry);
+
+    if (data.Channel == mrSyncCh) {
+      syncTdc = data.Tdc;
+    }
+    hTdcInSpill[data.Channel]->Fill(data.GetTime() / Extinction::msec);
+    hTdcInSync [data.Channel]->Fill(data.Tdc - syncTdc);
+    hTdcMount  [data.Channel]->Fill(data.Tdc - syncTdc,
+                                    data.GetTime() / Extinction::msec);
   }
 
   std::cout << "=== Draw Hists" << std::endl;
@@ -110,6 +138,17 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   hFctEntryVsCh->Draw("box");
   gPad->Print(ofilename2.data());
+
+  for (std::size_t ch = 0; ch < 32; ++ch) {
+    hTdcInSpill[ch]->Draw();
+    gPad->Print(ofilename2.data());
+
+    hTdcInSync [ch]->Draw();
+    gPad->Print(ofilename2.data());
+
+    hTdcMount  [ch]->Draw("colz");
+    gPad->Print(ofilename2.data());
+  }
 
   gPad->Print((ofilename2 + "]").data());
 

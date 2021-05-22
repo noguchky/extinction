@@ -65,20 +65,26 @@ Int_t main(Int_t argc, Char_t** argv) {
     ofileprefix = buff;
   }
 
-  const std::string ofilenameRoot   = ofileprefix + "_hists.root";
-  const std::string ofilenamePdf    = ofileprefix + "_hists.pdf";
-  const std::string ofilenameSpill  = ofileprefix + "_spill.root";
-  const std::string ofilenameTPT    = ofileprefix + "_timePerTdc.dat";
-  const std::string ofilenameMrSync = ofileprefix + "_mrSync.dat";
-  const std::string ofilenameBunch  = ofileprefix + "_bunch.dat";
-  const std::string ofilenameOffset = ofileprefix + "_offset.dat";
-  // std::cout << "ofilenameRoot   " << ofilenameRoot   << std::endl;
-  // std::cout << "ofilenamePdf    " << ofilenamePdf    << std::endl;
-  // std::cout << "ofilenameSpill  " << ofilenameSpill  << std::endl;
-  // std::cout << "ofilenameTPT    " << ofilenameTPT    << std::endl;
-  // std::cout << "ofilenameMrSync " << ofilenameMrSync << std::endl;
-  // std::cout << "ofilenameBunch  " << ofilenameBunch  << std::endl;
-  // std::cout << "ofilenameOffset " << ofilenameOffset << std::endl;
+  const std::string ofilenameRoot          = ofileprefix + "_hists.root";
+  const std::string ofilenamePdf           = ofileprefix + "_hists.pdf";
+  const std::string ofilenamePdf_Crosstalk = ofileprefix + "_crosstalk.pdf";
+  const std::string ofilenamePdf_Offset    = ofileprefix + "_offset.pdf";
+  const std::string ofilenamePdf_Time      = ofileprefix + "_time.pdf";
+  const std::string ofilenameSpill         = ofileprefix + "_spill.root";
+  const std::string ofilenameTPT           = ofileprefix + "_timePerTdc.dat";
+  const std::string ofilenameMrSync        = ofileprefix + "_mrSync.dat";
+  const std::string ofilenameBunch         = ofileprefix + "_bunch.dat";
+  const std::string ofilenameOffset        = ofileprefix + "_offset.dat";
+  // std::cout << "ofilenameRoot          " << ofilenameRoot          << std::endl;
+  // std::cout << "ofilenamePdf           " << ofilenamePdf           << std::endl;
+  // std::cout << "ofilenamePdf_Crosstalk " << ofilenamePdf_Crosstalk << std::endl;
+  // std::cout << "ofilenamePdf_Offset    " << ofilenamePdf_Offset    << std::endl;
+  // std::cout << "ofilenamePdf_Time      " << ofilenamePdf_Time      << std::endl;
+  // std::cout << "ofilenameSpill         " << ofilenameSpill         << std::endl;
+  // std::cout << "ofilenameTPT           " << ofilenameTPT           << std::endl;
+  // std::cout << "ofilenameMrSync        " << ofilenameMrSync        << std::endl;
+  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
+  // std::cout << "ofilenameOffset        " << ofilenameOffset        << std::endl;
 
   std::cout << "--- Load configure" << std::endl;
   Tron::ConfReader* conf = new Tron::ConfReader(confFilename);
@@ -170,6 +176,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   generator->SetCyclicCoincidence(conf->GetValue<Int_t      >("CyclicCoincidence"));
   generator->SetHistoryWidth     (conf->GetValue<Double_t   >("HistoryWidth"     ));
+  generator->SetMrSyncOffset     (conf->GetValue<Double_t   >("MrSyncOffset"     ));
   generator->SetCoinTimeWidth    (conf->GetValue<Double_t   >("CoinTimeWidth"    ));
   generator->SetReadBufferSize   (conf->GetValue<std::size_t>("ReadBufferSize"   ));
   generator->SetReadBufferMargin (conf->GetValue<std::size_t>("ReadBufferMargin" ));
@@ -220,9 +227,9 @@ Int_t main(Int_t argc, Char_t** argv) {
     };
 
   std::cout << "--- Generate hists" << std::endl;
-  generator->GeneratePlots(providers, ifilenames, "tree", "", parser);
+  generator->GeneratePlots(providers, ifilenames, "tree", "", "", "", "", parser);
 
-  generator->DrawPlots          (ofilenamePdf   );
+  generator->DrawPlots          (ofilenamePdf, ofilenamePdf_Crosstalk, ofilenamePdf_Offset, ofilenamePdf_Time);
 
   generator->WritePlots         (ofilenameRoot  );
   generator->WriteSpillSummary  (               );

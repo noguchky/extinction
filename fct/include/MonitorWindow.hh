@@ -20,6 +20,7 @@
 #include "Units.hh"
 #include "Detector.hh"
 #include "Tdc.hh"
+#include "Spill.hh"
 #include "Fct.hh"
 #include "AnaCoin.hh"
 
@@ -83,7 +84,7 @@ namespace Extinction {
       };
 
       FctData                      fProvider;
-      CoinDiffs                    fCoinDiffs;
+      CoinDiffs                    fStdCoinDiffs;
       Contains                     fContains;
 
       TApplication*                fApplication         = nullptr;
@@ -128,12 +129,16 @@ namespace Extinction {
 
       TDatime                      fDate;
       Long64_t                     fSpillCount          = 0;
+      Long64_t                     fPreCoinCount        = 0;
       Long64_t                     fCoinCount           = 0;
+      Long64_t                     fCoinHitCount        = 0;
       Int_t                        fEventMatchNumber    = -1;
 
       std::map<Int_t, Double_t>    fTimePerTdc;
       std::map<Int_t, Double_t>    fMrSyncInterval;
       Double_t                     fMrSyncIntervalAverage;
+      Double_t                     fStdBunchCenters[SpillData::kNofBunches] = { 0 };
+      Double_t                     fStdBunchWidths [SpillData::kNofBunches] = { 0 };
       std::map<ULong64_t, TdcData> fTdcBuffer;
 
       std::vector<TdcData>         fLastExtData;
@@ -141,6 +146,7 @@ namespace Extinction {
       std::vector<TdcData>         fLastTcData;
       std::vector<TdcData>         fLastBhData;
       std::map<Int_t, TdcData>     fLastMrSyncData;
+      std::map<Int_t, std::size_t> fLastMrSyncCount;
       std::map<Int_t, std::vector<TdcData>> fEventMatchData;
 
       Bool_t                       fIsTerminated        = false;
@@ -159,22 +165,25 @@ namespace Extinction {
       std::string                  fMrSyncIntervalFilename;
       std::string                  fCoinDiffsFilename;
 
+      Bool_t                       fAccumulate          = false; 
+      Bool_t                       fLeakageMode         = false;
+
     public:
       MonitorWindow();
       ~MonitorWindow();
 
-      inline void          SetTimePerTdc(const std::map<Int_t, Double_t>& map) { fTimePerTdc = map; }
-      inline void          SetMrSyncInterval(const std::map<Int_t, Double_t>& map) {
-        fMrSyncInterval        = map;
-        fMrSyncIntervalAverage = Tron::Linq::From(map)
-          .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
-          .Average();
-        std::cout << "SetMrSyncInterval" << std::endl;
-        for (auto&& pair : fMrSyncInterval) {
-          std::cout << pair.first << "\t" << pair.second << std::endl;
-        }
-        std::cout << "Ave: " << fMrSyncIntervalAverage << std::endl;
+      void                 SetAccumulate(Bool_t accumulate) {
+        std::cout << "SetAccumulate\t" <<  accumulate << std::endl;
+        fAccumulate = accumulate;
       }
+      void                 SetLeakageMode(Bool_t mode) {
+        std::cout << "SetLeakageMode\t" << mode << std::endl;
+        fLeakageMode = mode;
+      }
+      void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
+      void                 SetMrSyncInterval(const std::map<Int_t, Double_t>& map);
+      void                 SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]);
+      void                 SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]);
       inline void          SetChannelAlign(ChannelAlign align) { fChannelAlign = align; }
       inline ChannelAlign  GetChannelAlign() const { return fChannelAlign; }
       inline Bool_t        SetMonitorMode(MonitorMode mode, Int_t option = -1) {
@@ -255,11 +264,19 @@ namespace Extinction {
     private:
       void                 ClearLastSpill();
       void                 FillCoincidence(const TdcData& tdcData);
-      void                 FillCoincidences(const std::vector<TdcData>& tdcData);
-      void                 FillCoincidence2(const TdcData& tdcData);
-      std::vector<TdcData> CollectCoinExtData(const TdcData& tdcData, std::size_t i);
-      std::size_t          RemoveOldTdc(std::vector<TdcData>* lastData, Double_t time);
+      std::size_t          RemoveOldTdc(std::vector<TdcData>* lastData, const TdcData& tdc);
 
+      Bool_t               InBunch(Double_t timeFromMrSync) const {
+        for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
+          if (Tron::Math::Between(timeFromMrSync,
+                                  fStdBunchCenters[bunch] - fStdBunchWidths[bunch] * 0.5,
+                                  fStdBunchCenters[bunch] + fStdBunchWidths[bunch] * 0.5)) {
+            return true;
+          }
+        }
+        return false;
+      }
+      
       template <typename T, typename V>
       inline bool          IsAllOfSecondsTrue(const std::map<T, V> map) {
         return std::all_of(map.begin(), map.end(), [](std::pair<T, V> p) { return p.second; });
@@ -285,6 +302,42 @@ namespace Extinction {
       fApplication = nullptr;
     }
 
+    void MonitorWindow::SetTimePerTdc(const std::map<Int_t, Double_t>& map) {
+      std::cout << "SetTimePerTdc" << std::endl;
+      for (auto&& pair : map) {
+        std::cout << pair.first << "\t" << pair.second << std::endl;
+      }
+      fTimePerTdc = map;
+    }
+
+    void MonitorWindow::SetMrSyncInterval(const std::map<Int_t, Double_t>& map) {
+      fMrSyncInterval        = map;
+      fMrSyncIntervalAverage = Tron::Linq::From(map)
+        .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
+        .Average();
+      std::cout << "SetMrSyncInterval" << std::endl;
+      for (auto&& pair : fMrSyncInterval) {
+        std::cout << pair.first << "\t" << pair.second << std::endl;
+      }
+      std::cout << "Ave: " << fMrSyncIntervalAverage << std::endl;
+    }
+
+    void MonitorWindow::SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]) {
+      std::cout << "SetBunchCenters" << std::endl;
+      for (std::size_t i = 0; i < SpillData::kNofBunches; ++i) {
+        std::cout << i << "\t" << bunchCenters[i] / nsec << " nsec" << std::endl;
+      }
+      std::memcpy(fStdBunchCenters, bunchCenters, sizeof(fStdBunchCenters));
+    }
+
+    void MonitorWindow::SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]) {
+      std::cout << "SetBunchWidths" << std::endl;
+      for (std::size_t i = 0; i < SpillData::kNofBunches; ++i) {
+        std::cout << i << "\t" << bunchWidths[i] / nsec << " nsec" << std::endl;
+      }
+      std::memcpy(fStdBunchWidths, bunchWidths, sizeof(fStdBunchWidths));
+    }
+
     Int_t MonitorWindow::LoadOffset(const std::string& ffilename) {
       std::cout << "Load offset" << std::endl;
       if (Tron::String::GetFormatSpecifiers(ffilename).empty()) {
@@ -292,7 +345,9 @@ namespace Extinction {
         if (ffile) {
           Int_t ch, index; Double_t mean;
           while (ffile >> ch >> index >> mean) {
-            fCoinDiffs[ch][index] = mean * fProvider.GetTimePerTdc();
+            fStdCoinDiffs[ch][index] = mean * fProvider.GetTimePerTdc();
+            // std::cout << ch << "\t" << index << "\t" << mean << "\t" << fStdCoinDiffs[ch][index] / nsec << std::endl;
+            // std::cout << "[" << ch << "]" << " [" << index << "] " << fStdCoinDiffs[ch][index] / nsec << " nsec" << std::endl;
           }
         }
       } else {
@@ -301,7 +356,9 @@ namespace Extinction {
           std::ifstream ffile(Form(ffilename.data(), extCh));
           if (ffile) {
             while (info.Read(ffile)) {
-              fCoinDiffs[extCh][info.Index] = info.FitMean * fProvider.GetTimePerTdc();
+              fStdCoinDiffs[extCh][info.Index] = info.FitMean * fProvider.GetTimePerTdc();
+              std::cout << extCh << "\t" << info.Index << "\t" << info.FitMean << std::endl;
+              std::cout << "[" << extCh << "]" << " [" << info.Index << "] " << fStdCoinDiffs[extCh][info.Index] / nsec << " nsec" << std::endl;
             }
           }
         }
@@ -311,20 +368,21 @@ namespace Extinction {
         const std::size_t index = ch - ContainsOffset::BH;
         // std::cout << "++ ch (index) " << ch << " (" << index << ")" << std::endl;
         std::map<std::size_t/*index*/, Double_t> sum, cnt;
-        for (auto&& info : fCoinDiffs) {
+        for (auto&& info : fStdCoinDiffs) {
           const std::size_t extCh = info.first;
-          if (ExtinctionDetector::Contains(extCh)) {
+          if (ExtinctionDetector::Contains(extCh) &&
+              info.second.find(index) != info.second.end()) {
             for (auto&& subInfo : info.second) {
               const std::size_t index2 = subInfo.first;
-              // std::cout << "     " << extCh << "," << index2 << "," << index << "    " << (fCoinDiffs[extCh][index2] - fCoinDiffs[extCh][index]) / nsec << " nsec" << std::endl;
-              sum[index2] += fCoinDiffs[extCh][index2] - fCoinDiffs[extCh][index];
+              // std::cout << "     " << extCh << "," << index2 << "," << index << "    " << (fStdCoinDiffs[extCh][index2] - fStdCoinDiffs[extCh][index]) / nsec << " nsec" << std::endl;
+              sum[index2] += fStdCoinDiffs[extCh][index2] - fStdCoinDiffs[extCh][index];
               cnt[index2]++;
             }
           }
         }
         for (auto&& pair : sum) {
-          fCoinDiffs[ch][pair.first] = sum[pair.first] / cnt[pair.first];
-          // std::cout << " [" << pair.first << "] " << fCoinDiffs[ch][pair.first] / nsec << " nsec" << std::endl;
+          fStdCoinDiffs[ch][pair.first] = sum[pair.first] / cnt[pair.first];
+          std::cout << " [" << pair.first << "] " << fStdCoinDiffs[ch][pair.first] / nsec << " nsec" << std::endl;
         }
       }
 
@@ -338,7 +396,7 @@ namespace Extinction {
           fContains[ch][index] = false;
         }
       }
-      for (auto&& info : fCoinDiffs) {
+      for (auto&& info : fStdCoinDiffs) {
         const std::size_t extCh = info.first;
         for (auto&& subInfo : info.second) {
           const std::size_t index = subInfo.first;
@@ -346,7 +404,7 @@ namespace Extinction {
         }
       }
 
-      return fCoinDiffs.size();
+      return fStdCoinDiffs.size();
     }
 
     void MonitorWindow::InitializeWindow(Int_t width, Int_t height) {
@@ -852,7 +910,9 @@ namespace Extinction {
     }
 
     void MonitorWindow::ClearLastSpill() {
+      fPreCoinCount     = 0;
       fCoinCount        = 0;
+      fCoinHitCount     = 0;
       fEventMatchNumber = -1;
 
       fTdcBuffer.clear();
@@ -861,9 +921,8 @@ namespace Extinction {
       fLastHodData.clear();
       fLastTcData .clear();
       fLastBhData .clear();
-      for (auto&& pair: fLastMrSyncData) {
-        pair.second.Clear();
-      }
+      fLastMrSyncData.clear();
+      fLastMrSyncCount.clear();
       for (auto&& pair: fEventMatchData) {
         pair.second.clear();
       }
@@ -878,8 +937,10 @@ namespace Extinction {
       hHodEntryByCh     ->Reset();
       hExtHitMap        ->Reset();
       hExtEntryByCh     ->Reset();
-      hExtMountain_Any  ->Reset();
-      hExtTdcInSync_Any ->Reset();
+      if (!fAccumulate) {
+        hExtMountain_Any  ->Reset();
+        hExtTdcInSync_Any ->Reset();
+      }
       if (fMonitorMode == MonitorMode::Channel ||
           fMonitorMode == MonitorMode::Ext     ||
           fMonitorMode == MonitorMode::Hod     ) {
@@ -896,199 +957,17 @@ namespace Extinction {
       }
     }
 
-    void MonitorWindow::FillCoincidence(const TdcData& extData) {
-      const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
-      const Double_t    time  = extData.Time;
-      const Int_t       board = extData.Board;
+    void MonitorWindow::FillCoincidence(const TdcData& tdcData) {
+      std::vector<TdcData> hits;
 
-      Bool_t coincidence[CoinOffset::N];
-      if (fCyclicCoincidence) {
-        for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
-          const std::size_t i = bhCh + CoinOffset::BH;
-          coincidence[i] = !fContains[extCh][i];
-        }
-        for (auto&& lastData : fLastBhData) {
-          const std::size_t bhCh = BeamlineHodoscope::GetChannel(lastData.Channel);
-          const std::size_t i = bhCh + CoinOffset::BH;
-          if (!coincidence[i]) {
-            const Double_t dt0 = lastData.Time - time;
-            Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[         board] *  extData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            // Double_t dt = (lastData.Time - fLastMrSyncData[lastData.Board].Time) - (time - fLastMrSyncData[board].Time);
-            // for (Double_t dint = fMrSyncInterval[         board] *  extData.TimePerTdc,
-            //        thre = -0.6 * fMrSyncIntervalAverage *  extData.TimePerTdc; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
-            //        thre = +0.6 * fMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::BH, coincidence + CoinOffset::BH + BeamlineHodoscope::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
-          }
-        }
-
-        {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          coincidence[i] = !fContains[extCh][i];
-        }
-        for (auto&& lastData : fLastHodData) {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          if (!coincidence[i]) {
-            const Double_t dt0 = lastData.Time - time;
-            Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[         board] *  extData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            // Double_t dt = (lastData.Time - fLastMrSyncData[lastData.Board].Time) - (time - fLastMrSyncData[board].Time);
-            // for (Double_t dint = fMrSyncInterval[         board] *  extData.TimePerTdc,
-            //        thre = -0.6 * fMrSyncIntervalAverage *  extData.TimePerTdc; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
-            //        thre = +0.6 * fMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              break;
-            }
-          }
-        }
-
-        for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
-          const std::size_t i = tcCh + CoinOffset::TC;
-          coincidence[i] = !fContains[extCh][i];
-        }
-        for (auto&& lastData : fLastTcData) {
-          const std::size_t tcCh = TimingCounter::GetChannel(lastData.Channel);
-          const std::size_t i = tcCh + CoinOffset::TC;
-          if (!coincidence[i]) {
-            const Double_t dt0 = lastData.Time - time;
-            Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[         board] *  extData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            // Double_t dt = (lastData.Time - fLastMrSyncData[lastData.Board].Time) - (time - fLastMrSyncData[board].Time);
-            // for (Double_t dint = fMrSyncInterval[         board] *  extData.TimePerTdc,
-            //        thre = -0.6 * fMrSyncIntervalAverage *  extData.TimePerTdc; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
-            //        thre = +0.6 * fMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean  = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
-          }
-        }
-
-        if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-          ++fCoinCount;
-          auto          lastData = fLastMrSyncData[board];
-          const Long64_t     tdc = extData.Tdc;
-          const Long64_t syncTdc = lastData.Tdc;
-          const Long64_t    dtdc = tdc - syncTdc;
-          if        (dtdc > +1.05 * fMrSyncInterval[board]) {
-            const Long64_t dtdc2 = std::fmod(dtdc, fMrSyncInterval[board]);
-            hExtTdcInSync_Any->Fill(dtdc2);
-            hExtMountain_Any ->Fill(dtdc2, time / msec);
-          } else if (dtdc < -0.05 * fMrSyncInterval[board]) {
-            const Long64_t dtdc2 = std::fmod(dtdc, fMrSyncInterval[board]) + fMrSyncInterval[board];
-            hExtTdcInSync_Any->Fill(dtdc2);
-            hExtMountain_Any ->Fill(dtdc2, time / msec);
-          } else {
-            hExtTdcInSync_Any->Fill(dtdc);
-            hExtMountain_Any ->Fill(dtdc, time / msec);
-          }
-        }
-
-      } else {
-        for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
-          const std::size_t i = bhCh + CoinOffset::BH;
-          coincidence[i] = !fContains[extCh][i];
-        }
-        for (auto&& lastData : fLastBhData) {
-          const std::size_t bhCh = BeamlineHodoscope::GetChannel(lastData.Channel);
-          const std::size_t i = bhCh + CoinOffset::BH;
-          if (!coincidence[i]) {
-            const Double_t dt   = lastData.Time - time;
-            const Double_t mean = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::BH, coincidence + CoinOffset::BH + BeamlineHodoscope::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
-          }
-        }
-
-        {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          coincidence[i] = !fContains[extCh][i];
-        }
-        for (auto&& lastData : fLastHodData) {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          if (!coincidence[i]) {
-            const Double_t dt   = lastData.Time - time;
-            const Double_t mean = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              break;
-            }
-          }
-        }
-
-        for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
-          const std::size_t i = tcCh + CoinOffset::TC;
-          coincidence[i] = !fContains[extCh][i];
-        }
-        for (auto&& lastData : fLastTcData) {
-          const std::size_t tcCh = TimingCounter::GetChannel(lastData.Channel);
-          const std::size_t i = tcCh + CoinOffset::TC;
-          if (!coincidence[i]) {
-            const Double_t dt   = lastData.Time - time;
-            const Double_t mean = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
-          }
-        }
-
-        if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-          ++fCoinCount;
-          auto          lastData = fLastMrSyncData[board];
-          const Long64_t     tdc = extData.Tdc;
-          const Long64_t syncTdc = lastData.Tdc;
-          hExtTdcInSync_Any->Fill(tdc - syncTdc);
-          hExtMountain_Any ->Fill(tdc - syncTdc, time / msec);
-        }
+      if (std::any_of(fLastMrSyncData.begin(), fLastMrSyncData.end(), [](std::pair<Int_t, TdcData> pair) { return pair.second.Channel == -1; })) {
+        return;
       }
-    }
 
-    inline void MonitorWindow::FillCoincidences(const std::vector<TdcData>& extData) {
-      for (auto&& data : extData) {
-        FillCoincidence(data);
-      }
-    }
-
-    void MonitorWindow::FillCoincidence2(const TdcData& tdcData) {
-      const Double_t    time  = tdcData.Time;
-      const Int_t       board = tdcData.Board;
+      const Double_t    time       = tdcData.Time;
+      const Long64_t    tdc        = tdcData.Tdc;
+      const Double_t    timePerTdc = tdcData.TimePerTdc;
+      const Int_t       board      = tdcData.Board;
       std::size_t tdcCh = 0;
       std::size_t tdcI  = 0;
       if        (BeamlineHodoscope::Contains  (tdcData.Channel)) {
@@ -1108,273 +987,132 @@ namespace Extinction {
       }
 
       Bool_t coincidence[CoinOffset::N];
-      if (fCyclicCoincidence) {
-        for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
-          const std::size_t i = bhCh + CoinOffset::BH;
-          coincidence[i] = !fContains[tdcCh][i];
-        }
-        for (auto&& lastData : fLastBhData) {
-          const std::size_t bhCh = BeamlineHodoscope::GetChannel(lastData.Channel);
-          const std::size_t i = bhCh + CoinOffset::BH;
-          if (!coincidence[i]) {
-            const Double_t dt0 = lastData.Time - time;
-            Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[         board] *  tdcData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            // Double_t dt = (lastData.Time - fLastMrSyncData[lastData.Board].Time) - (time - fLastMrSyncData[board].Time);
-            // for (Double_t dint = fMrSyncInterval[         board] *  tdcData.TimePerTdc,
-            //        thre = -0.6 * fMrSyncIntervalAverage *  tdcData.TimePerTdc; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
-            //        thre = +0.6 * fMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean = fCoinDiffs[tdcCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::BH, coincidence + CoinOffset::BH + BeamlineHodoscope::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
-          }
-        }
-
-        {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          coincidence[i] = !fContains[tdcCh][i];
-        }
-        for (auto&& lastData : fLastHodData) {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          if (!coincidence[i]) {
-            const Double_t dt0 = lastData.Time - time;
-            Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[         board] *  tdcData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            // Double_t dt = (lastData.Time - fLastMrSyncData[lastData.Board].Time) - (time - fLastMrSyncData[board].Time);
-            // for (Double_t dint = fMrSyncInterval[         board] *  tdcData.TimePerTdc,
-            //        thre = -0.6 * fMrSyncIntervalAverage *  tdcData.TimePerTdc; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
-            //        thre = +0.6 * fMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean = fCoinDiffs[tdcCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
+      for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
+        const std::size_t i = bhCh + CoinOffset::BH;
+        coincidence[i] = !fContains[tdcCh][i];
+      }
+      for (auto&& lastData : fLastBhData) {
+        const std::size_t bhCh = BeamlineHodoscope::GetChannel(lastData.Channel);
+        const std::size_t i = bhCh + CoinOffset::BH;
+        if (!coincidence[i]) {
+          const Double_t countDiff          = fLastMrSyncCount[lastData.Board] - fLastMrSyncCount[board];
+          const Double_t lastTdcCorrection  = countDiff < 0 ? std::abs(countDiff) * fMrSyncInterval[lastData.Board] : 0;
+          const Double_t     tdcCorrection  = countDiff > 0 ? std::abs(countDiff) * fMrSyncInterval[         board] : 0;
+          const Double_t lastTimeFromMrSync = (lastData.Tdc - fLastMrSyncData[lastData.Board].Tdc - lastTdcCorrection) * lastData.TimePerTdc;
+          const Double_t     timeFromMrSync = (         tdc - fLastMrSyncData[         board].Tdc -     tdcCorrection) *          timePerTdc;
+          const Double_t dt   = lastTimeFromMrSync - timeFromMrSync;
+          // const Double_t mean = fStdCoinDiffs[tdcCh][i];
+          const Double_t mean = fStdCoinDiffs[40][i] - fStdCoinDiffs[40][tdcI];
+          if (std::abs(dt - mean) < fCoinTimeWidth) {
+            coincidence[i] = true;
+            if (std::all_of(coincidence + CoinOffset::BH, coincidence + CoinOffset::BH + BeamlineHodoscope::NofChannels, [](Bool_t b) { return b; })) {
               break;
             }
           }
         }
+      }
 
-        for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
-          const std::size_t i = tcCh + CoinOffset::TC;
-          coincidence[i] = !fContains[tdcCh][i];
-        }
-        for (auto&& lastData : fLastTcData) {
-          const std::size_t tcCh = TimingCounter::GetChannel(lastData.Channel);
-          const std::size_t i = tcCh + CoinOffset::TC;
-          if (!coincidence[i]) {
-            const Double_t dt0 = lastData.Time - time;
-            Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[         board] *  tdcData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            // Double_t dt = (lastData.Time - fLastMrSyncData[lastData.Board].Time) - (time - fLastMrSyncData[board].Time);
-            // for (Double_t dint = fMrSyncInterval[         board] *  tdcData.TimePerTdc,
-            //        thre = -0.6 * fMrSyncIntervalAverage *  tdcData.TimePerTdc; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc,
-            //        thre = +0.6 * fMrSyncIntervalAverage * lastData.TimePerTdc; dt > thre; dt -= dint);
-            const Double_t mean  = fCoinDiffs[tdcCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
+      {
+        const std::size_t hodCh = 0;
+        const std::size_t i = hodCh + CoinOffset::Hod;
+        coincidence[i] = !fContains[tdcCh][i];
+      }
+      for (auto&& lastData : fLastHodData) {
+        const std::size_t hodCh = 0;
+        const std::size_t i = hodCh + CoinOffset::Hod;
+        if (!coincidence[i]) {
+          const Double_t countDiff          = fLastMrSyncCount[lastData.Board] - fLastMrSyncCount[board];
+          const Double_t lastTdcCorrection  = countDiff < 0 ? std::abs(countDiff) * fMrSyncInterval[lastData.Board] : 0;
+          const Double_t     tdcCorrection  = countDiff > 0 ? std::abs(countDiff) * fMrSyncInterval[         board] : 0;
+          const Double_t lastTimeFromMrSync = (lastData.Tdc - fLastMrSyncData[lastData.Board].Tdc - lastTdcCorrection) * lastData.TimePerTdc;
+          const Double_t     timeFromMrSync = (         tdc - fLastMrSyncData[         board].Tdc -     tdcCorrection) *          timePerTdc;
+          const Double_t dt   = lastTimeFromMrSync - timeFromMrSync;
+          // const Double_t mean = fStdCoinDiffs[tdcCh][i];
+          const Double_t mean = fStdCoinDiffs[40][i] - fStdCoinDiffs[40][tdcI];
+          if (std::abs(dt - mean) < fCoinTimeWidth) {
+            coincidence[i] = true;
+            break;
           }
         }
+      }
 
-        if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-
-          std::vector<TdcData> hits;
-          for (auto&& extData : fLastExtData) {
-            const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
-            const Double_t dt0 = time - extData.Time;
-            Double_t dsync = fLastMrSyncData[board].Time - fLastMrSyncData[extData.Board].Time;
-            for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                 dsync += fMrSyncInterval[        board] *  tdcData.TimePerTdc);
-            for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                 dsync -= fMrSyncInterval[extData.Board] *  extData.TimePerTdc);
-            const Double_t dt = dt0 - dsync;
-            const Double_t mean  = fCoinDiffs[extCh][tdcI];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              hits.push_back(extData);
-            }
-          }
-
-          if (hits.size()) {
-            ++fCoinCount;
-            Double_t tdcSum = 0.0;
-            for (auto& hitData : hits) {
-              auto          lastData = fLastMrSyncData[board];
-              const Long64_t     tdc = hitData.Tdc;
-              const Long64_t syncTdc = lastData.Tdc;
-              const Long64_t    dtdc = tdc - syncTdc;
-              if        (dtdc > +1.05 * fMrSyncInterval[board]) {
-                const Long64_t dtdc2 = std::fmod(dtdc, fMrSyncInterval[board]);
-                tdcSum += dtdc2;
-              } else if (dtdc < -0.05 * fMrSyncInterval[board]) {
-                const Long64_t dtdc2 = std::fmod(dtdc, fMrSyncInterval[board]) + fMrSyncInterval[board];
-                tdcSum += dtdc2;
-              } else {
-                tdcSum += dtdc;
-              }
-            }
-            hExtTdcInSync_Any->Fill(tdcSum / hits.size());
-            hExtMountain_Any ->Fill(tdcSum / hits.size(), time / msec);
-          }
-        }
-
-      } else {
-        for (std::size_t bhCh = 0; bhCh < BeamlineHodoscope::NofChannels; ++bhCh) {
-          const std::size_t i = bhCh + CoinOffset::BH;
-          coincidence[i] = !fContains[tdcCh][i];
-        }
-        for (auto&& lastData : fLastBhData) {
-          const std::size_t bhCh = BeamlineHodoscope::GetChannel(lastData.Channel);
-          const std::size_t i = bhCh + CoinOffset::BH;
-          if (!coincidence[i]) {
-            const Double_t dt0   = lastData.Time - time;
-            const Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            const Double_t dt    = dt0 - dsync;
-            const Double_t mean  = fCoinDiffs[tdcCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::BH, coincidence + CoinOffset::BH + BeamlineHodoscope::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
-          }
-        }
-
-        {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          coincidence[i] = !fContains[tdcCh][i];
-        }
-        for (auto&& lastData : fLastHodData) {
-          const std::size_t hodCh = 0;
-          const std::size_t i = hodCh + CoinOffset::Hod;
-          if (!coincidence[i]) {
-            const Double_t dt0   = lastData.Time - time;
-            const Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            const Double_t dt    = dt0 - dsync;
-            const Double_t mean  = fCoinDiffs[tdcCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
+      for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
+        const std::size_t i = tcCh + CoinOffset::TC;
+        coincidence[i] = !fContains[tdcCh][i];
+      }
+      for (auto&& lastData : fLastTcData) {
+        const std::size_t tcCh = TimingCounter::GetChannel(lastData.Channel);
+        const std::size_t i = tcCh + CoinOffset::TC;
+        if (!coincidence[i]) {
+          const Double_t countDiff          = fLastMrSyncCount[lastData.Board] - fLastMrSyncCount[board];
+          const Double_t lastTdcCorrection  = countDiff < 0 ? std::abs(countDiff) * fMrSyncInterval[lastData.Board] : 0;
+          const Double_t     tdcCorrection  = countDiff > 0 ? std::abs(countDiff) * fMrSyncInterval[         board] : 0;
+          const Double_t lastTimeFromMrSync = (lastData.Tdc - fLastMrSyncData[lastData.Board].Tdc - lastTdcCorrection) * lastData.TimePerTdc;
+          const Double_t     timeFromMrSync = (         tdc - fLastMrSyncData[         board].Tdc -     tdcCorrection) *          timePerTdc;
+          const Double_t dt   = lastTimeFromMrSync - timeFromMrSync;
+          // const Double_t mean = fStdCoinDiffs[tdcCh][i];
+          const Double_t mean = fStdCoinDiffs[40][i] - fStdCoinDiffs[40][tdcI];
+          if (std::abs(dt - mean) < fCoinTimeWidth) {
+            coincidence[i] = true;
+            if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
               break;
             }
           }
         }
+      }
 
-        for (std::size_t tcCh = 0; tcCh < TimingCounter::NofChannels; ++tcCh) {
-          const std::size_t i = tcCh + CoinOffset::TC;
-          coincidence[i] = !fContains[tdcCh][i];
-        }
-        for (auto&& lastData : fLastTcData) {
-          const std::size_t tcCh = TimingCounter::GetChannel(lastData.Channel);
-          const std::size_t i = tcCh + CoinOffset::TC;
-          if (!coincidence[i]) {
-            const Double_t dt0   = lastData.Time - time;
-            const Double_t dsync = fLastMrSyncData[lastData.Board].Time - fLastMrSyncData[board].Time;
-            const Double_t dt    = dt0 - dsync;
-            const Double_t mean  = fCoinDiffs[tdcCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coincidence[i] = true;
-              if (std::all_of(coincidence + CoinOffset::TC, coincidence + CoinOffset::TC + TimingCounter::NofChannels, [](Bool_t b) { return b; })) {
-                break;
-              }
-            }
+      if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
+        for (auto&& extData : fLastExtData) {
+          const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
+          const Double_t countDiff         = fLastMrSyncCount[extData.Board] - fLastMrSyncCount[board];
+          const Double_t extTdcCorrection  = countDiff < 0 ? std::abs(countDiff) * fMrSyncInterval[extData.Board] : 0;
+          const Double_t    tdcCorrection  = countDiff > 0 ? std::abs(countDiff) * fMrSyncInterval[        board] : 0;
+          const Double_t extTimeFromMrSync = (extData.Tdc - fLastMrSyncData[extData.Board].Tdc - extTdcCorrection) * extData.TimePerTdc;
+          const Double_t    timeFromMrSync = (        tdc - fLastMrSyncData[        board].Tdc -    tdcCorrection) *         timePerTdc;
+          const Double_t dt   = timeFromMrSync - extTimeFromMrSync;
+          const Double_t mean = fStdCoinDiffs[extCh][tdcI];
+          if (std::abs(dt - mean) < fCoinTimeWidth) {
+            hits.push_back(extData);
           }
         }
 
-        if (std::all_of(coincidence, coincidence + CoinOffset::N, [](Bool_t b) { return b; })) {
-          std::vector<TdcData> hits;
-          for (auto&& extData : fLastExtData) {
-            const std::size_t extCh = ExtinctionDetector::GetChannel(extData.Channel);
-            const Double_t dt0   = time - extData.Time;
-            const Double_t dsync = fLastMrSyncData[board].Time - fLastMrSyncData[extData.Board].Time;
-            const Double_t dt    = dt0 - dsync;
-            const Double_t mean  = fCoinDiffs[extCh][tdcI];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              hits.push_back(extData);
-            }
+        ++fPreCoinCount;
+        if (hits.size()) {
+          ++fCoinCount;
+          fCoinHitCount += hits.size();
+          Double_t dtimeAve = 0.0;
+          Double_t tdcAve = 0.0;
+          for (auto& hitData : hits) {
+            auto           syncData      = fLastMrSyncData[hitData.Board];
+            const Long64_t tdcFromMrSync = hitData.Tdc - syncData.Tdc;
+            dtimeAve += tdcFromMrSync * fTimePerTdc[hitData.Board];
+            tdcAve   += tdcFromMrSync;
           }
-
-          if (hits.size()) {
-            ++fCoinCount;
-            Double_t tdcSum = 0.0;
-            for (auto& hitData : hits) {
-              auto          lastData = fLastMrSyncData[board];
-              const Long64_t     tdc = hitData.Tdc;
-              const Long64_t syncTdc = lastData.Tdc;
-              const Long64_t    dtdc = tdc - syncTdc;
-              tdcSum += dtdc;
+          dtimeAve /= hits.size();
+          tdcAve   /= hits.size();
+          if (fLeakageMode) {
+            if (!InBunch(dtimeAve)) {
+              hExtTdcInSync_Any->Fill(tdcAve);
+              hExtMountain_Any ->Fill(tdcAve, time / msec);
             }
-            hExtTdcInSync_Any->Fill(tdcSum / hits.size());
-            hExtMountain_Any ->Fill(tdcSum / hits.size(), time / msec);
+          } else {
+            hExtTdcInSync_Any->Fill(tdcAve);
+            hExtMountain_Any ->Fill(tdcAve, time / msec);
           }
         }
 
       }
     }
-    
-    std::vector<TdcData> MonitorWindow::CollectCoinExtData(const TdcData& tdcData, std::size_t i) {
-      const Double_t time = tdcData.Time;
 
-      std::vector<TdcData> coinExtData;
-      if (fCyclicCoincidence) {
-        for (auto&& lastData : fLastExtData) {
-          const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
-          if (fContains[extCh][i]) {
-              const Double_t dt0 = time - lastData.Time;
-              Double_t dsync = fLastMrSyncData[tdcData.Board].Time - fLastMrSyncData[lastData.Board].Time;
-              for (Double_t thre = -0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync < thre;
-                   dsync += fMrSyncInterval[ tdcData.Board] *  tdcData.TimePerTdc);
-              for (Double_t thre = +0.5 * fMrSyncIntervalAverage * fProvider.GetTimePerTdc(); dsync > thre;
-                   dsync -= fMrSyncInterval[lastData.Board] * lastData.TimePerTdc);
-              const Double_t dt = dt0 - dsync;
-            // Double_t dt = (time - fLastMrSyncData[tdcData.Board].Time) - (lastData.Time - fLastMrSyncData[lastData.Board].Time);
-            // for (Double_t dint = fMrSyncInterval[lastData.Board] * lastData.TimePerTdc, thre = -0.6 * fMrSyncIntervalAverage; dt < thre; dt += dint);
-            // for (Double_t dint = fMrSyncInterval[ tdcData.Board] *  tdcData.TimePerTdc, thre = +0.6 * fMrSyncIntervalAverage; dt > thre; dt -= dint);
-            const Double_t mean  = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coinExtData.push_back(lastData);
-            }
-          }
-        }
-      } else {
-        for (auto&& lastData : fLastExtData) {
-          const std::size_t extCh = ExtinctionDetector::GetChannel(lastData.Channel);
-          if (fContains[extCh][i]) {
-            const Double_t dt   = time - lastData.Time;
-            const Double_t mean = fCoinDiffs[extCh][i];
-            if (std::abs(dt - mean) < fCoinTimeWidth) {
-              coinExtData.push_back(lastData);
-            }
-          }
-        }
-      }
-      return coinExtData;
-    }
-
-    std::size_t MonitorWindow::RemoveOldTdc(std::vector<TdcData>* lastData, Double_t time) {
+    std::size_t MonitorWindow::RemoveOldTdc(std::vector<TdcData>* lastData, const TdcData& tdc) {
       for (std::size_t i = 0, n = lastData->size(); i < n; ++i) {
-        if (std::abs(time - lastData->at(0).Time) > fHistoryWidth) {
+        TdcData& lastTdc = lastData->at(0);
+        const Double_t countDiff          = fLastMrSyncCount[lastTdc.Board] - fLastMrSyncCount[tdc.Board];
+        const Double_t lastTdcCorrection  = countDiff > 0 ? 0 : std::abs(countDiff) * fMrSyncInterval[lastTdc.Board];
+        const Double_t     tdcCorrection  = countDiff < 0 ? 0 : std::abs(countDiff) * fMrSyncInterval[    tdc.Board];
+        const Double_t lastTimeFromMrSync = (lastTdc.Tdc - fLastMrSyncData[lastTdc.Board].Tdc - lastTdcCorrection) * lastTdc.TimePerTdc;
+        const Double_t     timeFromMrSync = (    tdc.Tdc - fLastMrSyncData[    tdc.Board].Tdc -     tdcCorrection) *     tdc.TimePerTdc;
+        if (std::abs(lastTimeFromMrSync - timeFromMrSync) > fHistoryWidth) {
           lastData->erase(lastData->begin());
         } else {
           break;
@@ -1565,10 +1303,21 @@ namespace Extinction {
                   hExtTdcOffset[ch]->Fill(lastCh + CoinOffsetX::BH, dtdc);
                 }
               } else if (fMonitorMode == MonitorMode::Coincidence) {
-                // FillCoincidence(data);
+
+                if (fLeakageMode) {
+                  const Long64_t syncTdc = fLastMrSyncData[board].Tdc;
+                  if (syncTdc) {
+                    const Double_t dtime = (data.Tdc - syncTdc) * fTimePerTdc[board];
+                    if (InBunch(dtime)) {
+                      hExtTdcInSync_Any->Fill(data.Tdc - syncTdc);
+                      hExtMountain_Any ->Fill(data.Tdc - syncTdc, time / msec);
+                    }
+                  }
+                }
+
               }
 
-              if (RemoveOldTdc(&fLastExtData, time) > kHistLimit) {
+              if (RemoveOldTdc(&fLastExtData, data) > kHistLimit) {
                 std::cerr << "[error] size of fLastExtData reaches " << kHistLimit << std::endl;
                 return 1;
               }
@@ -1593,11 +1342,10 @@ namespace Extinction {
                 fLastHodData.push_back(data);
               } else if (fMonitorMode == MonitorMode::Coincidence) {
                 fLastHodData.push_back(data);
-                // FillCoincidences(CollectCoinExtData(data, CoinOffset::Hod));
-                FillCoincidence2(data);
+                FillCoincidence(data);
               }
 
-              if (RemoveOldTdc(&fLastHodData, time) > kHistLimit) {
+              if (RemoveOldTdc(&fLastHodData, data) > kHistLimit) {
                 std::cerr << "[error] size of fLastHodData reaches " << kHistLimit << std::endl;
                 return 1;
               }
@@ -1619,11 +1367,10 @@ namespace Extinction {
                 fLastTcData.push_back(data);
               } else if (fMonitorMode == MonitorMode::Coincidence) {
                 fLastTcData.push_back(data);
-                // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::TC));
-                FillCoincidence2(data);
+                FillCoincidence(data);
               }
 
-              if (RemoveOldTdc(&fLastTcData, time) > kHistLimit) {
+              if (RemoveOldTdc(&fLastTcData, data) > kHistLimit) {
                 std::cerr << "[error] size of fLastTcData reaches " << kHistLimit << std::endl;
                 return 1;
               }
@@ -1645,11 +1392,10 @@ namespace Extinction {
                 fLastBhData.push_back(data);
               } else if (fMonitorMode == MonitorMode::Coincidence) {
                 fLastBhData.push_back(data);
-                // FillCoincidences(CollectCoinExtData(data, ch + CoinOffset::BH));
-                FillCoincidence2(data);
+                FillCoincidence(data);
               }
 
-              if (RemoveOldTdc(&fLastBhData, time) > kHistLimit) {
+              if (RemoveOldTdc(&fLastBhData, data) > kHistLimit) {
                 std::cerr << "[error] size of fLastBhData reaches " << kHistLimit << std::endl;
                 return 1;
               }
@@ -1660,6 +1406,12 @@ namespace Extinction {
                 if ((itr = fLastMrSyncData.find(data.Board)) != fLastMrSyncData.end()) {
                   hMrSyncInterval[data.Board]->Fill(data.Tdc - itr->second.Tdc);
                 }
+              }
+
+              if (!fLastMrSyncCount[board]) {
+                fLastMrSyncCount[board] = 1;
+              } else {
+                fLastMrSyncCount[board] += TMath::Nint((Double_t)(data.Tdc - fLastMrSyncData[board].Tdc) / (Double_t)fMrSyncInterval[board]);
               }
               fLastMrSyncData[board] = data;
 
@@ -1706,6 +1458,26 @@ namespace Extinction {
               hExtEntryByChCenter2->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 3));
               hExtEntryByChTop    ->SetBinContent(xbin, hExtHitMap->GetBinContent(xbin, 4));
             }
+
+            // Output entries
+            std::cout << "Entries" << std::endl;
+            for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch)
+              std::cout << Form("BH%lu          \t", ch + 1) << hBhTdcInSpill[ch]->GetEntries() << std::endl;
+            for (std::size_t ch = 0; ch < Hodoscope::NofChannels; ++ch)
+              std::cout << Form("Hod %02lu       \t", ch) << hHodEntryByCh->GetBinContent(ch + 1) << std::endl;
+            {
+              std::cout << "Hod Sum      \t" << hHodTdcInSpill_Any->GetEntries() << std::endl;
+            } {
+              std::cout << "Ext Sum      \t" << hExtTdcInSpill_Any->GetEntries() << std::endl;
+            }
+            for (std::size_t ch = 0; ch < TimingCounter::NofChannels; ++ch)
+              std::cout << Form("TC%lu          \t", ch + 1) << hTcTdcInSpill[ch]->GetEntries() << std::endl;
+            {
+              std::cout << "Coin(w/o Ext)\t" << fPreCoinCount << std::endl;
+              std::cout << "Coin(w/  Ext)\t" << fCoinCount << std::endl;
+              std::cout << "Coin(Sum of Hit)\t" << fCoinHitCount << std::endl;
+            }
+            std::cout << std::endl;
 
             if (fMonitorMode == MonitorMode::Offset) {
 

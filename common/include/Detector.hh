@@ -545,8 +545,24 @@ namespace Extinction {
     }
   }
 
+  namespace Veto {
+    constexpr std::size_t NofChannels         = 8U;
+    constexpr std::size_t GlobalChannelOffset = EventMatch::GlobalChannelOffset + EventMatch::NofChannels; // 169 + 8 = 177
+
+    inline Bool_t Contains(std::size_t globalChannel) {
+      return GlobalChannelOffset <= globalChannel && globalChannel < GlobalChannelOffset + NofChannels;
+    }
+
+    inline Int_t GetChannel(std::size_t globalChannel) {
+      if (Contains(globalChannel)) {
+        return globalChannel - GlobalChannelOffset;
+      }
+      return -1;
+    }
+  }
+
   namespace GlobalChannel {
-    constexpr std::size_t NofChannels = EventMatch::GlobalChannelOffset + EventMatch::NofChannels;
+    constexpr std::size_t NofChannels = Veto::GlobalChannelOffset + Veto::NofChannels;
   }
 
 }

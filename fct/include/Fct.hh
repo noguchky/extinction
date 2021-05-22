@@ -81,6 +81,7 @@ namespace Extinction {
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Evm;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Veto;
       std::map<Int_t/*global*/, Int_t/*board*/>               Board;
 
       void Load(const Tron::ConfReader* conf, const std::vector<Int_t>& boards) {
@@ -116,8 +117,11 @@ namespace Extinction {
                   MrSync[board][raw] = channel;
                   Board [channel + MrSync            ::GlobalChannelOffset] = board;
                 } else if (detector == "Evm"   ) {
-                  Evm[board][raw] = channel;
+                  Evm   [board][raw] = channel;
                   Board [channel + EventMatch        ::GlobalChannelOffset] = board;
+                } else if (detector == "Veto"  ) {
+                  Veto  [board][raw] = channel;
+                  Board [channel + Veto              ::GlobalChannelOffset] = board;
                 }
               }
             }
@@ -204,7 +208,7 @@ namespace Extinction {
       Int_t     Channel;
       Int_t     Tdc;
       Int_t     Carry;
-
+      
       Double_t  TimePerTdc = 7.5 * nsec;
 
       Int_t     PreviousCarry[NofChannels];
@@ -432,6 +436,8 @@ namespace Extinction {
           datum.Channel     = MrSync.at(Channel) + MrSync            ::GlobalChannelOffset;
      // } else if (Evm   .find(Channel) != Evm   .end()) {
      //   datum.Channel     = Evm   .at(Channel) + EventMatch        ::GlobalChannelOffset;
+     // } else if (Veto  .find(Channel) != Veto  .end()) {
+     //   datum.Channel     = Veto  .at(Channel) + Veto              ::GlobalChannelOffset;
         }
         return { datum };
       }
@@ -469,6 +475,9 @@ namespace Extinction {
         } else if ((itr1 = Evm         .find(board  )) != Evm         .end() &&
                    (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
           datum.Channel     = itr2->second + EventMatch        ::GlobalChannelOffset;
+        } else if ((itr1 = Veto        .find(board  )) != Veto        .end() &&
+                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+          datum.Channel     = itr2->second + Veto              ::GlobalChannelOffset;
         }
         return { datum };
       }
