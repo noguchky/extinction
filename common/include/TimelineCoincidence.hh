@@ -11,6 +11,7 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TH2.h"
+#include "TLegend.h"
 #include "TGraphErrors.h"
 #include "TText.h"
 #include "TDatime.h"
@@ -86,8 +87,6 @@ namespace Extinction {
       };
 
     private:
-      Bool_t                       fDebug                  = false;
-      
       ITdcDataProvider*            fProvider               = nullptr;
 
       TH1D*                        hBh1Timeline            = nullptr;
@@ -101,6 +100,9 @@ namespace Extinction {
       TH1D*                        hTmpTc1Timeline         = nullptr;
       TH1D*                        hTmpTc2Timeline         = nullptr;
       std::vector<TH1D*>           hTmpExtTimeline;
+      TH1D*                        hTmpExtTimeline_Any     = nullptr;
+      TH1D*                        hTmpSumTimeline         = nullptr;
+      TLegend*                     hTmpTimelineLegend      = nullptr;
 
       TH1D*                        hCoinTdcInSync          = nullptr;
       TH2D*                        hCoinMountain           = nullptr;
@@ -118,6 +120,8 @@ namespace Extinction {
       std::map<Int_t, Double_t>    fStdTimePerTdc;
       std::map<Int_t, Double_t>    fStdMrSyncInterval;
       Double_t                     fStdMrSyncIntervalAverage;
+      Double_t                     fStdBunchCenters[SpillData::kNofBunches] = { 0 };
+      Double_t                     fStdBunchWidths [SpillData::kNofBunches] = { 0 };
       std::map<Int_t, TdcData>     fLastMrSync;
       std::map<Int_t, TdcData>     fNextMrSync;
       std::map<Int_t, TdcData>     fNext2MrSync;
@@ -139,12 +143,19 @@ namespace Extinction {
       Double_t                     fMrSyncOffset           =   0.0; // tdc count
       Double_t                     fCoinTimeWidth          =  50.0 * nsec;
 
+      Bool_t                       fDebug                  = false;
+      Bool_t                       fDrawResidual           = false;
+      std::string                  fResidualFilename;
+
     public:
       TimelineCoincidence(ITdcDataProvider* provider);
       ~TimelineCoincidence();
 
       void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
       void                 SetMrSyncInterval(const std::map<Int_t, Double_t>& map);
+      void                 SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]);
+      void                 SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]);
+
       Int_t                LoadOffset(const std::string& ffilename);
 
       void                 SetCoincidenceTarget(const std::vector<Int_t>& flags) {
@@ -168,6 +179,8 @@ namespace Extinction {
       }
 
       inline void          SetDebug(bool debug) { fDebug = debug; }
+      inline void          SetDrawResidusl(bool flag) { fDrawResidual = flag; }
+      inline void          SetResidualFilename(const std::string& filename) { fResidualFilename = filename; }
 
       inline void          SetMrSyncOffset(Double_t offset) {
         std::cout << "SetMrSyncOffset ... " << offset << std::endl;
@@ -202,6 +215,17 @@ namespace Extinction {
       void                 ClearLastSpill(Bool_t clearHists);
 
       void                 DrawTmpTimeline(Int_t bin, Int_t range);
+
+      Bool_t               InBunch(Double_t timeFromMrSync) const {
+        for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
+          if (Tron::Math::Between(timeFromMrSync,
+                                  fStdBunchCenters[bunch] - fStdBunchWidths[bunch] * 0.5,
+                                  fStdBunchCenters[bunch] + fStdBunchWidths[bunch] * 0.5)) {
+            return true;
+          }
+        }
+        return false;
+      }
 
       template <typename T, typename V>
       inline void          FillToSeconds(std::map<T, V>* map, V value) {
@@ -241,6 +265,22 @@ namespace Extinction {
       fStdMrSyncIntervalAverage = Tron::Linq::From(map)
         .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
         .Average();
+    }
+
+    void TimelineCoincidence::SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]) {
+      std::cout << "SetBunchCenters" << std::endl;
+      for (std::size_t i = 0; i < SpillData::kNofBunches; ++i) {
+        std::cout << i << "\t" << bunchCenters[i] / nsec << " nsec" << std::endl;
+      }
+      std::memcpy(fStdBunchCenters, bunchCenters, sizeof(fStdBunchCenters));
+    }
+
+    void TimelineCoincidence::SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]) {
+      std::cout << "SetBunchWidths" << std::endl;
+      for (std::size_t i = 0; i < SpillData::kNofBunches; ++i) {
+        std::cout << i << "\t" << bunchWidths[i] / nsec << " nsec" << std::endl;
+      }
+      std::memcpy(fStdBunchWidths, bunchWidths, sizeof(fStdBunchWidths));
     }
 
     Int_t TimelineCoincidence::LoadOffset(const std::string& ffilename) {
@@ -313,28 +353,63 @@ namespace Extinction {
                               xbinsInSync, xminInSync, xmaxInSync);
 
       hTmpBh1Timeline  = new TH1D("hTmpBh1Timeline",
-                                  Form("%s, BH1 Timeline;"
+                                  Form("%s, Coincidence Timeline;"
                                        "TDC [count]", tdcName.data()),
                                   xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
       hTmpBh2Timeline  = new TH1D("hTmpBh2Timeline",
-                                  Form("%s, BH2 Timeline;"
+                                  Form("%s, Coincidence Timeline;"
                                        "TDC [count]", tdcName.data()),
                                   xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
       hTmpTc1Timeline  = new TH1D("hTmpTc1Timeline",
-                                  Form("%s, TC1 Timeline;"
+                                  Form("%s, Coincidence Timeline;"
                                        "TDC [count]", tdcName.data()),
                                   xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
       hTmpTc2Timeline  = new TH1D("hTmpTc2Timeline",
-                                  Form("%s, TC2 Timeline;"
+                                  Form("%s, Coincidence Timeline;"
                                        "TDC [count]", tdcName.data()),
                                   xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
       hTmpExtTimeline = std::vector<TH1D*>(MrSync::NofChannels);
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
         hTmpExtTimeline[ch] = new TH1D(Form("hTmpExtTimeline_%03lu", ch),
-                                       Form("%s, Ext Timeline;"
+                                       Form("%s, Coincidence Timeline;"
                                             "TDC [count]", tdcName.data()),
                                        xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
       }
+      hTmpExtTimeline_Any = new TH1D("hTmpExtORTimeline_Any",
+                                     Form("%s, Coincidence Timeline;"
+                                          "TDC [count]", tdcName.data()),
+                                     xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpSumTimeline  = new TH1D("hTmpSumTimeline",
+                                  Form("%s, Coincidence Timeline;"
+                                       "TDC [count]", tdcName.data()),
+                                  xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+
+      auto setTimelineStyle =
+        [&] (TH1D* timeline, Int_t width, Int_t color, Double_t /*alpha*/, Int_t /*fill*/) {
+          timeline->SetLineColor(color);
+          timeline->SetLineWidth(width);
+          // timeline->SetFillColorAlpha(color, alpha);
+          // timeline->SetFillStyle(fill);
+        };
+
+      setTimelineStyle(hTmpBh1Timeline    , 5, 51, 0.0, 3345);
+   // setTimelineStyle(hTmpBh2Timeline    , 5, 60, 0.0, 3454);
+   // setTimelineStyle(hTmpHodTimeline    , 5,  1, 0.0,    0);
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        setTimelineStyle(hTmpExtTimeline[ch], 4, 70, 0.0, 3001);
+      }
+      setTimelineStyle(hTmpExtTimeline_Any, 3, 70, 0.0, 3001);
+      setTimelineStyle(hTmpTc1Timeline    , 2, 91, 0.0, 3305);
+      setTimelineStyle(hTmpTc2Timeline    , 1, 99, 0.0, 3395);
+      setTimelineStyle(hTmpSumTimeline    , 1,  1, 0.0,    0);
+
+      hTmpTimelineLegend = new TLegend(0.78, 0.88 - 0.04 * 5, 0.88, 0.88);
+      hTmpTimelineLegend->AddEntry(hTmpBh1Timeline    , "Bh1&2", "LF");
+   // hTmpTimelineLegend->AddEntry(hTmpBh2Timeline    , "-"    , "LF");
+      hTmpTimelineLegend->AddEntry(hTmpExtTimeline_Any, "Ext"  , "LF");
+      hTmpTimelineLegend->AddEntry(hTmpTc1Timeline    , "Tc1&1", "LF");
+      hTmpTimelineLegend->AddEntry(hTmpTc2Timeline    , "Tc3"  , "LF");
+      hTmpTimelineLegend->AddEntry(hTmpSumTimeline    , "Bh1&2", "LF");
 
       // Extinction Detector TDC in sync (coincidence)
       hCoinTdcInSync = new TH1D("hCoinTdcInSync",
@@ -552,6 +627,14 @@ namespace Extinction {
       std::cout << "Initialzie history" << std::endl;
       ClearLastSpill(true);
 
+      std::cout << "Initialzie canvas" << std::endl;
+      if (fDrawResidual) {
+        TCanvas::MakeDefCanvas();
+        if (fResidualFilename.size()) {
+          gPad->Print((fResidualFilename + "[").data());
+        }
+      }
+
       std::cout << "Open file" << std::endl;
       std::map<Int_t, TFile*>   ifiles;
       std::map<Int_t, TTree*>   itrees;
@@ -692,7 +775,6 @@ namespace Extinction {
                     const std::size_t tdcI = bhCh + CoinOffset::BH;
                     data.Tdc -= fStdCoinDiffs[40][tdcI];
                     if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
-                      // (bhCh ? hTmpBh2Timeline : hTmpBh1Timeline)->Fill(data.Tdc - syncTdc + bin);
                       TH1D* hist = bhCh ? hTmpBh2Timeline : hTmpBh1Timeline;
                       const Long64_t tdc0 = data.Tdc - syncTdc;
                       for (Int_t dtdc = 0; dtdc <= coinBinWidth; ++dtdc) {
@@ -708,7 +790,6 @@ namespace Extinction {
                     const std::size_t tdcI = tcCh + CoinOffset::TC;
                     data.Tdc -= fStdCoinDiffs[40][tdcI];
                     if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
-                      // (tcCh ? hTmpTc2Timeline : hTmpTc1Timeline)->Fill(data.Tdc - syncTdc);
                       TH1D* hist = tcCh ? hTmpTc2Timeline : hTmpTc1Timeline;
                       const Long64_t tdc0 = data.Tdc - syncTdc;
                       for (Int_t dtdc = 0; dtdc <= coinBinWidth; ++dtdc) {
@@ -725,7 +806,6 @@ namespace Extinction {
                     // tdc + coinDiffs[40][sync] - coinDiffs[ch][sync] = 40
                     data.Tdc -= fStdCoinDiffs[extCh][CoinOffset::BH] - fStdCoinDiffs[40][CoinOffset::BH];
                     if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
-                      // hTmpExtTimeline[targetBoard]->Fill(data.Tdc - syncTdc);
                       TH1D* hist = hTmpExtTimeline[targetBoard];
                       const Long64_t tdc0 = data.Tdc - syncTdc;
                       for (Int_t dtdc = 0; dtdc <= coinBinWidth; ++dtdc) {
@@ -772,8 +852,12 @@ namespace Extinction {
                 hCoinTdcInSync->Fill(bin - 1);
                 hCoinMountain ->Fill(bin - 1, fLastMrSync[0].Time / msec);
 
-                if (fDebug) {
-                  DrawTmpTimeline(bin, 25 * coinBinWidth);
+                if (fDebug && (fDrawResidual && !InBunch(bin))) {
+                  DrawTmpTimeline(bin, 2 * coinBinWidth);
+                  if (fResidualFilename.size()) {
+                    gPad->Print(fResidualFilename.data());
+                  }
+                  gPad->WaitPrimitive();
                 }
 
                 // Skip dead time
@@ -800,120 +884,6 @@ namespace Extinction {
             }
           }
 
-          // // std::cout << "[debug] coincidence" << std::endl;
-          // // Coincidence
-          // {
-          //   const Int_t syncEdge = fNextMrSync[0].Tdc - fLastMrSync[0].Tdc;
-
-          //   Int_t bin1 = 1, bin2 = coinBinWidth;
-
-          //   Int_t sumBh1 = 0, sumBh2 = 0, sumTc1 = 0, sumTc2 = 0, sumExt = 0;
-          //   for (Int_t bin = bin1; bin <= bin2; ++bin) {
-          //     /*                   */ sumBh1 += pBh1[bin];
-          //     /*                   */ sumBh2 += pBh2[bin];
-          //     /*                   */ sumTc1 += pTc1[bin];
-          //     /*                   */ sumTc2 += pTc2[bin];
-          //     for (auto&& p : pExt) { sumExt += p   [bin]; }
-          //   }
-
-          //   for (++bin1, ++bin2; bin1 <= syncEdge; ++bin1, ++bin2) {
-
-          //     // if (         sumTc && sumExt) {
-          //     //   hEfficiency->Fill(sumBh , 0);
-          //     // }
-          //     // if (sumBh          && sumExt) {
-          //     //   hEfficiency->Fill(sumTc , 1);
-          //     // }
-          //     // if (sumBh && sumTc          ) {
-          //     //   hEfficiency->Fill(sumExt, 2);
-          //     // }
-
-          //     if ((sumBh1 || !fCoincidenceTargetBh1) &&
-          //         (sumBh2 || !fCoincidenceTargetBh2) &&
-          //         (sumExt || !fCoincidenceTargetExt) &&
-          //         (sumTc1 || !fCoincidenceTargetTc1) &&
-          //         (sumTc2 || !fCoincidenceTargetTc2)) {
-          //       hCoinTdcInSync->Fill(bin1 - 1);
-          //       hCoinMountain ->Fill(bin1 - 1, fLastMrSync[0].Time / msec);
-
-          //       if (!fCoincidenceTargetBh1) { hEfficiency->Fill(sumBh1, 0); }
-          //       if (!fCoincidenceTargetBh2) { hEfficiency->Fill(sumBh2, 1); }
-          //    // if (!fCoincidenceTargetHod) { hEfficiency->Fill(sumHod, 2); }
-          //       if (!fCoincidenceTargetExt) { hEfficiency->Fill(sumTc2, 3); }
-          //       if (!fCoincidenceTargetTc1) { hEfficiency->Fill(sumExt, 4); }
-          //       if (!fCoincidenceTargetTc2) { hEfficiency->Fill(sumTc1, 5); }
-
-          //       // Skip dead time
-          //       bin1 += coinBinWidth;
-          //       bin2 += coinBinWidth;
-          //       if (bin1 > syncEdge) {
-          //         break;
-          //       }
-
-          //       sumBh1 = sumBh2 = sumTc1 = sumTc2 = sumExt = 0;
-          //       for (Int_t bin = bin1; bin <= bin2; ++bin) {
-          //         /*                   */ sumBh1 += pBh1[bin];
-          //         /*                   */ sumBh2 += pBh2[bin];
-          //         for (auto&& p : pExt) { sumExt += p   [bin];
-          //         /*                   */ sumTc1 += pTc1[bin];
-          //         /*                   */ sumTc2 += pTc2[bin]; }
-          //       }
-
-          //     } else {
-          //       /*                   */ sumBh1 += pBh1[bin2] - pBh1[bin1 - 1];
-          //       /*                   */ sumBh2 += pBh2[bin2] - pBh2[bin1 - 1];
-          //       for (auto&& p : pExt) { sumExt += p   [bin2] - p   [bin1 - 1];
-          //       /*                   */ sumTc1 += pTc1[bin2] - pTc1[bin1 - 1];
-          //       /*                   */ sumTc2 += pTc2[bin2] - pTc2[bin1 - 1]; }
-          //     }
-
-          //     // Data check
-          //     if (sumBh1 < 0 || sumBh2 < 0 || sumTc1 < 0 || sumTc2 < 0 || sumExt < 0) {
-          //       const Int_t binmin = TMath::Max(bin1 - 2 * coinBinWidth, 1);
-          //       const Int_t binmax = TMath::Min(bin2 + 2 * coinBinWidth, syncEdge);
-
-          //       std::cout << "sumBh1 = " << sumBh1 << std::endl;
-          //       std::cout << "BH1 : ";
-          //       for (Int_t bin = binmin; bin < binmax; ++bin) {
-          //         std::cout << (pBh1[bin] ? Form("%d", (Int_t)pBh1[bin]) : ".");
-          //       }
-          //       std::cout << std::endl;
-
-          //       std::cout << "sumBh2 = " << sumBh2 << std::endl;
-          //       std::cout << "BH2 : ";
-          //       for (Int_t bin = binmin; bin < binmax; ++bin) {
-          //         std::cout << (pBh2[bin] ? Form("%d", (Int_t)pBh2[bin]) : ".");
-          //       }
-          //       std::cout << std::endl;
-
-          //       std::cout << "sumTc1 = " << sumTc1 << std::endl;
-          //       std::cout << "TC1 : ";
-          //       for (Int_t bin = binmin; bin < binmax; ++bin) {
-          //         std::cout << (pTc1[bin] ? Form("%d", (Int_t)pTc1[bin]) : ".");
-          //       }
-          //       std::cout << std::endl;
-
-          //       std::cout << "sumTc2 = " << sumTc2 << std::endl;
-          //       std::cout << "TC2 : ";
-          //       for (Int_t bin = binmin; bin < binmax; ++bin) {
-          //         std::cout << (pTc2[bin] ? Form("%d", (Int_t)pTc2[bin]) : ".");
-          //       }
-          //       std::cout << std::endl;
-
-          //       std::cout << "sumExt = " << sumExt << std::endl;
-          //       for (std::size_t board = 0; board < MrSync::NofChannels; ++board) {                  
-          //         std::cout << "Ext : ";
-          //         for (Int_t bin = binmin; bin < binmax; ++bin) {
-          //           std::cout << (pExt[board][bin] ? Form("%d", (Int_t)pExt[board][bin]) : ".");
-          //         }
-          //         std::cout << std::endl;
-          //       }
-
-          //       // while (std::getchar() != '\n');
-          //     }
-          //   }
-          // }
-
           // std::cout << "[debug] Shift timeline" << std::endl;
           // Shift timeline
           auto shiftTimeline =
@@ -932,19 +902,19 @@ namespace Extinction {
             };
 
           if (bhRef[0].Tdc) {
-            shiftTimeline(bhRef[0].Board, hTmpBh1Timeline, pBh1, hBh1Timeline);
+            shiftTimeline(bhRef[0].Board, hTmpBh1Timeline       , pBh1       , hBh1Timeline);
           }
           if (bhRef[1].Tdc) {
-            shiftTimeline(bhRef[1].Board, hTmpBh2Timeline, pBh2, hBh2Timeline);
+            shiftTimeline(bhRef[1].Board, hTmpBh2Timeline       , pBh2       , hBh2Timeline);
           }
           if (tcRef[0].Tdc) {
-            shiftTimeline(tcRef[0].Board, hTmpTc1Timeline, pTc1, hTc1Timeline);
+            shiftTimeline(tcRef[0].Board, hTmpTc1Timeline       , pTc1       , hTc1Timeline);
           }
           if (tcRef[0].Tdc) {
-            shiftTimeline(tcRef[1].Board, hTmpTc2Timeline, pTc2, hTc2Timeline);
+            shiftTimeline(tcRef[1].Board, hTmpTc2Timeline       , pTc2       , hTc2Timeline);
           }
           for (std::size_t board = 0; board < MrSync::NofChannels; ++board) {
-            shiftTimeline(board, hTmpExtTimeline[board], pExt[board], hExtTimeline);
+            shiftTimeline(         board, hTmpExtTimeline[board], pExt[board], hExtTimeline);
           }
 
           // Shift MrSync
@@ -981,6 +951,12 @@ namespace Extinction {
         pair.second->Close();
       }
 
+      if (fDrawResidual) {
+        if (fResidualFilename.size()) {
+          gPad->Print((fResidualFilename + "]").data());
+        }
+      }
+
       const clock_t stopClock = clock();
       std::cout << "time: " << (double)(stopClock - startClock) / CLOCKS_PER_SEC << " sec\n";
 
@@ -988,43 +964,55 @@ namespace Extinction {
     }
 
     void TimelineCoincidence::DrawTmpTimeline(Int_t bin, Int_t range) {
-      hTmpBh1Timeline->SetLineColor(51); // pink
-      hTmpBh2Timeline->SetLineColor(60); // blue
-      // hTmpHodTimeline->SetLineColor();
-      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        hTmpExtTimeline[ch]->SetLineColor(70); // cyan
-      }
-      hTmpTc1Timeline->SetLineColor(91); // green
-      hTmpTc2Timeline->SetLineColor(99); // orange
+      hTmpExtTimeline_Any->Reset();
+      hTmpSumTimeline    ->Reset();
 
-      hTmpBh1Timeline->SetFillColorAlpha(51, 0.1);
-      hTmpBh2Timeline->SetFillColorAlpha(60, 0.1);
-      // hTmpHodTimeline->SetLineColor();
-      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        hTmpExtTimeline[ch]->SetFillColorAlpha(70, 0.1);
+      {
+        const Int_t nbins = hTmpExtTimeline_Any->GetNbinsX();
+        Double_t* px_any = hTmpExtTimeline_Any->GetArray();
+        for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+          Double_t* px = hTmpExtTimeline[ch]->GetArray();
+          for (Int_t bin = 1; bin < nbins; ++bin) {
+            px_any[bin] = (px_any[bin] || px[bin]);
+          }
+        }
       }
-      hTmpTc1Timeline->SetFillColorAlpha(91, 0.1);
-      hTmpTc2Timeline->SetFillColorAlpha(99, 0.1);
 
-      hTmpBh1Timeline->SetFillStyle(3345);
-      hTmpBh2Timeline->SetFillStyle(3454);
-      // hTmpHodTimeline->SetLineColor();
-      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
-        hTmpExtTimeline[ch]->SetFillStyle(3001);
-      }
-      hTmpTc1Timeline->SetFillStyle(3305);
-      hTmpTc2Timeline->SetFillStyle(3395);
+      auto setMax1 =
+        [&] (TH1D* hist) {
+          Double_t* px = hist->GetArray();
+          for (Int_t bin = 1, nbins = hist->GetNbinsX(); bin < nbins; ++bin) {
+            px[bin] = (px[bin] ? 1 : 0);
+          }
+        };
+      setMax1(hTmpBh1Timeline);
+      setMax1(hTmpBh2Timeline);
+   // setMax1(hTmpHodTimeline);
+      setMax1(hTmpTc1Timeline);
+      setMax1(hTmpTc2Timeline);
+      
 
-      hTmpBh1Timeline->Draw();
-      hTmpBh2Timeline->Draw("same");
-      // hTmpHodTimeline->Draw("same");
-      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) 
-        hTmpExtTimeline[ch]->Draw("same");
-      hTmpTc1Timeline->Draw("same");
-      hTmpTc2Timeline->Draw("same");
+      hTmpSumTimeline->Add(hTmpBh1Timeline    );
+      hTmpSumTimeline->Add(hTmpBh2Timeline    );
+   // hTmpSumTimeline->Add(hTmpHodTimeline    );
+      hTmpSumTimeline->Add(hTmpExtTimeline_Any);
+      hTmpSumTimeline->Add(hTmpTc1Timeline    );
+      hTmpSumTimeline->Add(hTmpTc2Timeline    );
+
+      hTmpBh1Timeline    ->Draw();
+      hTmpBh2Timeline    ->Draw("same");
+   // hTmpHodTimeline    ->Draw("same");
+      hTmpExtTimeline_Any->Draw("same");
+      hTmpTc1Timeline    ->Draw("same");
+      hTmpTc2Timeline    ->Draw("same");
+      hTmpSumTimeline    ->Draw("same");
 
       hTmpBh1Timeline->GetXaxis()->SetRangeUser(bin - range, bin + range);
-                
+      hTmpBh1Timeline->SetMinimum(0);
+      hTmpBh1Timeline->SetMaximum(6);
+
+      hTmpTimelineLegend->Draw();
+
       gPad->Modified();
       gPad->Update();
       gPad->WaitPrimitive();

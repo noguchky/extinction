@@ -23,7 +23,9 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddArg<std::string>("ConfFilename",                    "Set configure filename");
   args->AddArg<std::string>("Boards"      ,                    "Set comma separated board numbers");
   args->AddArg<std::string>("Input"       ,                    "Set comma separated root filenames");
-  args->AddOpt<std::string>("Output"      , 'o', "output"    , "Set prefix of output filename", "");
+  args->AddOpt<std::string>("Output"      , 'o', "output"    , "Set prefix of output filename", ""); 
+  args->AddOpt<std::string>("DrawCoin"    , 'd', "draw"      , "Draw coincidence event");
+  args->AddOpt<std::string>("Residual"    , 'r', "residual"  , "Set output filename of coincidence event");
   args->AddOpt             ("Efficiency"  , 'e', "efficiency", "Execute efficiency analysis");
   args->AddOpt             ("Debug"       , 'd', "debug"     , "Debug mode");
   args->AddOpt             ("Help"        , 'h', "help"      , "Show usage");
@@ -46,7 +48,9 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([&](std::pair<std::string, Int_t> pair) { return pair.second; },
            [&](std::pair<std::string, Int_t> pair) { return pair.first;  });
   const auto ofilename    = args->GetValue("Output");
-  const auto effAna       = args->IsSet("Efficiency");
+  const auto drawResidual = args->IsSet("DrawCoin");
+  const auto resFilename  = args->GetValue("Residual");
+  const auto efficiency   = args->IsSet("Efficiency");
 
   std::string ofileprefix;
   if (ofilename.empty()) {
@@ -127,6 +131,28 @@ Int_t main(Int_t argc, Char_t** argv) {
     }
   } while (false);
 
+  Double_t bunchCenters[Extinction::SpillData::kNofBunches] = { 0 };
+  Double_t bunchWidths [Extinction::SpillData::kNofBunches] = { 0 };
+  do {
+    const std::string ifilename = conf->GetValue("BunchProfile");
+    std::ifstream ifile(ifilename);
+    if (!ifile) {
+      std::cout << "[warning] bunch profile file was not opened, " << ifilename << std::endl;
+      break;
+    }
+
+    std::string buff;
+    Int_t bunch; Double_t center, width;
+    while (std::getline(ifile, buff)) {
+      std::stringstream line(buff);
+      if (line >> bunch >> buff >> center >> buff >> width) {
+        bunchCenters[bunch] = center * Extinction::nsec;
+     // bunchWidths [bunch] = width  * Extinction::nsec;
+        bunchWidths [bunch] = 250.0  * Extinction::nsec;
+      }
+    }
+  } while (false);
+
   {
     const std::string ifilename = conf->GetValue("Offset");
     if (generator->LoadOffset(ifilename) == 0) {
@@ -136,8 +162,10 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   generator->SetMrSyncOffset     (conf->GetValue <Double_t   >("MrSyncOffset"     ));
   generator->SetCoinTimeWidth    (conf->GetValue <Double_t   >("CoinTimeWidth"    ));
-  generator->SetTimePerTdc       (                              timePerTdc         );
-  generator->SetMrSyncInterval   (                              mrSyncInterval     );
+  generator->SetTimePerTdc       (                             timePerTdc         );
+  generator->SetMrSyncInterval   (                             mrSyncInterval     );
+  generator->SetBunchCenters     (                             bunchCenters       );
+  generator->SetBunchWidths      (                             bunchWidths        );
   generator->SetCoincidenceTarget(conf->GetValues<Int_t      >("CoincidenceTarget"));
 
   Extinction::Analyzer::TimelineCoincidence::PlotsProfiles profile;
@@ -176,11 +204,15 @@ Int_t main(Int_t argc, Char_t** argv) {
       return TDatime(0U);
     };
 
-  if (effAna) {
+  if (efficiency) {
     std::cout << "--- Generate efficiency" << std::endl;
     generator->GenerateEfficiency(providers, ifilenames, "tree", parser);
   } else {
     std::cout << "--- Generate hists" << std::endl;
+
+    generator->SetDrawResidusl    (drawResidual);
+    generator->SetResidualFilename(resFilename );
+
     generator->GeneratePlots(providers, ifilenames, "tree", parser);
   }
 
