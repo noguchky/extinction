@@ -286,7 +286,7 @@ namespace Extinction {
       const Int_t    xbinsInSync  = (Int_t)(profile.TimeInSync.Xwidth() / timePerTdc) / profile.TimeInSync.BinWidth;
       const Double_t  xmaxInSync  = xminInSync + xbinsInSync * profile.TimeInSync.BinWidth;
 
-      const Int_t xbinsTmpTimeline = fStdMrSyncIntervalAverage * 2.5;
+      const Int_t xbinsTmpTimeline = profile.MrSyncInterval.Mean * 2.5;
       const Int_t xminTmpTimeline  = 0;
       const Int_t xmaxTmpTimeline  = xbinsTmpTimeline;
 
