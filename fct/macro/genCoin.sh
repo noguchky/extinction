@@ -9,12 +9,16 @@ function show_usage() {
 
 plotany=0
 single=0
+efficiency=
 while :; do
     if [ ${1}_ = "-h_" ]; then
         show_usage
-        exit
+        exit 
     elif [ ${1}_ = "-s_" ]; then
         single=1
+        shift 1
+    elif [ ${1}_ = "-e_" ]; then
+        efficiency="-e"
         shift 1
     elif [ ${1}_ = "-a_" ]; then
         plotany=1
@@ -32,6 +36,8 @@ elif [ ! -f "${list}" ]; then
     echo "emlist is not found"
     exit
 fi
+
+./decode.sh ${list}
 
 emcount=-1
 boards=()
@@ -74,6 +80,7 @@ while read line; do
                         ${SOURCEDIR}/../conf/genHist.conf \
                         $(echo ${boards[@]} | tr " " ",") \
                         $(echo ${filenames[@]} | tr " " ",") \
+                        ${efficiency} \
                         -o ${marged_dirname}/${marged_filename}
 
             if [ ${single} -eq 1 ]; then
@@ -104,5 +111,6 @@ if [ ${#filenames[@]} -eq 8 ] || [ ${plotany} -eq 1 ] && [ ${#filenames[@]} -ne 
                 ${SOURCEDIR}/../conf/genHist.conf \
                 $(echo ${boards[@]} | tr " " ",") \
                 $(echo ${filenames[@]} | tr " " ",") \
+                ${efficiency} \
                 -o ${marged_dirname}/${marged_filename}
 fi

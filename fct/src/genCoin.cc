@@ -20,19 +20,23 @@
 
 Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
-  args->AddArg<std::string>("ConfFilename",                "Set configure filename");
-  args->AddArg<std::string>("Boards"      ,                "Set comma separated board numbers");
-  args->AddArg<std::string>("Input"       ,                "Set comma separated root filenames");
-  args->AddOpt<std::string>("Output"      , 'o', "output", "Set prefix of output filename", "");
-  args->AddOpt             ("Help"        , 'h', "help"  , "Show usage");
+  args->AddArg<std::string>("ConfFilename",                    "Set configure filename");
+  args->AddArg<std::string>("Boards"      ,                    "Set comma separated board numbers");
+  args->AddArg<std::string>("Input"       ,                    "Set comma separated root filenames");
+  args->AddOpt<std::string>("Output"      , 'o', "output"    , "Set prefix of output filename", "");
+  args->AddOpt             ("Efficiency"  , 'e', "efficiency", "Execute efficiency analysis");
+  args->AddOpt             ("Debug"       , 'd', "debug"     , "Debug mode");
+  args->AddOpt             ("Help"        , 'h', "help"      , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
     args->ShowUsage();
     return 0;
   }
 
-  // TApplication* app = new TApplication("app", nullptr, nullptr);
-  
+  if (args->IsSet("Debug")) {
+    new TApplication("app", nullptr, nullptr);
+  }
+
   const auto confFilename = args->GetValue("ConfFilename");
   const auto boards       = Tron::Linq::From(Tron::String::Split(args->GetValue("Boards"), ","))
     .Select([](const std::string& board) { return Tron::String::Convert<Int_t>(board); })
@@ -42,6 +46,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([&](std::pair<std::string, Int_t> pair) { return pair.second; },
            [&](std::pair<std::string, Int_t> pair) { return pair.first;  });
   const auto ofilename    = args->GetValue("Output");
+  const auto effAna       = args->IsSet("Efficiency");
 
   std::string ofileprefix;
   if (ofilename.empty()) {
@@ -171,8 +176,13 @@ Int_t main(Int_t argc, Char_t** argv) {
       return TDatime(0U);
     };
 
-  std::cout << "--- Generate hists" << std::endl;
-  generator->GeneratePlots(providers, ifilenames, "tree", parser);
+  if (effAna) {
+    std::cout << "--- Generate efficiency" << std::endl;
+    generator->GenerateEfficiency(providers, ifilenames, "tree", parser);
+  } else {
+    std::cout << "--- Generate hists" << std::endl;
+    generator->GeneratePlots(providers, ifilenames, "tree", parser);
+  }
 
   generator->DrawPlots          (ofilenamePdf   );
   generator->WritePlots         (ofilenameRoot  );

@@ -40,7 +40,7 @@ fi
 
 for board in {0..7}; do
     for filename in ../data/id00$(expr ${board} + 56)/${year}${month}${day//x/}/${hour//x/}*/fct_*_${year}${month}${day//x/}${hour//x/}${minute//x/}${second//x/}*.dat; do
-        fullpath_filename=$(readlink -f ${filename})
+        fullpath_filename=${SOURCEDIR/macro/}/${filename/"../"/}
         if [ -n "${fullpath_filename}" ]; then
             ${SOURCEDIR}/../build/emcount ${fullpath_filename} -b ${board} -e ${EM_CH}
         else

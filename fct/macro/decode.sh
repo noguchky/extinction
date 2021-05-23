@@ -35,7 +35,7 @@ fi
 emcount=-1
 
 while read line; do
-    echo ${line}
+    echo "${line}"
     if [ -z "${line}" ]; then
         continue
     fi
@@ -63,10 +63,12 @@ while read line; do
         mkdir -p ${this_root_dirname}
     fi
 
-    ${SOURCEDIR}/../build/decoder \
-                ${this_filename} \
-                -e ${EM_CH} \
-                -o ${this_root_dirname}/${this_root_filename} &
+    if [ ! -f ${this_root_dirname}/${this_root_filename} ]; then
+        ${SOURCEDIR}/../build/decoder \
+                    ${this_filename} \
+                    -e ${EM_CH} \
+                    -o ${this_root_dirname}/${this_root_filename} &
+    fi
 
     emcount=${this_emcount}
 done < <(cat ${list} | sort -k 1n,1 -k 2n,2)
