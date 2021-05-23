@@ -105,8 +105,8 @@ namespace Extinction {
       TH1D*                        hCoinTdcInSync          = nullptr;
       TH2D*                        hCoinMountain           = nullptr;
 
-      TEfficiency*                 hEfficiency             = nullptr;
       TH1*                         hEfficiencyFrame        = nullptr;
+      TEfficiency*                 hEfficiency             = nullptr;
 
       TFile*                       fSpillFile              = nullptr;
       TTree*                       fSpillTree              = nullptr;
@@ -284,9 +284,9 @@ namespace Extinction {
 
       const Double_t  xminInSync  = (Int_t)(profile.TimeInSync.Xmin     / timePerTdc) - 0.5;
       const Int_t    xbinsInSync  = (Int_t)(profile.TimeInSync.Xwidth() / timePerTdc) / profile.TimeInSync.BinWidth;
-      const Double_t  xmaxInSync  = xminInSync + xbinsInSync * profile.TimeInSync.BinWidth;
-
-      const Int_t xbinsTmpTimeline = profile.MrSyncInterval.Mean * 2.5;
+      const Double_t  xmaxInSync  = xminInSync + xbinsInSync * profile.TimeInSync.BinWidth
+;
+      const Int_t xbinsTmpTimeline = 2.5 * profile.MrSyncInterval.Mean / fProvider->GetTimePerTdc();
       const Int_t xminTmpTimeline  = 0;
       const Int_t xmaxTmpTimeline  = xbinsTmpTimeline;
 
@@ -350,6 +350,19 @@ namespace Extinction {
                                xbinsInSync / 2, xminInSync, xmaxInSync,
                                xbinsInSpill / 2, xminInSpill, xmaxInSpill);
       hCoinMountain->SetStats(false);
+
+      hEfficiencyFrame = new TH1C("hEfficiencyFrame", "Efficiency", 6, 0, 6);
+      hEfficiencyFrame->SetStats(false);
+      hEfficiencyFrame->SetMinimum(0.00);
+      hEfficiencyFrame->SetMaximum(1.05);
+      hEfficiencyFrame->GetXaxis()->SetNdivisions(6, 1, 1);
+      hEfficiencyFrame->GetYaxis()->SetNdivisions(510);
+      hEfficiencyFrame->GetXaxis()->SetBinLabel(1, "BH1&2");
+      hEfficiencyFrame->GetXaxis()->SetBinLabel(2, "");
+      hEfficiencyFrame->GetXaxis()->SetBinLabel(3, "");
+      hEfficiencyFrame->GetXaxis()->SetBinLabel(4, "Ext");
+      hEfficiencyFrame->GetXaxis()->SetBinLabel(5, "TC1&2");
+      hEfficiencyFrame->GetXaxis()->SetBinLabel(6, "TC3");
 
       hEfficiency = new TEfficiency("hEfficiency",
                                     "Efficiency",
@@ -423,20 +436,6 @@ namespace Extinction {
 
       std::cout << "hEfficiency" << std::endl;
       {
-        if (!hEfficiencyFrame) {
-          hEfficiencyFrame = new TH1C("hEfficiencyFrame", "Efficiency", 6, 0, 6);
-          hEfficiencyFrame->SetStats(false);
-          hEfficiencyFrame->SetMinimum(0.00);
-          hEfficiencyFrame->SetMaximum(1.05);
-          hEfficiencyFrame->GetXaxis()->SetNdivisions(6, 1, 1);
-          hEfficiencyFrame->GetYaxis()->SetNdivisions(510);
-          hEfficiencyFrame->GetXaxis()->SetBinLabel(1, "BH1&2");
-          hEfficiencyFrame->GetXaxis()->SetBinLabel(2, "");
-          hEfficiencyFrame->GetXaxis()->SetBinLabel(3, "");
-          hEfficiencyFrame->GetXaxis()->SetBinLabel(4, "Ext");
-          hEfficiencyFrame->GetXaxis()->SetBinLabel(5, "TC1&2");
-          hEfficiencyFrame->GetXaxis()->SetBinLabel(6, "TC3");
-        }
         hEfficiencyFrame->Draw();
         hEfficiency->Draw("Psame");
         gPad->Print(ofilename.data());
@@ -590,7 +589,7 @@ namespace Extinction {
       fSpillData.SetDate(averageTime);
 
       {
-        TdcData bhRef[2], tcRef[2];
+        std::vector<TdcData> bhRef { 2UL }, tcRef { 2UL };
         Int_t targetBoard = 0;
         std::map<Int_t, Int_t>                lastSpills;
         std::map<Int_t, Long64_t>             entries;
