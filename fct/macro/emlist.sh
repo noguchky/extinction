@@ -3,7 +3,7 @@
 SOURCEDIR=$(cd $(dirname $0) && pwd)
 
 function show_usage() {
-    echo "Usage' ./genHist.sh [year] [month] (day) (hour) (month) (second)"
+    echo "Usage' ./emlist.sh [year] [month] (day) (hour) (month) (second)"
     echo
     echo "Options'" 
     echo " -e [chanel]        Set event-match channel"
