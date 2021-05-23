@@ -1,0 +1,758 @@
+#ifndef Extinction_TimelineCoincidence_hh
+#define Extinction_TimelineCoincidence_hh
+
+#include <iostream>
+#include <fstream>
+
+#include "TROOT.h"
+#include "TSystem.h"
+#include "TStyle.h"
+#include "TCanvas.h"
+#include "TFile.h"
+#include "TH1.h"
+#include "TH2.h"
+#include "TGraphErrors.h"
+#include "TText.h"
+#include "TDatime.h"
+#include "TF1.h"
+#include "TParameter.h"
+#include "TEfficiency.h"
+
+#include "Units.hh"
+#include "Detector.hh"
+#include "Tdc.hh"
+#include "Spill.hh"
+
+#include "Math.hh"
+#include "Linq.hh"
+#include "String.hh"
+#include "ObjectHelper.hh"
+#include "ScopeSubstituter.hh"
+
+namespace Extinction {
+
+  namespace Analyzer {
+
+    class TimelineCoincidence {
+    public:
+      struct PlotsProfiles {
+        struct {
+          Double_t NbinsX, Xmin, Xmax;
+        } TimeInSpill;
+        struct {
+          Double_t Xmin, Xmax, BinWidth;
+          Double_t Xwidth() const { return Xmax - Xmin; }
+        } TimeInSync;
+        struct {
+          Double_t Mean, Xmin, Xmax;
+          Double_t Xwidth() const { return Xmax - Xmin; }
+        } MrSyncInterval;
+        struct {
+          Double_t Xmin, Xmax;
+          Double_t Xwidth() const { return Xmax - Xmin; }
+        } TimeDiff;
+      };
+
+    private:
+      using CoinDiffs  = std::map<std::size_t/*extCh*/, std::map<std::size_t/*index*/, Double_t>>;
+
+      struct CoinOffset {
+        enum {
+          BH  = 0,
+          Hod = 0 + BeamlineHodoscope::NofChannels,
+          TC  = 0 + BeamlineHodoscope::NofChannels + 1,
+          N   = 0 + BeamlineHodoscope::NofChannels + 1 + TimingCounter::NofChannels,
+        };
+      };
+
+      struct CoinInfo {
+        std::size_t Index;
+        Double_t    Mean;     // gotten using GetMaximumBin
+        Double_t    FitMean;  // gotten using Fit
+        Double_t    FitSigma; // gotten using Fit
+
+        void Write(std::ofstream& file) {
+          file << Index    << "    "
+               << Mean     << "    "
+               << FitMean  << "    "
+               << FitSigma << std::endl;
+        }
+        std::basic_istream<char>& Read(std::ifstream& file) {
+          return file >> Index
+                      >> Mean
+                      >> FitMean
+                      >> FitSigma;
+        }
+      };
+
+    private:
+      ITdcDataProvider*            fProvider               = nullptr;
+
+      TH1D*                        hBhTimeline             = nullptr;
+      TH1D*                        hTcTimeline             = nullptr;
+      TH1D*                        hExtTimeline            = nullptr;
+
+      TH1D*                        hTmpBhTimeline          = nullptr;
+      TH1D*                        hTmpTcTimeline          = nullptr;
+      std::vector<TH1D*>           hTmpExtTimeline;
+
+      TH1D*                        hCoinTdcInSync          = nullptr;
+      TH2D*                        hCoinMountain           = nullptr;
+
+      // TEfficiency*                 hEfficiency             = nullptr;
+
+      TFile*                       fSpillFile              = nullptr;
+      TTree*                       fSpillTree              = nullptr;
+
+      Long64_t                     fSpillCount             = 0;
+      SpillData                    fSpillData;
+
+      CoinDiffs                    fStdCoinDiffs;
+      std::map<Int_t, Double_t>    fStdTimePerTdc;
+      std::map<Int_t, Double_t>    fStdMrSyncInterval;
+      Double_t                     fStdMrSyncIntervalAverage;
+      std::map<Int_t, TdcData>     fLastMrSync;
+      std::map<Int_t, TdcData>     fNextMrSync;
+      std::map<Int_t, TdcData>     fNext2MrSync;
+
+      Double_t                     fMrSyncOffset           =   0.0; // tdc count
+      Double_t                     fCoinTimeWidth          =  50.0 * nsec;
+
+    public:
+      TimelineCoincidence(ITdcDataProvider* provider);
+      ~TimelineCoincidence();
+
+      void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
+      void                 SetMrSyncInterval(const std::map<Int_t, Double_t>& map);
+      Int_t                LoadOffset(const std::string& ffilename);
+
+      inline void          SetMrSyncOffset(Double_t offset) {
+        std::cout << "SetMrSyncOffset ... " << offset << std::endl;
+        fMrSyncOffset = offset;
+      }
+      inline Double_t      GetMrSyncOffset() const { return fMrSyncOffset; }
+
+      inline void          SetCoinTimeWidth(Double_t width) {
+        std::cout << "SetCoinTimeWidth ... " << width / nsec << " nsec" << std::endl;
+        fCoinTimeWidth = width;
+      }
+      inline Double_t      GetCoinTimeWidth() const { return fCoinTimeWidth; }
+
+      void                 InitializePlots(const PlotsProfiles& profile);
+      void                 InitializeSpillSummary(const std::string& filename, const std::string& treename = "spilltree");
+
+      void                 DrawPlots(const std::string& ofilename);
+      void                 WritePlots(const std::string& ofilename);
+      void                 WriteSpillSummary();
+
+      Int_t                GeneratePlots(std::map<Int_t, ITdcDataProvider*> providers,
+                                         const std::map<Int_t, std::string>& ifilenames,
+                                         const std::string& treename,
+                                         const std::function<TDatime(const std::string&)>& parser = nullptr);
+
+    private:
+      void                 ClearLastSpill(Bool_t clearHists);
+
+      template <typename T, typename V>
+      inline void          FillToSeconds(std::map<T, V>* map, V value) {
+        for (auto&& pair : *map) {
+          pair.second = value;
+        }
+      }
+    };
+
+    TimelineCoincidence::TimelineCoincidence(ITdcDataProvider* provider)
+      : fProvider(provider) {
+    }
+
+    TimelineCoincidence::~TimelineCoincidence() {
+    }
+
+    void TimelineCoincidence::SetTimePerTdc(const std::map<Int_t, Double_t>& map) {
+      std::cout << "SetTimePerTdc" << std::endl;
+      for (auto&& pair : map) {
+        std::cout << pair.first << "\t" << pair.second << std::endl;
+      }
+      fStdTimePerTdc = map;
+    }
+
+    void TimelineCoincidence::SetMrSyncInterval(const std::map<Int_t, Double_t>& map) {
+      std::cout << "SetMrSyncInterval" << std::endl;
+      for (auto&& pair : map) {
+        std::cout << pair.first << "\t" << pair.second << std::endl;
+      }
+      fStdMrSyncInterval        = map;
+      fStdMrSyncIntervalAverage = Tron::Linq::From(map)
+        .Select([](const std::pair<Int_t, Double_t>& pair) { return pair.second; })
+        .Average();
+    }
+
+    Int_t TimelineCoincidence::LoadOffset(const std::string& ffilename) {
+      std::cout << "Load offset" << std::endl;
+      if (Tron::String::GetFormatSpecifiers(ffilename).empty()) {
+        std::ifstream ffile(ffilename);
+        if (ffile) {
+          Int_t ch, index; Double_t mean;
+          while (ffile >> ch >> index >> mean) {
+            fStdCoinDiffs[ch][index] = mean;
+            // std::cout << ch << "\t" << index << "\t" << mean << "\t" << fStdCoinDiffs[ch][index] / nsec << std::endl;
+            // std::cout << "[" << ch << "]" << " [" << index << "] " << fStdCoinDiffs[ch][index] / nsec << " nsec" << std::endl;
+          }
+        } else {
+        }
+      } else {
+        for (std::size_t extCh = 0; extCh < ExtinctionDetector::NofChannels; ++extCh) {
+          CoinInfo info;
+          std::ifstream ffile(Form(ffilename.data(), extCh));
+          if (ffile) {
+            while (info.Read(ffile)) {
+              fStdCoinDiffs[extCh][info.Index] = info.FitMean;
+              // std::cout << extCh << "\t" << info.Index << "\t" << info.FitMean << std::endl;
+              // std::cout << "[" << extCh << "]" << " [" << info.Index << "] " << fStdCoinDiffs[extCh][info.Index] / nsec << " nsec" << std::endl;
+            }
+          }
+        }
+      }
+
+      return fStdCoinDiffs.size();
+    }
+
+    void TimelineCoincidence::InitializePlots(const PlotsProfiles& profile) {
+      std::cout << "Initialize plots" << std::endl;
+      const std::string tdcName    = fProvider->GetName();
+      const Double_t    timePerTdc = fProvider->GetTimePerTdc();
+
+      const Double_t  xminInSpill = profile.TimeInSpill.Xmin / msec;
+      const Double_t  xmaxInSpill = profile.TimeInSpill.Xmax / msec;
+      const Int_t    xbinsInSpill = profile.TimeInSpill.NbinsX;
+
+      const Double_t  xminInSync  = (Int_t)(profile.TimeInSync.Xmin     / timePerTdc) - 0.5;
+      const Int_t    xbinsInSync  = (Int_t)(profile.TimeInSync.Xwidth() / timePerTdc) / profile.TimeInSync.BinWidth;
+      const Double_t  xmaxInSync  = xminInSync + xbinsInSync * profile.TimeInSync.BinWidth;
+
+      const Int_t xbinsTmpTimeline = fStdMrSyncIntervalAverage * 2.5;
+      const Int_t xminTmpTimeline  = 0;
+      const Int_t xmaxTmpTimeline  = xbinsTmpTimeline;
+
+      // Timeline
+      hBhTimeline  = new TH1D("hBhTimeline",
+                              Form("%s, BH Timeline;"
+                                   "TDC [count]", tdcName.data()),
+                              xbinsInSync, xminInSync, xmaxInSync);
+      hTcTimeline  = new TH1D("hTcTimeline",
+                              Form("%s, TC Timeline;"
+                                   "TDC [count]", tdcName.data()),
+                              xbinsInSync, xminInSync, xmaxInSync);
+      hExtTimeline = new TH1D("hExtTimeline",
+                              Form("%s, Ext Timeline;"
+                                   "TDC [count]", tdcName.data()),
+                              xbinsInSync, xminInSync, xmaxInSync);
+
+      hTmpBhTimeline  = new TH1D("hTmpBhTimeline",
+                                 Form("%s, BH Timeline;"
+                                      "TDC [count]", tdcName.data()),
+                                 xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpTcTimeline  = new TH1D("hTmpTcTimeline",
+                                 Form("%s, TC Timeline;"
+                                      "TDC [count]", tdcName.data()),
+                                 xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpExtTimeline = std::vector<TH1D*>(MrSync::NofChannels);
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hTmpExtTimeline[ch] = new TH1D(Form("hTmpExtTimeline_%03lu", ch),
+                                       Form("%s, Ext Timeline;"
+                                            "TDC [count]", tdcName.data()),
+                                       xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      }
+
+      // Extinction Detector TDC in sync (coincidence)
+      hCoinTdcInSync = new TH1D("hCoinTdcInSync",
+                                Form("%s, TDC in MR Sync (Coincidence);"
+                                     "TDC [count]", tdcName.data()),
+                                xbinsInSync, xminInSync, xmaxInSync);
+
+      // Extinction Detector Mountain Plot (coincidence)
+      hCoinMountain = new TH2D("hCoinMountain",
+                               Form("%s, Mountain Plot (Coincidence);"
+                                    "TDC [count];"
+                                    "Time [ms]", tdcName.data()),
+                               xbinsInSync / 2, xminInSync, xmaxInSync,
+                               xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+      hCoinMountain->SetStats(false);
+
+      // hEfficiency = new TEfficiency("hEfficiency",
+      //                               "Efficiency",
+      //                               3, 0, 3); // BH, Ext, Tc
+    }
+
+    void TimelineCoincidence::InitializeSpillSummary(const std::string& filename, const std::string& treename) {
+      std::cout << "Initialize spill summary" << std::endl;
+
+      fSpillFile = new TFile(filename.data(), "RECREATE");
+      if (!fSpillFile->IsOpen()) {
+        std::cout << "[error] spill summary file is not opened, " << filename << std::endl;
+        return;
+      }
+
+      fSpillTree = new TTree(treename.data(), "Spill summary");
+      fSpillData.CreateBranch(fSpillTree);
+    }
+
+    void TimelineCoincidence::DrawPlots(const std::string& ofilename) {
+      std::cout << "Draw plots" << std::endl;
+      if (!gPad) {
+        TCanvas::MakeDefCanvas();
+      }
+      gPad->SetGrid(true, true);
+      gPad->SetLogy(false);
+      gPad->Print((ofilename + "[").data());
+
+      Tron::ScopeSubstituter<Int_t> ss { gErrorIgnoreLevel, kWarning };
+
+      std::cout << "hCoinTdcInSync" << std::endl;
+      gPad->SetLogy(true);
+      {
+        hBhTimeline ->SetLineColor(kBlack);
+        hTcTimeline ->SetLineColor(kRed);
+        hExtTimeline->SetLineColor(kBlue);
+
+        hBhTimeline ->Draw();
+        hTcTimeline ->Draw("same");
+        hExtTimeline->Draw("same");
+        gPad->Print(ofilename.data());
+      }
+      gPad->SetLogy(false);
+
+      std::cout << "hCoinTdcInSync" << std::endl;
+      gPad->SetLogy(true);
+      {
+        hCoinTdcInSync->Draw("hist");
+        hCoinTdcInSync->SetMinimum(0.2);
+        gPad->Print(ofilename.data());
+
+        // hCoinTdcInSync->Draw();
+        // hCoinTdcInSync->SetMinimum(0.2);
+        // gPad->Print(ofilename.data());
+      }
+      gPad->SetLogy(false);
+
+      std::cout << "hCoinMountain" << std::endl;
+      gPad->SetGrid(false, true);
+      {
+        hCoinMountain->Draw("colz");
+        hCoinMountain->SetMinimum(0);
+        gPad->Print(ofilename.data());
+      }
+      gPad->SetGrid(true, true);
+
+      // std::cout << "hEfficiency" << std::endl;
+      // {
+      //   hEfficiency->Draw("AP");
+      //   gPad->Print(ofilename.data());
+      // }
+      
+      gPad->Print((ofilename + "]").data());
+    }
+
+    void TimelineCoincidence::WritePlots(const std::string& ofilename) {
+      std::cout << "Write plots" << std::endl;
+      TFile* file = new TFile(ofilename.data(), "RECREATE");
+      if (!file->IsOpen()) {
+        std::cout << "[error] output file is not opened, " << ofilename << std::endl;
+        return;
+      }
+
+      Tron::ObjectHelper::WriteValue<Long64_t>(fSpillData.Date.Convert(), "Time");
+      hCoinTdcInSync->Write();
+      hCoinMountain->Write();
+
+      file->Close();
+    }
+
+    void TimelineCoincidence::WriteSpillSummary() {
+      std::cout << "Write spill summary" << std::endl;
+      if (!fSpillFile) {
+        std::cout << "[warning] spill file is not initialized" << std::endl;
+        return;
+      }
+
+      if (!fSpillTree) {
+        std::cout << "[warning] spill tree is not initialized" << std::endl;
+        return;
+      }
+
+      fSpillFile->cd();
+      fSpillTree->Write();
+    }
+
+    void TimelineCoincidence::ClearLastSpill(Bool_t clearHists) {
+      for (std::size_t ch = 0; ch <= MrSync::NofChannels; ++ch) {
+        fLastMrSync [ch] = { };
+        fNextMrSync [ch] = { };
+        fNext2MrSync[ch] = { };
+      }
+
+      if (clearHists) {
+        hCoinTdcInSync->Reset();
+        hCoinMountain ->Reset();
+      }
+    }
+
+    Int_t TimelineCoincidence::GeneratePlots(std::map<Int_t, ITdcDataProvider*> providers,
+                                             const std::map<int, std::string>& ifilenames,
+                                             const std::string& treename,
+                                             const std::function<TDatime(const std::string&)>& parser) {
+      const clock_t startClock = clock();
+
+      std::cout << "Initialize decoder" << std::endl;
+      for (auto&& pair : ifilenames) {
+        const Int_t board = pair.first;
+        if (fStdTimePerTdc[board] == 0) {
+          providers[board]->SetTimePerTdc(fProvider->GetTimePerTdc());
+        } else {
+          providers[board]->SetTimePerTdc(fStdTimePerTdc[board]);
+        }
+      }
+
+      std::cout << "Initialzie history" << std::endl;
+      ClearLastSpill(true);
+
+      std::cout << "Open file" << std::endl;
+      std::map<Int_t, TFile*>   ifiles;
+      std::map<Int_t, TTree*>   itrees;
+      std::map<Int_t, Long64_t> entrieses;
+      std::vector<TDatime>      datimes;
+      for (auto&& pair : ifilenames) {
+        const Int_t       board     = pair.first;
+        const std::string ifilename = pair.second;
+        std::cout << " - " << ifilename << std::endl;
+        if (parser) {
+          datimes.push_back(parser(ifilename));
+        }
+
+        ifiles[board] = new TFile(ifilename.data(), "READ");
+        if (!ifiles[board]->IsOpen()) {
+          std::cerr << "[error] input file is not opened, " << ifilename << std::endl;
+          return 1;
+        }
+
+        itrees[board] = dynamic_cast<TTree*>(ifiles[board]->Get(treename.data()));
+        if (!itrees[board]) {
+          std::cerr << "[error] input tree is not found, " << ifilename << " - " << treename << std::endl;
+          return 1;
+        }
+
+        entrieses[board] = itrees[board]->GetEntries();
+        std::cout << " + " << entrieses[board] << std::endl;
+
+        providers[board]->SetBranchAddress(itrees[board]);
+      }
+      std::cout << " = " << Tron::Linq::From(entrieses).Sum([](std::pair<Int_t, Long64_t> p) { return p.second; }) << std::endl;
+      const UInt_t averageTime = Tron::Linq::From(datimes)
+        .Select([](TDatime datime) -> ULong64_t { return datime.Convert(); })
+        .Average();
+      fSpillData.SetDate(averageTime);
+
+      {
+        TdcData bhRef, tcRef;
+        Int_t targetBoard = 0;
+        std::map<Int_t, Int_t>                lastSpills;
+        std::map<Int_t, Long64_t>             entries;
+        std::map<Int_t, Bool_t>               spillEnded;
+        std::map<Int_t, Bool_t>               fileEnded;
+        for (auto&& pair : ifilenames) {
+          targetBoard = pair.first;
+          lastSpills       [pair.first] = -1;
+          entries          [pair.first] = 0;
+          spillEnded       [pair.first] = false;
+          fileEnded        [pair.first] = false;
+        }
+        // std::cout << "targetBoard = " << targetBoard << std::endl; 
+
+        Double_t* pBh = hTmpBhTimeline->GetArray();
+        Double_t* pTc = hTmpTcTimeline->GetArray();
+        std::vector<Double_t*> pExt(MrSync::NofChannels);
+        for (std::size_t board = 0; board < MrSync::NofChannels; ++board ) {
+          pExt[board] = hTmpExtTimeline[board]->GetArray();
+        }
+
+        const Int_t coinBinWidth = fCoinTimeWidth / fProvider->GetTimePerTdc();
+        for (std::size_t count = 0UL;;) {
+
+          // std::cout << "[debug] create timelines" << std::endl;
+          // for (std::size_t i = 0; i < MrSync::NofChannels; ++i)
+          //   std::cout << fLastMrSync[i].Tdc << "\t" << entries[i] << std::endl;
+          // Create timeline
+          for (auto&& pair : ifilenames) {
+            targetBoard = pair.first;
+            ITdcDataProvider* provider   = providers  [targetBoard];
+            TTree*            itree      = itrees     [targetBoard];
+            Long64_t&         entry      = entries    [targetBoard];
+            Int_t&            lastSpill  = lastSpills [targetBoard];
+            const Long64_t    ientries   = entrieses  [targetBoard];
+            for (; !fNext2MrSync[targetBoard].Time; ++count, ++entry) {
+              if (count % 1000000UL == 0) {
+                std::cout << ">> " << count << std::endl;
+              }
+
+              // std::cout << "[debug] GetEntry" << std::endl;
+
+              if (entry >= ientries) {
+                std::cout << "[info] detect file end @ " << targetBoard << std::endl;
+                fileEnded[targetBoard] = true;
+                break;
+
+              } else if (!itree->GetEntry(entry)) {
+                std::cout << "[info] detect file end @ " << targetBoard << " (TTree::GetEntry)" << std::endl;
+                fileEnded[targetBoard] = true;
+                break;
+
+              }
+
+              // std::cout << "[debug] Data Check" << std::endl;
+
+              if (!provider->IsData()) {
+                continue;
+
+              } else if (lastSpill != -1 && lastSpill != provider->GetSpill()) {
+                std::cout << "[info] detect spill end @ " << targetBoard << std::endl;
+                lastSpill               = provider->GetSpill();
+                spillEnded[targetBoard] = true;
+                break;
+
+              } else {
+                // std::cout << "[info] detect data @ " << targetBoard << std::endl;
+                if (lastSpill != -1 && fSpillData.EMCount != provider->GetEMCount()) {
+                  std::cout << "[error] conflict EMCount, " << fSpillData.EMCount << " <--> " << provider->GetEMCount() << std::endl;
+                  exit(1);
+                }
+                lastSpill          = provider->GetSpill();
+                fSpillData.EMCount = provider->GetEMCount();
+                auto tdcData       = provider->GetTdcData(targetBoard);
+
+                // std::cout << "[debug] data process" << std::endl;
+
+                for (auto&& data : tdcData) {
+                  if (MrSync::Contains(data.Channel)) {
+                    // std::cout << "[debug] get mrsync" << std::endl;
+
+                    data.Tdc += fMrSyncOffset;
+                    if        (fNextMrSync[targetBoard].Tdc) {
+                      // std::cout << "[debug] get next next mrsync" << std::endl;
+                      fNext2MrSync[targetBoard] = data;
+                    } else if (fLastMrSync[targetBoard].Tdc) {
+                      // std::cout << "[debug] get next mrsync" << std::endl;
+                      fNextMrSync [targetBoard] = data;
+                    } else {
+                      // std::cout << "[debug] get first mrsync" << std::endl;
+                      fLastMrSync [targetBoard] = data;
+                    }
+
+                  } else if (BeamlineHodoscope::Contains  (data.Channel)) {
+                    // std::cout << "[debug] fill bh timeline" << std::endl;
+
+                    const std::size_t bhCh = BeamlineHodoscope::GetChannel(data.Channel);
+                    const std::size_t tdcI = bhCh + CoinOffset::BH;
+                    data.Tdc -= fStdCoinDiffs[40][tdcI];
+                    if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
+                      hTmpBhTimeline->Fill(data.Tdc - syncTdc);
+                    }
+                    bhRef = data;
+
+                  } else if (TimingCounter    ::Contains  (data.Channel)) {
+                    // std::cout << "[debug] fill tc timeline" << std::endl;
+
+                    const std::size_t tcCh = TimingCounter::GetChannel(data.Channel);
+                    const std::size_t tdcI = tcCh + CoinOffset::TC;
+                    data.Tdc -= fStdCoinDiffs[40][tdcI];
+                    if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
+                      hTmpTcTimeline->Fill(data.Tdc - syncTdc);
+                    }
+                    tcRef = data;
+
+                  } else if (ExtinctionDetector::Contains(data.Channel)) {
+                    // std::cout << "[debug] fill ext timeline" << std::endl;
+
+                    const std::size_t extCh = ExtinctionDetector::GetChannel(data.Channel);
+                    // (tdc - sync) - (bh - sync) - coinDiffs[ch][sync] = (40 - sync) - (bh - sync) - coinDiffs[40][sync]
+                    // tdc + coinDiffs[40][sync] - coinDiffs[ch][sync] = 40
+                    data.Tdc -= fStdCoinDiffs[extCh][CoinOffset::BH] - fStdCoinDiffs[40][CoinOffset::BH];
+                    if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
+                      hTmpExtTimeline[targetBoard]->Fill(data.Tdc - syncTdc);
+                    }
+
+                  } else {
+                    // std::cout << "[debug] skip others" << std::endl;
+                    continue;
+                  }
+                }
+              }
+            }
+          }
+
+          // std::cout << "[debug] coincidence" << std::endl;
+          // Coincidence
+          {
+            const Int_t binmax = fNextMrSync[0].Tdc - fLastMrSync[0].Tdc;
+
+            Int_t bin1 = 1, bin2 = coinBinWidth;
+
+            Int_t sumBh = 0, sumTc = 0, sumExt = 0;
+            for (Int_t bin = bin1; bin <= bin2; ++bin) {
+              /*                   */ sumBh  += pBh[bin];
+              /*                   */ sumTc  += pTc[bin];
+              for (auto&& p : pExt) { sumExt += p  [bin]; }
+            }
+
+            for (++bin1, ++bin2; bin1 <= binmax; ++bin1, ++bin2) {
+
+              // if (         sumTc && sumExt) {
+              //   hEfficiency->Fill(sumBh , 0);
+              // }
+              // if (sumBh          && sumExt) {
+              //   hEfficiency->Fill(sumTc , 1);
+              // }
+              // if (sumBh && sumTc          ) {
+              //   hEfficiency->Fill(sumExt, 2);
+              // }
+
+              if (sumBh && sumTc && sumExt) {
+                hCoinTdcInSync->Fill(bin1 - 1);
+                hCoinMountain ->Fill(bin1 - 1, fLastMrSync[0].Time / msec);
+
+                // Skip dead time
+                bin1 += coinBinWidth;
+                bin2 += coinBinWidth;
+                if (bin1 > binmax) {
+                  break;
+                }
+
+                sumBh = sumTc = sumExt = 0;
+                for (Int_t bin = bin1; bin <= bin2; ++bin) {
+                  /*                   */ sumBh  += pBh[bin];
+                  /*                   */ sumTc  += pTc[bin];
+                  for (auto&& p : pExt) { sumExt += p  [bin]; }
+                }
+
+              } else {
+                /*                   */ sumBh  += pBh[bin2] - pBh[bin1 - 1];
+                /*                   */ sumTc  += pTc[bin2] - pTc[bin1 - 1];
+                for (auto&& p : pExt) { sumExt += p  [bin2] - p  [bin1 - 1]; }
+              }
+
+              // Data check
+              if (sumBh < 0 || sumTc < 0 || sumExt < 0) {
+                std::cout << "sumBh = " << sumBh << std::endl;
+                std::cout << "BH  : ";
+                for (Int_t bin = TMath::Max(bin1 - 2 * coinBinWidth, 1) ; bin < TMath::Min(bin2 + 2 * coinBinWidth, binmax); ++bin) {
+                  std::cout << (pBh[bin] ? Form("%d", (Int_t)pBh[bin]) : ".");
+                }
+                std::cout << std::endl;
+
+                std::cout << "sumTc = " << sumTc << std::endl;
+                std::cout << "TC  : ";
+                for (Int_t bin = TMath::Max(bin1 - 2 * coinBinWidth, 1) ; bin < TMath::Min(bin2 + 2 * coinBinWidth, binmax); ++bin) {
+                  std::cout << (pTc[bin] ? Form("%d", (Int_t)pTc[bin]) : ".");
+                }
+                std::cout << std::endl;
+
+                std::cout << "sumExt = " << sumExt << std::endl;
+                for (std::size_t board = 0; board < MrSync::NofChannels; ++board) {                  
+                  std::cout << "Ext : ";
+                  for (Int_t bin = TMath::Max(bin1 - 2 * coinBinWidth, 1) ; bin < TMath::Min(bin2 + 2 * coinBinWidth, binmax); ++bin) {
+                    std::cout << (pExt[board][bin] ? Form("%d", (Int_t)pExt[board][bin]) : ".");
+                  }
+                  std::cout << std::endl;
+                }
+
+                // while (std::getchar() != '\n');
+              }
+            }
+          }
+
+          // std::cout << "[debug] Shift timeline" << std::endl;
+          // Shift timeline
+          if (bhRef.Tdc) {
+            const Int_t dTdc = fNextMrSync[bhRef.Board].Tdc - fLastMrSync[bhRef.Board].Tdc;
+            const Int_t nbins = hTmpBhTimeline->GetNbinsX();
+            for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
+              pBh[bin] = pBh[bin + dTdc];
+              if (pBh[bin] && bin - 1 < dTdc) {
+                hBhTimeline->Fill(bin - 1);
+              }
+            }
+            for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
+              pBh[bin] = 0;
+            }
+          }
+          if (tcRef.Tdc) {
+            const Int_t dTdc = fNextMrSync[tcRef.Board].Tdc - fLastMrSync[tcRef.Board].Tdc;
+            const Int_t nbins = hTmpTcTimeline->GetNbinsX();
+            for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
+              pTc[bin] = pTc[bin + dTdc];
+              if (pTc[bin] && bin - 1 < dTdc) {
+                hTcTimeline->Fill(bin - 1);
+              }
+            }
+            for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
+              pTc[bin] = 0;
+            }
+          }
+          for (std::size_t board = 0; board < MrSync::NofChannels; ++board) {
+            auto& p = pExt[board];
+            const Int_t dTdc = fNextMrSync[board].Tdc - fLastMrSync[board].Tdc; 
+            const Int_t nbins = hTmpExtTimeline[board]->GetNbinsX();
+            for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
+              p[bin] = p[bin + dTdc];
+              if (p[bin] && bin - 1 < dTdc) {
+                hExtTimeline->Fill(bin - 1);
+              }
+            }
+            for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
+              p[bin] = 0;
+            }
+          }
+
+          for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+            // const Long64_t preLastMrSyncTdc  = fLastMrSync [ch].Tdc;
+            // const Long64_t preNextMrSyncTdc  = fNextMrSync [ch].Tdc;
+            // const Long64_t preNext2MrSyncTdc = fNext2MrSync[ch].Tdc;
+            fLastMrSync [ch] = fNextMrSync [ch];
+            fNextMrSync [ch] = fNext2MrSync[ch];
+            fNext2MrSync[ch] = { };
+            // std::cout << "LastMrSync [" << ch << "]  " << preLastMrSyncTdc  << "\t->\t" << fLastMrSync [ch].Tdc << std::endl;
+            // std::cout << "NextMrSync [" << ch << "]  " << preNextMrSyncTdc  << "\t->\t" << fNextMrSync [ch].Tdc << std::endl;
+            // std::cout << "Next2MrSync[" << ch << "]  " << preNext2MrSyncTdc << "\t->\t" << fNext2MrSync[ch].Tdc << std::endl;
+          }
+          // while (std::getchar() != '\n');
+
+          // std::cout << "[debug] Clear" << std::endl;
+          // Clear
+          if (spillEnded[MrSync::NofChannels - 1]) {
+            std::cout << "[info] spill ended" << std::endl;
+            // ClearLastSpill(true);
+            // FillToSeconds(&spillEnded , false);
+            break;
+          }
+          if (fileEnded[MrSync::NofChannels - 1]) {
+            std::cout << "[info] file ended" << std::endl;
+            break;
+          }
+        }
+      }
+
+      std::cout << "Close files" << std::endl;
+      for (auto&& pair : ifiles) {
+        pair.second->Close();
+      }
+
+      const clock_t stopClock = clock();
+      std::cout << "time: " << (double)(stopClock - startClock) / CLOCKS_PER_SEC << " sec\n";
+
+      return 0;
+    }
+
+  }
+
+}
+
+#endif
