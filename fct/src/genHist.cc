@@ -187,6 +187,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   generator->SetBunchCenters     (                             bunchCenters       );
   generator->SetBunchWidths      (                             bunchWidths        );
   generator->SetShowHitEvents    (showEvents,                  showSize           );
+  generator->SetCoincidenceTarget(conf->GetValues<Int_t     >("CoincidenceTarget"));
 
   Extinction::Analyzer::HistGenerator::PlotsProfiles profile;
   profile.TimeInSpill   .NbinsX   = conf->GetValue<Double_t>("TimeInSpill.NbinsX" );

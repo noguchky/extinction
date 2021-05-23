@@ -228,6 +228,18 @@ namespace Extinction {
       void                 SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]);
       Int_t                LoadOffset(const std::string& ffilename);
 
+      void                 SetCoincidenceTarget(const std::vector<Int_t>& flags) {
+        if (flags.size() < CoinOffset::N) {
+          std::cerr << "[error] invalid coincidence target" << std::endl;
+          return;
+        }
+        for (std::size_t extCh = 0; extCh < ExtinctionDetector::NofChannels; ++extCh) {
+          for (std::size_t index = 0; index < CoinOffset::N; ++index) {
+            fContains[extCh][index] &= flags[index];
+          }
+        }
+      }
+
       inline void          SetCyclicCoincidence(Bool_t flag) {
         std::cout << "SetCyclicCoincidence ... " << (flag ? "True" : "False") << std::endl;
         fCyclicCoincidence = flag;

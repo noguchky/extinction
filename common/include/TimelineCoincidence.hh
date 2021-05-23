@@ -88,12 +88,16 @@ namespace Extinction {
     private:
       ITdcDataProvider*            fProvider               = nullptr;
 
-      TH1D*                        hBhTimeline             = nullptr;
-      TH1D*                        hTcTimeline             = nullptr;
+      TH1D*                        hBh1Timeline            = nullptr;
+      TH1D*                        hBh2Timeline            = nullptr;
+      TH1D*                        hTc1Timeline            = nullptr;
+      TH1D*                        hTc2Timeline            = nullptr;
       TH1D*                        hExtTimeline            = nullptr;
 
-      TH1D*                        hTmpBhTimeline          = nullptr;
-      TH1D*                        hTmpTcTimeline          = nullptr;
+      TH1D*                        hTmpBh1Timeline         = nullptr;
+      TH1D*                        hTmpBh2Timeline         = nullptr;
+      TH1D*                        hTmpTc1Timeline         = nullptr;
+      TH1D*                        hTmpTc2Timeline         = nullptr;
       std::vector<TH1D*>           hTmpExtTimeline;
 
       TH1D*                        hCoinTdcInSync          = nullptr;
@@ -115,6 +119,13 @@ namespace Extinction {
       std::map<Int_t, TdcData>     fNextMrSync;
       std::map<Int_t, TdcData>     fNext2MrSync;
 
+      Bool_t                       fCoincidenceBh1;
+      Bool_t                       fCoincidenceBh2;
+      Bool_t                       fCoincidenceHod;
+      Bool_t                       fCoincidenceExt;
+      Bool_t                       fCoincidenceTc1;
+      Bool_t                       fCoincidenceTc2;
+      
       Double_t                     fMrSyncOffset           =   0.0; // tdc count
       Double_t                     fCoinTimeWidth          =  50.0 * nsec;
 
@@ -125,6 +136,19 @@ namespace Extinction {
       void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
       void                 SetMrSyncInterval(const std::map<Int_t, Double_t>& map);
       Int_t                LoadOffset(const std::string& ffilename);
+
+      void                 SetCoincidenceTarget(const std::vector<Int_t>& flags) {
+        if (flags.size() < 6) {
+          std::cerr << "[error] invalid coincidence target" << std::endl;
+          return;
+        }
+        fCoincidenceBh1 = flags[0];
+        fCoincidenceBh2 = flags[1];
+        fCoincidenceHod = flags[2];
+        fCoincidenceExt = flags[3];
+        fCoincidenceTc1 = flags[4];
+        fCoincidenceTc2 = flags[5];
+      }
 
       inline void          SetMrSyncOffset(Double_t offset) {
         std::cout << "SetMrSyncOffset ... " << offset << std::endl;
@@ -235,27 +259,43 @@ namespace Extinction {
       const Int_t xmaxTmpTimeline  = xbinsTmpTimeline;
 
       // Timeline
-      hBhTimeline  = new TH1D("hBhTimeline",
-                              Form("%s, BH Timeline;"
-                                   "TDC [count]", tdcName.data()),
-                              xbinsInSync, xminInSync, xmaxInSync);
-      hTcTimeline  = new TH1D("hTcTimeline",
-                              Form("%s, TC Timeline;"
-                                   "TDC [count]", tdcName.data()),
-                              xbinsInSync, xminInSync, xmaxInSync);
+      hBh1Timeline  = new TH1D("hBh1Timeline",
+                               Form("%s, BH1 Timeline;"
+                                    "TDC [count]", tdcName.data()),
+                               xbinsInSync, xminInSync, xmaxInSync);
+      hBh2Timeline  = new TH1D("hBh2Timeline",
+                               Form("%s, BH2 Timeline;"
+                                    "TDC [count]", tdcName.data()),
+                               xbinsInSync, xminInSync, xmaxInSync);
+      hTc1Timeline  = new TH1D("hTc1Timeline",
+                               Form("%s, TC1 Timeline;"
+                                    "TDC [count]", tdcName.data()),
+                               xbinsInSync, xminInSync, xmaxInSync);
+      hTc2Timeline  = new TH1D("hTc2Timeline",
+                               Form("%s, TC2 Timeline;"
+                                    "TDC [count]", tdcName.data()),
+                               xbinsInSync, xminInSync, xmaxInSync);
       hExtTimeline = new TH1D("hExtTimeline",
                               Form("%s, Ext Timeline;"
                                    "TDC [count]", tdcName.data()),
                               xbinsInSync, xminInSync, xmaxInSync);
 
-      hTmpBhTimeline  = new TH1D("hTmpBhTimeline",
-                                 Form("%s, BH Timeline;"
-                                      "TDC [count]", tdcName.data()),
-                                 xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
-      hTmpTcTimeline  = new TH1D("hTmpTcTimeline",
-                                 Form("%s, TC Timeline;"
-                                      "TDC [count]", tdcName.data()),
-                                 xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpBh1Timeline  = new TH1D("hTmpBh1Timeline",
+                                  Form("%s, BH1 Timeline;"
+                                       "TDC [count]", tdcName.data()),
+                                  xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpBh2Timeline  = new TH1D("hTmpBh2Timeline",
+                                  Form("%s, BH2 Timeline;"
+                                       "TDC [count]", tdcName.data()),
+                                  xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpTc1Timeline  = new TH1D("hTmpTc1Timeline",
+                                  Form("%s, TC1 Timeline;"
+                                       "TDC [count]", tdcName.data()),
+                                  xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
+      hTmpTc2Timeline  = new TH1D("hTmpTc2Timeline",
+                                  Form("%s, TC2 Timeline;"
+                                       "TDC [count]", tdcName.data()),
+                                  xbinsTmpTimeline, xminTmpTimeline, xmaxTmpTimeline);
       hTmpExtTimeline = std::vector<TH1D*>(MrSync::NofChannels);
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
         hTmpExtTimeline[ch] = new TH1D(Form("hTmpExtTimeline_%03lu", ch),
@@ -311,13 +351,18 @@ namespace Extinction {
       std::cout << "hCoinTdcInSync" << std::endl;
       gPad->SetLogy(true);
       {
-        hBhTimeline ->SetLineColor(kBlack);
-        hTcTimeline ->SetLineColor(kRed);
-        hExtTimeline->SetLineColor(kBlue);
+        hBh1Timeline->SetLineColor(51);
+        hBh2Timeline->SetLineColor(61);
+        hTc1Timeline->SetLineColor(71);
+        hTc2Timeline->SetLineColor(81);
+        hExtTimeline->SetLineColor(91);
 
-        hBhTimeline ->Draw();
-        hTcTimeline ->Draw("same");
+        hBh1Timeline->Draw();
+        hBh2Timeline->Draw("same");
+        hTc1Timeline->Draw("same");
+        hTc2Timeline->Draw("same");
         hExtTimeline->Draw("same");
+
         gPad->Print(ofilename.data());
       }
       gPad->SetLogy(false);
@@ -392,6 +437,11 @@ namespace Extinction {
       }
 
       if (clearHists) {
+        hBh1Timeline  ->Reset();
+        hBh2Timeline  ->Reset();
+        hTc1Timeline  ->Reset();
+        hTc2Timeline  ->Reset();
+        hExtTimeline  ->Reset();
         hCoinTdcInSync->Reset();
         hCoinMountain ->Reset();
       }
@@ -453,7 +503,7 @@ namespace Extinction {
       fSpillData.SetDate(averageTime);
 
       {
-        TdcData bhRef, tcRef;
+        TdcData bhRef[2], tcRef[2];
         Int_t targetBoard = 0;
         std::map<Int_t, Int_t>                lastSpills;
         std::map<Int_t, Long64_t>             entries;
@@ -468,8 +518,10 @@ namespace Extinction {
         }
         // std::cout << "targetBoard = " << targetBoard << std::endl; 
 
-        Double_t* pBh = hTmpBhTimeline->GetArray();
-        Double_t* pTc = hTmpTcTimeline->GetArray();
+        Double_t* pBh1 = hTmpBh1Timeline->GetArray();
+        Double_t* pBh2 = hTmpBh2Timeline->GetArray();
+        Double_t* pTc1 = hTmpTc1Timeline->GetArray();
+        Double_t* pTc2 = hTmpTc2Timeline->GetArray();
         std::vector<Double_t*> pExt(MrSync::NofChannels);
         for (std::size_t board = 0; board < MrSync::NofChannels; ++board ) {
           pExt[board] = hTmpExtTimeline[board]->GetArray();
@@ -554,9 +606,9 @@ namespace Extinction {
                     const std::size_t tdcI = bhCh + CoinOffset::BH;
                     data.Tdc -= fStdCoinDiffs[40][tdcI];
                     if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
-                      hTmpBhTimeline->Fill(data.Tdc - syncTdc);
+                      (bhCh ? hTmpBh2Timeline : hTmpBh1Timeline)->Fill(data.Tdc - syncTdc);
                     }
-                    bhRef = data;
+                    bhRef[bhCh] = data;
 
                   } else if (TimingCounter    ::Contains  (data.Channel)) {
                     // std::cout << "[debug] fill tc timeline" << std::endl;
@@ -565,9 +617,9 @@ namespace Extinction {
                     const std::size_t tdcI = tcCh + CoinOffset::TC;
                     data.Tdc -= fStdCoinDiffs[40][tdcI];
                     if (auto syncTdc = fLastMrSync[targetBoard].Tdc) {
-                      hTmpTcTimeline->Fill(data.Tdc - syncTdc);
+                      (tcCh ? hTmpTc2Timeline : hTmpTc1Timeline)->Fill(data.Tdc - syncTdc);
                     }
-                    tcRef = data;
+                    tcRef[tcCh] = data;
 
                   } else if (ExtinctionDetector::Contains(data.Channel)) {
                     // std::cout << "[debug] fill ext timeline" << std::endl;
@@ -592,18 +644,20 @@ namespace Extinction {
           // std::cout << "[debug] coincidence" << std::endl;
           // Coincidence
           {
-            const Int_t binmax = fNextMrSync[0].Tdc - fLastMrSync[0].Tdc;
+            const Int_t syncEdge = fNextMrSync[0].Tdc - fLastMrSync[0].Tdc;
 
             Int_t bin1 = 1, bin2 = coinBinWidth;
 
-            Int_t sumBh = 0, sumTc = 0, sumExt = 0;
+            Int_t sumBh1 = 0, sumBh2 = 0, sumTc1 = 0, sumTc2 = 0, sumExt = 0;
             for (Int_t bin = bin1; bin <= bin2; ++bin) {
-              /*                   */ sumBh  += pBh[bin];
-              /*                   */ sumTc  += pTc[bin];
-              for (auto&& p : pExt) { sumExt += p  [bin]; }
+              /*                   */ sumBh1 += pBh1[bin];
+              /*                   */ sumBh2 += pBh2[bin];
+              /*                   */ sumTc1 += pTc1[bin];
+              /*                   */ sumTc2 += pTc2[bin];
+              for (auto&& p : pExt) { sumExt += p   [bin]; }
             }
 
-            for (++bin1, ++bin2; bin1 <= binmax; ++bin1, ++bin2) {
+            for (++bin1, ++bin2; bin1 <= syncEdge; ++bin1, ++bin2) {
 
               // if (         sumTc && sumExt) {
               //   hEfficiency->Fill(sumBh , 0);
@@ -615,50 +669,75 @@ namespace Extinction {
               //   hEfficiency->Fill(sumExt, 2);
               // }
 
-              if (sumBh && sumTc && sumExt) {
+              if ((sumBh1 || !fCoincidenceBh1) &&
+                  (sumBh2 || !fCoincidenceBh2) &&
+                  (sumTc1 || !fCoincidenceTc1) &&
+                  (sumTc2 || !fCoincidenceTc2) &&
+                  (sumExt || !fCoincidenceExt)) {
                 hCoinTdcInSync->Fill(bin1 - 1);
                 hCoinMountain ->Fill(bin1 - 1, fLastMrSync[0].Time / msec);
 
                 // Skip dead time
                 bin1 += coinBinWidth;
                 bin2 += coinBinWidth;
-                if (bin1 > binmax) {
+                if (bin1 > syncEdge) {
                   break;
                 }
 
-                sumBh = sumTc = sumExt = 0;
+                sumBh1 = sumBh2 = sumTc1 = sumTc2 = sumExt = 0;
                 for (Int_t bin = bin1; bin <= bin2; ++bin) {
-                  /*                   */ sumBh  += pBh[bin];
-                  /*                   */ sumTc  += pTc[bin];
-                  for (auto&& p : pExt) { sumExt += p  [bin]; }
+                  /*                   */ sumBh1 += pBh1[bin];
+                  /*                   */ sumBh2 += pBh2[bin];
+                  /*                   */ sumTc1 += pTc1[bin];
+                  /*                   */ sumTc2 += pTc2[bin];
+                  for (auto&& p : pExt) { sumExt += p   [bin]; }
                 }
 
               } else {
-                /*                   */ sumBh  += pBh[bin2] - pBh[bin1 - 1];
-                /*                   */ sumTc  += pTc[bin2] - pTc[bin1 - 1];
-                for (auto&& p : pExt) { sumExt += p  [bin2] - p  [bin1 - 1]; }
+                /*                   */ sumBh1 += pBh1[bin2] - pBh1[bin1 - 1];
+                /*                   */ sumBh2 += pBh2[bin2] - pBh2[bin1 - 1];
+                /*                   */ sumTc1 += pTc1[bin2] - pTc1[bin1 - 1];
+                /*                   */ sumTc2 += pTc2[bin2] - pTc2[bin1 - 1];
+                for (auto&& p : pExt) { sumExt += p   [bin2] - p   [bin1 - 1]; }
               }
 
               // Data check
-              if (sumBh < 0 || sumTc < 0 || sumExt < 0) {
-                std::cout << "sumBh = " << sumBh << std::endl;
-                std::cout << "BH  : ";
-                for (Int_t bin = TMath::Max(bin1 - 2 * coinBinWidth, 1) ; bin < TMath::Min(bin2 + 2 * coinBinWidth, binmax); ++bin) {
-                  std::cout << (pBh[bin] ? Form("%d", (Int_t)pBh[bin]) : ".");
+              if (sumBh1 < 0 || sumBh2 < 0 || sumTc1 < 0 || sumTc2 < 0 || sumExt < 0) {
+                const Int_t binmin = TMath::Max(bin1 - 2 * coinBinWidth, 1);
+                const Int_t binmax = TMath::Min(bin2 + 2 * coinBinWidth, syncEdge);
+
+                std::cout << "sumBh1 = " << sumBh1 << std::endl;
+                std::cout << "BH1 : ";
+                for (Int_t bin = binmin; bin < binmax; ++bin) {
+                  std::cout << (pBh1[bin] ? Form("%d", (Int_t)pBh1[bin]) : ".");
                 }
                 std::cout << std::endl;
 
-                std::cout << "sumTc = " << sumTc << std::endl;
-                std::cout << "TC  : ";
-                for (Int_t bin = TMath::Max(bin1 - 2 * coinBinWidth, 1) ; bin < TMath::Min(bin2 + 2 * coinBinWidth, binmax); ++bin) {
-                  std::cout << (pTc[bin] ? Form("%d", (Int_t)pTc[bin]) : ".");
+                std::cout << "sumBh2 = " << sumBh2 << std::endl;
+                std::cout << "BH2 : ";
+                for (Int_t bin = binmin; bin < binmax; ++bin) {
+                  std::cout << (pBh2[bin] ? Form("%d", (Int_t)pBh2[bin]) : ".");
+                }
+                std::cout << std::endl;
+
+                std::cout << "sumTc1 = " << sumTc1 << std::endl;
+                std::cout << "TC1 : ";
+                for (Int_t bin = binmin; bin < binmax; ++bin) {
+                  std::cout << (pTc1[bin] ? Form("%d", (Int_t)pTc1[bin]) : ".");
+                }
+                std::cout << std::endl;
+
+                std::cout << "sumTc2 = " << sumTc2 << std::endl;
+                std::cout << "TC2 : ";
+                for (Int_t bin = binmin; bin < binmax; ++bin) {
+                  std::cout << (pTc2[bin] ? Form("%d", (Int_t)pTc2[bin]) : ".");
                 }
                 std::cout << std::endl;
 
                 std::cout << "sumExt = " << sumExt << std::endl;
                 for (std::size_t board = 0; board < MrSync::NofChannels; ++board) {                  
                   std::cout << "Ext : ";
-                  for (Int_t bin = TMath::Max(bin1 - 2 * coinBinWidth, 1) ; bin < TMath::Min(bin2 + 2 * coinBinWidth, binmax); ++bin) {
+                  for (Int_t bin = binmin; bin < binmax; ++bin) {
                     std::cout << (pExt[board][bin] ? Form("%d", (Int_t)pExt[board][bin]) : ".");
                   }
                   std::cout << std::endl;
@@ -671,47 +750,38 @@ namespace Extinction {
 
           // std::cout << "[debug] Shift timeline" << std::endl;
           // Shift timeline
-          if (bhRef.Tdc) {
-            const Int_t dTdc = fNextMrSync[bhRef.Board].Tdc - fLastMrSync[bhRef.Board].Tdc;
-            const Int_t nbins = hTmpBhTimeline->GetNbinsX();
-            for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
-              pBh[bin] = pBh[bin + dTdc];
-              if (pBh[bin] && bin - 1 < dTdc) {
-                hBhTimeline->Fill(bin - 1);
+          auto shiftTimeline =
+            [&](Int_t board, TH1D* tmpTimeline, Double_t* p, TH1D* timeline) {
+              const Int_t dTdc = fNextMrSync[board].Tdc - fLastMrSync[board].Tdc;
+              const Int_t nbins = tmpTimeline->GetNbinsX();
+              for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
+                p[bin] = p[bin + dTdc];
+                if (p[bin] && bin - 1 < dTdc) {
+                  timeline->Fill(bin - 1);
+                }
               }
-            }
-            for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
-              pBh[bin] = 0;
-            }
+              for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
+                p[bin] = 0;
+              }
+            };
+
+          if (bhRef[0].Tdc) {
+            shiftTimeline(bhRef[0].Board, hTmpBh1Timeline, pBh1, hBh1Timeline);
           }
-          if (tcRef.Tdc) {
-            const Int_t dTdc = fNextMrSync[tcRef.Board].Tdc - fLastMrSync[tcRef.Board].Tdc;
-            const Int_t nbins = hTmpTcTimeline->GetNbinsX();
-            for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
-              pTc[bin] = pTc[bin + dTdc];
-              if (pTc[bin] && bin - 1 < dTdc) {
-                hTcTimeline->Fill(bin - 1);
-              }
-            }
-            for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
-              pTc[bin] = 0;
-            }
+          if (bhRef[1].Tdc) {
+            shiftTimeline(bhRef[1].Board, hTmpBh2Timeline, pBh2, hBh2Timeline);
+          }
+          if (tcRef[0].Tdc) {
+            shiftTimeline(tcRef[0].Board, hTmpTc1Timeline, pTc1, hTc1Timeline);
+          }
+          if (tcRef[0].Tdc) {
+            shiftTimeline(tcRef[1].Board, hTmpTc2Timeline, pTc2, hTc2Timeline);
           }
           for (std::size_t board = 0; board < MrSync::NofChannels; ++board) {
-            auto& p = pExt[board];
-            const Int_t dTdc = fNextMrSync[board].Tdc - fLastMrSync[board].Tdc; 
-            const Int_t nbins = hTmpExtTimeline[board]->GetNbinsX();
-            for (Int_t bin = 1, binmax = nbins - dTdc; bin <= binmax; ++bin) {
-              p[bin] = p[bin + dTdc];
-              if (p[bin] && bin - 1 < dTdc) {
-                hExtTimeline->Fill(bin - 1);
-              }
-            }
-            for (Int_t bin = nbins - dTdc; bin <= nbins; ++bin) {
-              p[bin] = 0;
-            }
+            shiftTimeline(board, hTmpExtTimeline[board], pExt[board], hExtTimeline);
           }
 
+          // Shift MrSync
           for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
             // const Long64_t preLastMrSyncTdc  = fLastMrSync [ch].Tdc;
             // const Long64_t preNextMrSyncTdc  = fNextMrSync [ch].Tdc;

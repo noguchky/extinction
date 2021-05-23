@@ -129,10 +129,11 @@ Int_t main(Int_t argc, Char_t** argv) {
     }
   }
 
-  generator->SetMrSyncOffset     (conf->GetValue<Double_t   >("MrSyncOffset"     ));
-  generator->SetCoinTimeWidth    (conf->GetValue<Double_t   >("CoinTimeWidth"    ));
-  generator->SetTimePerTdc       (                             timePerTdc         );
-  generator->SetMrSyncInterval   (                             mrSyncInterval     );
+  generator->SetMrSyncOffset     (conf->GetValue <Double_t   >("MrSyncOffset"     ));
+  generator->SetCoinTimeWidth    (conf->GetValue <Double_t   >("CoinTimeWidth"    ));
+  generator->SetTimePerTdc       (                              timePerTdc         );
+  generator->SetMrSyncInterval   (                              mrSyncInterval     );
+  generator->SetCoincidenceTarget(conf->GetValues<Int_t      >("CoincidenceTarget"));
 
   Extinction::Analyzer::TimelineCoincidence::PlotsProfiles profile;
   profile.TimeInSpill   .NbinsX   = conf->GetValue<Double_t>("TimeInSpill.NbinsX" );
