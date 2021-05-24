@@ -179,6 +179,9 @@ namespace Extinction {
     inline UInt_t GetHeartbeat(Packet1_t data) {
       return (data & 0x0000FFFFU);
     }
+    inline UInt_t GetTot(Packet1_t data1, Packet2_t data2) {
+      return ((data1 & 0xF8000000U) >> 27) + ((data2 & 0x07U) << 4);
+    }
     inline UChar_t GetType(Packet2_t data) {
       return (data & 0xF0U) >> 4;
     }
@@ -195,6 +198,7 @@ namespace Extinction {
       UShort_t  Channel;
       UInt_t    Tdc;       // 19 bit
       UShort_t  Heartbeat; // 16 bit
+      UShort_t  Tot;
       // TDC (19 bit) + Heartbeat (16 bit) = 35 bit
       // 1.04 GHz sampling -> max 33 sec
       Double_t  ClockFreq;
@@ -211,6 +215,7 @@ namespace Extinction {
           Channel  (data.Channel  ),
           Tdc      (data.Tdc      ),
           Heartbeat(data.Heartbeat),
+          Tot      (data.Tot      ),
           ClockFreq(data.ClockFreq) {
       }
       HulData& operator=(const HulData& data) {
@@ -221,6 +226,7 @@ namespace Extinction {
         Channel   = data.Channel;
         Tdc       = data.Tdc;
         Heartbeat = data.Heartbeat;
+        Tot       = data.Tot;
         ClockFreq = data.ClockFreq;
         return *this;
       }
@@ -233,6 +239,7 @@ namespace Extinction {
         Channel   = 0;
         Tdc       = 0;
         Heartbeat = 0;
+        Tot       = 0;
       }
 
       std::basic_istream<char>& Read(std::basic_istream<char>& file,
@@ -240,6 +247,7 @@ namespace Extinction {
         Type    = DataType::None;
         Channel = 0;
         Tdc     = 0;
+        Tot     = 0;
 
         Packet1_t buff1;
         auto& ret1 = file.read((char*)&buff1, sizeof(Packet1_t));
@@ -278,6 +286,7 @@ namespace Extinction {
           {
             Channel = Hul::GetChannel(buff1);
             Tdc     = Hul::GetTdc(buff1);
+            Tot     = Hul::GetTot(buff1, buff2);
           }
           break;
         case DataType::Error:
@@ -326,6 +335,7 @@ namespace Extinction {
         tree->Branch("ch"       , &Channel  , "ch"     "/s");
         tree->Branch("tdc"      , &Tdc      , "tdc"    "/i");
         tree->Branch("heartbeat", &Heartbeat, "heartbeat/s");
+        tree->Branch("tot"      , &Tot      , "tot"    "/i");
         tree->SetAlias("tdc2", "tdc + 0x80000 * heartbeat");
       }
       inline TBranch* AddEMBranch(TTree* tree) {
@@ -341,6 +351,7 @@ namespace Extinction {
         tree->SetBranchAddress("ch"       , &Channel  );
         tree->SetBranchAddress("tdc"      , &Tdc      );
         tree->SetBranchAddress("heartbeat", &Heartbeat);
+        tree->SetBranchAddress("tot"      , &Tot      );
       }
 
       inline void Show() const {
