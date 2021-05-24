@@ -145,14 +145,14 @@ namespace Extinction {
       TH2*                         hExtMountain_Any        = nullptr;
       TH2**                        hTcMountain             = nullptr;
       TH2**                        hVetoMountain           = nullptr;
-      TH1*                         hPreCoinTdcInSync       = nullptr;
-      TH2*                         hPreCoinMountain        = nullptr;
-      TH1*                         hCoinChannels           = nullptr;
-      TH1*                         hCoinTdcInSync          = nullptr;
-      TH2*                         hCoinMountain           = nullptr;
-      TH2*                         hBhCoinMountain         = nullptr;
-      TH2*                         hTcCoinMountain         = nullptr;
-      TH2*                         hHodCoinMountain        = nullptr;
+      // TH1*                         hPreCoinTdcInSync       = nullptr;
+      // TH2*                         hPreCoinMountain        = nullptr;
+      // TH1*                         hCoinChannels           = nullptr;
+      // TH1*                         hCoinTdcInSync          = nullptr;
+      // TH2*                         hCoinMountain           = nullptr;
+      // TH2*                         hBhCoinMountain         = nullptr;
+      // TH2*                         hTcCoinMountain         = nullptr;
+      // TH2*                         hHodCoinMountain        = nullptr;
       // TGraphErrors*                gHitInSpill             = nullptr;
       TH1**                        hMrSyncInterval         = nullptr;
       TH2**                        hMrSyncInterval2        = nullptr;
@@ -1582,81 +1582,81 @@ namespace Extinction {
       }
       gPad->SetGrid(true, true);
 
-      std::cout << "hPreCoinTdcInSync" << std::endl;
-      gPad->SetLogy(true);
-      {
-        hPreCoinTdcInSync->Draw();
-        hPreCoinTdcInSync->SetMinimum(0.2);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetLogy(false);
+      // std::cout << "hPreCoinTdcInSync" << std::endl;
+      // gPad->SetLogy(true);
+      // {
+      //   hPreCoinTdcInSync->Draw();
+      //   hPreCoinTdcInSync->SetMinimum(0.2);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetLogy(false);
 
-      std::cout << "hPreCoinMountain" << std::endl;
-      gPad->SetGrid(false, true);
-      {
-        hPreCoinMountain->Draw("colz");
-        hPreCoinMountain->SetMinimum(0);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetGrid(true, true);
+      // std::cout << "hPreCoinMountain" << std::endl;
+      // gPad->SetGrid(false, true);
+      // {
+      //   hPreCoinMountain->Draw("colz");
+      //   hPreCoinMountain->SetMinimum(0);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetGrid(true, true);
 
-      std::cout << "hCoinChannels" << std::endl;
-      gPad->SetLogy(true);
-      {
-        hCoinChannels->Draw();
-        hCoinChannels->SetMinimum(0.2);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetLogy(false);
+      // std::cout << "hCoinChannels" << std::endl;
+      // gPad->SetLogy(true);
+      // {
+      //   hCoinChannels->Draw();
+      //   hCoinChannels->SetMinimum(0.2);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetLogy(false);
 
-      std::cout << "hCoinTdcInSync" << std::endl;
-      gPad->SetLogy(true);
-      {
-        hCoinTdcInSync->Draw("hist");
-        hCoinTdcInSync->SetMinimum(0.2);
-        gPad->Print(ofilename.data());
+      // std::cout << "hCoinTdcInSync" << std::endl;
+      // gPad->SetLogy(true);
+      // {
+      //   hCoinTdcInSync->Draw("hist");
+      //   hCoinTdcInSync->SetMinimum(0.2);
+      //   gPad->Print(ofilename.data());
 
-        hCoinTdcInSync->Draw();
-        hCoinTdcInSync->SetMinimum(0.2);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetLogy(false);
+      //   hCoinTdcInSync->Draw();
+      //   hCoinTdcInSync->SetMinimum(0.2);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetLogy(false);
 
-      std::cout << "hCoinMountain" << std::endl;
-      gPad->SetGrid(false, true);
-      {
-        hCoinMountain->Draw("colz");
-        hCoinMountain->SetMinimum(0);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetGrid(true, true);
+      // std::cout << "hCoinMountain" << std::endl;
+      // gPad->SetGrid(false, true);
+      // {
+      //   hCoinMountain->Draw("colz");
+      //   hCoinMountain->SetMinimum(0);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetGrid(true, true);
 
-      std::cout << "hBhCoinMountain" << std::endl;
-      gPad->SetGrid(false, true);
-      {
-        hBhCoinMountain->Draw("colz");
-        hBhCoinMountain->SetMinimum(0);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetGrid(true, true);
+      // std::cout << "hBhCoinMountain" << std::endl;
+      // gPad->SetGrid(false, true);
+      // {
+      //   hBhCoinMountain->Draw("colz");
+      //   hBhCoinMountain->SetMinimum(0);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetGrid(true, true);
 
-      std::cout << "hTcCoinMountain" << std::endl;
-      gPad->SetGrid(false, true);
-      {
-        hTcCoinMountain->Draw("colz");
-        hTcCoinMountain->SetMinimum(0);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetGrid(true, true);
+      // std::cout << "hTcCoinMountain" << std::endl;
+      // gPad->SetGrid(false, true);
+      // {
+      //   hTcCoinMountain->Draw("colz");
+      //   hTcCoinMountain->SetMinimum(0);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetGrid(true, true);
 
-      std::cout << "hHodCoinMountain" << std::endl;
-      gPad->SetGrid(false, true);
-      {
-        hHodCoinMountain->Draw("colz");
-        hHodCoinMountain->SetMinimum(0);
-        gPad->Print(ofilename.data());
-      }
-      gPad->SetGrid(true, true);
+      // std::cout << "hHodCoinMountain" << std::endl;
+      // gPad->SetGrid(false, true);
+      // {
+      //   hHodCoinMountain->Draw("colz");
+      //   hHodCoinMountain->SetMinimum(0);
+      //   gPad->Print(ofilename.data());
+      // }
+      // gPad->SetGrid(true, true);
 
       // std::cout << "gHitInSpill" << std::endl;
       // gPad->SetLogy(true);
@@ -1991,28 +1991,28 @@ namespace Extinction {
         hVetoMountain[ch]->Write();
       }
 
-      {
-        hPreCoinTdcInSync->Write();
-      }
+      // {
+      //   hPreCoinTdcInSync->Write();
+      // }
 
-      {
-        hPreCoinMountain->Write();
-      }
+      // {
+      //   hPreCoinMountain->Write();
+      // }
 
-      {
-        hCoinChannels->Write();
-      }
+      // {
+      //   hCoinChannels->Write();
+      // }
 
-      {
-        hCoinTdcInSync->Write();
-      }
+      // {
+      //   hCoinTdcInSync->Write();
+      // }
 
-      {
-        hCoinMountain->Write();
-        hBhCoinMountain->Write();
-        hTcCoinMountain->Write();
-        hHodCoinMountain->Write();
-      }
+      // {
+      //   hCoinMountain->Write();
+      //   hBhCoinMountain->Write();
+      //   hTcCoinMountain->Write();
+      //   hHodCoinMountain->Write();
+      // }
 
       // {
       //   gHitInSpill->Write();
@@ -2290,28 +2290,28 @@ namespace Extinction {
           hVetoMountain[ch]->Reset();
         }
 
-        {
-          hPreCoinTdcInSync->Reset();
-        }
+        // {
+        //   hPreCoinTdcInSync->Reset();
+        // }
 
-        {
-          hPreCoinMountain->Reset();
-        }
+        // {
+        //   hPreCoinMountain->Reset();
+        // }
 
-        {
-          hCoinChannels->Reset();
-        }
+        // {
+        //   hCoinChannels->Reset();
+        // }
 
-        {
-          hCoinTdcInSync->Reset();
-        }
+        // {
+        //   hCoinTdcInSync->Reset();
+        // }
 
-        {
-          hCoinMountain->Reset();
-          hBhCoinMountain->Reset();
-          hTcCoinMountain->Reset();
-          hHodCoinMountain->Reset();
-        }
+        // {
+        //   hCoinMountain->Reset();
+        //   hBhCoinMountain->Reset();
+        //   hTcCoinMountain->Reset();
+        //   hHodCoinMountain->Reset();
+        // }
 
         for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
           hMrSyncInterval[ch]->Reset();
