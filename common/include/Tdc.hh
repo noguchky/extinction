@@ -15,6 +15,9 @@ namespace Extinction {
     Int_t     Channel;
     Long64_t  Tdc;
     Double_t  Time;
+    UChar_t   Tot;
+    Long64_t  MrSyncCount;
+    Long64_t  MrSyncTdc;
     Int_t     MrSyncChannel;
     Double_t  TimePerTdc;
     Int_t     Board;
@@ -29,6 +32,9 @@ namespace Extinction {
         Channel      (data.Channel      ),
         Tdc          (data.Tdc          ),
         Time         (data.Time         ),
+        Tot          (data.Tot          ),
+        MrSyncCount  (data.MrSyncCount  ),
+        MrSyncTdc    (data.MrSyncTdc    ),
         MrSyncChannel(data.MrSyncChannel),
         TimePerTdc   (data.TimePerTdc   ),
         Board        (data.Board        ) {
@@ -43,6 +49,9 @@ namespace Extinction {
       Channel       = data.Channel;
       Tdc           = data.Tdc;
       Time          = data.Time;
+      Tot           = data.Tot;
+      MrSyncCount   = data.MrSyncCount;
+      MrSyncTdc     = data.MrSyncTdc;
       MrSyncChannel = data.MrSyncChannel;
       TimePerTdc    = data.TimePerTdc;
       Board         = data.Board;
@@ -50,15 +59,18 @@ namespace Extinction {
     }
 
     inline void Clear() {
-      Date          = 0;
+      Date          =  0;
       Spill         = -1;
       EMCount       = -1;
       Channel       = -1;
-      Tdc           = 0;
-      Time          = 0;
+      Tdc           =  0;
+      Time          =  0.0;
+      Tot           =  0;
+      MrSyncCount   =  0;
+      MrSyncTdc     =  0;
       MrSyncChannel = -2;
-      TimePerTdc    = 1.0;
-      Board         = 0;
+      TimePerTdc    =  1.0;
+      Board         =  0;
     }
 
     inline ULong64_t GetTdcTag(std::size_t mrcount, Long64_t mrtdc) const {
@@ -74,8 +86,11 @@ namespace Extinction {
       tree->Branch("ch"           , &Channel      , "ch"           "/I");
       tree->Branch("tdc"          , &Tdc          , "tdc"          "/L");
       tree->Branch("time"         , &Time         , "time"         "/D");
-      tree->Branch("mrSyncChannel", &MrSyncChannel, "mrSyncChannel""/I");
-      tree->Branch("timePerTDc"   , &TimePerTdc   , "timePerTDc"   "/D");
+      tree->Branch("tot"          , &Tot          , "tot"          "/b");
+      tree->Branch("mrcount"      , &MrSyncCount  , "mrcount"      "/L");
+      tree->Branch("mrtdc"        , &MrSyncTdc    , "mrtdc"        "/L");
+      tree->Branch("mrch"         , &MrSyncChannel, "mrch"         "/I");
+      tree->Branch("timePerTdc"   , &TimePerTdc   , "timePerTdc"   "/D");
       tree->Branch("board"        , &Board        , "board"        "/I");
     }
 
@@ -87,7 +102,10 @@ namespace Extinction {
       tree->SetBranchAddress("ch"           , &Channel      );
       tree->SetBranchAddress("tdc"          , &Tdc          );
       tree->SetBranchAddress("time"         , &Time         );
-      tree->SetBranchAddress("mrSyncChannel", &MrSyncChannel);
+      tree->SetBranchAddress("tot"          , &Tot          );
+      tree->SetBranchAddress("mrcount"      , &MrSyncCount  );
+      tree->SetBranchAddress("mrtdc"        , &MrSyncTdc    );
+      tree->SetBranchAddress("mrch"         , &MrSyncChannel);
       tree->SetBranchAddress("timePerTDc"   , &TimePerTdc   );
       tree->SetBranchAddress("board"        , &Board        );
     }

@@ -399,6 +399,7 @@ namespace Extinction {
         datum.EMCount       = EMCount;
         datum.Tdc           = GetTdc2();
         datum.Time          = GetTime();
+        datum.Tot           = Tot;
         datum.TimePerTdc    = GetTimePerTdc();
         datum.Board         = 1;
         if (ChannelMap::MrSync.begin() != ChannelMap::MrSync.end()) {
@@ -427,6 +428,7 @@ namespace Extinction {
         datum.EMCount       = EMCount;
         datum.Tdc           = GetTdc2();
         datum.Time          = GetTime();
+        datum.Tot           = Tot;
         datum.TimePerTdc    = GetTimePerTdc();
         datum.Board         = board;
         typename decltype(MrSync      )::const_iterator itr1;
