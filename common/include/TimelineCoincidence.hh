@@ -140,7 +140,7 @@ namespace Extinction {
       Bool_t                       fEfficiencyTargetTc1;
       Bool_t                       fEfficiencyTargetTc2;
       
-      Double_t                     fMrSyncOffset           =   0.0; // tdc count
+      Double_t                     fMrSyncOffsetTdc        =   0.0; // tdc count
       Double_t                     fCoinTimeWidth          =  50.0 * nsec;
 
       Bool_t                       fDebug                  = false;
@@ -182,11 +182,11 @@ namespace Extinction {
       inline void          SetDrawResidusl(bool flag) { fDrawResidual = flag; }
       inline void          SetResidualFilename(const std::string& filename) { fResidualFilename = filename; }
 
-      inline void          SetMrSyncOffset(Double_t offset) {
+      inline void          SetMrSyncOffsetTime(Double_t offset) {
         std::cout << "SetMrSyncOffset ... " << offset << std::endl;
-        fMrSyncOffset = offset;
+        fMrSyncOffsetTdc = offset / fProvider->GetTimePerTdc();
       }
-      inline Double_t      GetMrSyncOffset() const { return fMrSyncOffset; }
+      inline Double_t      GetMrSyncOffsetTdc() const { return fMrSyncOffsetTdc; }
 
       inline void          SetCoinTimeWidth(Double_t width) {
         std::cout << "SetCoinTimeWidth ... " << width / nsec << " nsec" << std::endl;
@@ -756,7 +756,7 @@ namespace Extinction {
                   if (MrSync::Contains(data.Channel)) {
                     // std::cout << "[debug] get mrsync" << std::endl;
 
-                    data.Tdc += fMrSyncOffset;
+                    data.Tdc += fMrSyncOffsetTdc;
                     if        (fNextMrSync[targetBoard].Tdc) {
                       // std::cout << "[debug] get next next mrsync" << std::endl;
                       fNext2MrSync[targetBoard] = data;
