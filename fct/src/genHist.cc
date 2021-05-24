@@ -43,7 +43,7 @@ Int_t main(Int_t argc, Char_t** argv) {
            [&](std::pair<std::string, Int_t> pair) { return pair.first;  });
   const auto ofilename    = args->GetValue("Output");
   const auto showEvents   = args->IsSet("Event");
-  const auto showSize     = args->GetValue<std::size_t>("EventSize");
+  // const auto showSize     = args->GetValue<std::size_t>("EventSize");
 
   TApplication* app = nullptr;
   if (showEvents) {
@@ -186,7 +186,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   generator->SetMrSyncInterval   (                             mrSyncInterval     );
   generator->SetBunchCenters     (                             bunchCenters       );
   generator->SetBunchWidths      (                             bunchWidths        );
-  generator->SetShowHitEvents    (showEvents,                  showSize           );
+  // generator->SetShowHitEvents    (showEvents,                  showSize           );
   generator->SetCoincidenceTarget(conf->GetValues<Int_t     >("CoincidenceTarget"));
 
   Extinction::Analyzer::HistGenerator::PlotsProfiles profile;
