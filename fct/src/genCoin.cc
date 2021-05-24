@@ -3,7 +3,6 @@
 #include <map>
 #include <regex>
 #include "TROOT.h"
-#include "TApplication.h"
 #include "TStyle.h"
 #include "TFile.h"
 #include "TTree.h"
@@ -15,22 +14,29 @@
 #include "Linq.hh"
 #include "ArgReader.hh"
 #include "Units.hh"
-#include "HistGenerator.hh"
+#include "TimelineCoincidence.hh"
 #include "Fct.hh"
+#include "TApplication.h"
 
 Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
-  args->AddArg<std::string>("ConfFilename",                "Set configure filename");
-  args->AddArg<std::string>("Boards"      ,                "Set comma separated board numbers");
-  args->AddArg<std::string>("Input"       ,                "Set comma separated root filenames");
-  args->AddOpt<std::string>("Output"      , 'o', "output", "Set prefix of output filename", "");
-  args->AddOpt             ("Event"       , 'e', "event" , "Show coincidence mppc events");
-  args->AddOpt<std::size_t>("EventSize"   , 'n', "num"   , "Show coincidence mppc number", "2");
-  args->AddOpt             ("Help"        , 'h', "help"  , "Show usage");
+  args->AddArg<std::string>("ConfFilename",                    "Set configure filename");
+  args->AddArg<std::string>("Boards"      ,                    "Set comma separated board numbers");
+  args->AddArg<std::string>("Input"       ,                    "Set comma separated root filenames");
+  args->AddOpt<std::string>("Output"      , 'o', "output"    , "Set prefix of output filename", ""); 
+  args->AddOpt<std::string>("DrawCoin"    , 'd', "draw"      , "Draw coincidence event");
+  args->AddOpt<std::string>("Residual"    , 'r', "residual"  , "Set output filename of coincidence event");
+  args->AddOpt             ("Efficiency"  , 'e', "efficiency", "Execute efficiency analysis");
+  args->AddOpt             ("Debug"       , 'd', "debug"     , "Debug mode");
+  args->AddOpt             ("Help"        , 'h', "help"      , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
     args->ShowUsage();
     return 0;
+  }
+
+  if (args->IsSet("Debug")) {
+    new TApplication("app", nullptr, nullptr);
   }
 
   const auto confFilename = args->GetValue("ConfFilename");
@@ -42,13 +48,9 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([&](std::pair<std::string, Int_t> pair) { return pair.second; },
            [&](std::pair<std::string, Int_t> pair) { return pair.first;  });
   const auto ofilename    = args->GetValue("Output");
-  const auto showEvents   = args->IsSet("Event");
-  // const auto showSize     = args->GetValue<std::size_t>("EventSize");
-
-  TApplication* app = nullptr;
-  if (showEvents) {
-    app = new TApplication("app", nullptr, nullptr);
-  }
+  const auto drawResidual = args->IsSet("DrawCoin");
+  const auto resFilename  = args->GetValue("Residual");
+  const auto efficiency   = args->IsSet("Efficiency");
 
   std::string ofileprefix;
   if (ofilename.empty()) {
@@ -65,26 +67,10 @@ Int_t main(Int_t argc, Char_t** argv) {
     ofileprefix = buff;
   }
 
-  const std::string ofilenameRoot          = ofileprefix + "_hists.root";
-  const std::string ofilenamePdf           = ofileprefix + "_hists.pdf";
-  const std::string ofilenamePdf_Crosstalk = ofileprefix + "_crosstalk.pdf";
-  const std::string ofilenamePdf_Offset    = ofileprefix + "_offset.pdf";
-  const std::string ofilenamePdf_Time      = ofileprefix + "_time.pdf";
-  const std::string ofilenameSpill         = ofileprefix + "_spill.root";
-  const std::string ofilenameTPT           = ofileprefix + "_timePerTdc.dat";
-  const std::string ofilenameMrSync        = ofileprefix + "_mrSync.dat";
-  const std::string ofilenameBunch         = ofileprefix + "_bunch.dat";
-  const std::string ofilenameOffset        = ofileprefix + "_offset.dat";
+  const std::string ofilenameRoot          = ofileprefix + "_coin.root";
+  const std::string ofilenamePdf           = ofileprefix + "_coin.pdf";
   // std::cout << "ofilenameRoot          " << ofilenameRoot          << std::endl;
   // std::cout << "ofilenamePdf           " << ofilenamePdf           << std::endl;
-  // std::cout << "ofilenamePdf_Crosstalk " << ofilenamePdf_Crosstalk << std::endl;
-  // std::cout << "ofilenamePdf_Offset    " << ofilenamePdf_Offset    << std::endl;
-  // std::cout << "ofilenamePdf_Time      " << ofilenamePdf_Time      << std::endl;
-  // std::cout << "ofilenameSpill         " << ofilenameSpill         << std::endl;
-  // std::cout << "ofilenameTPT           " << ofilenameTPT           << std::endl;
-  // std::cout << "ofilenameMrSync        " << ofilenameMrSync        << std::endl;
-  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
-  // std::cout << "ofilenameOffset        " << ofilenameOffset        << std::endl;
 
   std::cout << "--- Load configure" << std::endl;
   Tron::ConfReader* conf = new Tron::ConfReader(confFilename);
@@ -105,7 +91,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   std::cout << "--- Initialize histgram generator" << std::endl;
   Extinction::Fct::FctData defaultProvider;
-  auto generator = new Extinction::Analyzer::HistGenerator(&defaultProvider);
+  auto generator = new Extinction::Analyzer::TimelineCoincidence(&defaultProvider);
 
   std::map<Int_t, Double_t> timePerTdc;
   do {
@@ -174,22 +160,15 @@ Int_t main(Int_t argc, Char_t** argv) {
     }
   }
 
-  generator->SetCyclicCoincidence(conf->GetValue<Int_t      >("CyclicCoincidence"));
-  generator->SetHistoryWidth     (conf->GetValue<Double_t   >("HistoryWidth"     ));
-  generator->SetMrSyncOffset     (conf->GetValue<Double_t   >("MrSyncOffset"     ));
-  generator->SetCoinTimeWidth    (conf->GetValue<Double_t   >("CoinTimeWidth"    ));
-  generator->SetReadBufferSize   (conf->GetValue<std::size_t>("ReadBufferSize"   ));
-  generator->SetReadBufferMargin (conf->GetValue<std::size_t>("ReadBufferMargin" ));
-  generator->SetMrSyncRefInterval(conf->GetValue<Double_t   >("MrSyncRefInterval"));
-  generator->SetMrSyncRefSize    (conf->GetValue<std::size_t>("MrSyncRefSize"    ));
+  generator->SetMrSyncOffset     (conf->GetValue <Double_t   >("MrSyncOffset"     ));
+  generator->SetCoinTimeWidth    (conf->GetValue <Double_t   >("CoinTimeWidth"    ));
   generator->SetTimePerTdc       (                             timePerTdc         );
   generator->SetMrSyncInterval   (                             mrSyncInterval     );
   generator->SetBunchCenters     (                             bunchCenters       );
   generator->SetBunchWidths      (                             bunchWidths        );
-  // generator->SetShowHitEvents    (showEvents,                  showSize           );
-  generator->SetCoincidenceTarget(conf->GetValues<Int_t     >("CoincidenceTarget"));
+  generator->SetCoincidenceTarget(conf->GetValues<Int_t      >("CoincidenceTarget"));
 
-  Extinction::Analyzer::HistGenerator::PlotsProfiles profile;
+  Extinction::Analyzer::TimelineCoincidence::PlotsProfiles profile;
   profile.TimeInSpill   .NbinsX   = conf->GetValue<Double_t>("TimeInSpill.NbinsX" );
   profile.TimeInSpill   .Xmin     = conf->GetValue<Double_t>("TimeInSpill.Xmin"   );
   profile.TimeInSpill   .Xmax     = conf->GetValue<Double_t>("TimeInSpill.Xmax"   );
@@ -202,8 +181,6 @@ Int_t main(Int_t argc, Char_t** argv) {
   profile.TimeDiff      .Xmin     = conf->GetValue<Double_t>("TimeDiff.Xmin"      );
   profile.TimeDiff      .Xmax     = conf->GetValue<Double_t>("TimeDiff.Xmax"      );
   generator->InitializePlots(profile);
-
-  generator->InitializeSpillSummary(ofilenameSpill);
 
   auto providers = Tron::Linq::From(boards)
     .ToMap([](Int_t board) { return board; },
@@ -227,20 +204,20 @@ Int_t main(Int_t argc, Char_t** argv) {
       return TDatime(0U);
     };
 
-  std::cout << "--- Generate hists" << std::endl;
-  generator->GeneratePlots(providers, ifilenames, "tree", "", "", "", "", parser);
+  if (efficiency) {
+    std::cout << "--- Generate efficiency" << std::endl;
+    generator->GenerateEfficiency(providers, ifilenames, "tree", parser);
+  } else {
+    std::cout << "--- Generate hists" << std::endl;
 
-  generator->DrawPlots          (ofilenamePdf, ofilenamePdf_Crosstalk, ofilenamePdf_Offset, ofilenamePdf_Time);
+    generator->SetDrawResidusl    (drawResidual);
+    generator->SetResidualFilename(resFilename );
 
+    generator->GeneratePlots(providers, ifilenames, "tree", parser);
+  }
+
+  generator->DrawPlots          (ofilenamePdf   );
   generator->WritePlots         (ofilenameRoot  );
-  generator->WriteSpillSummary  (               );
-  generator->WriteTimePerTdc    (ofilenameTPT   );
-  generator->WriteMrSyncInterval(ofilenameMrSync);
-  generator->WriteBunchProfile  (ofilenameBunch );
-  generator->WriteOffset        (ofilenameOffset);
-
-  delete app;
-  app = nullptr;
 
   return 0;
 }

@@ -11,21 +11,25 @@
 
 Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
-  args->AddArg<std::string>("Input"     ,                    "Set rawdata filename");
-  args->AddOpt<std::string>("Output"    , 'o', "output"    , "Set output filename", "");
-  args->AddOpt<Int_t>      ("EMChannel" , 'e', "cmchannel" , "Set channel of event match", "27");
-  args->AddOpt<Int_t>      ("EMCount"   , 'c', "cmcount"   , "Set default count of event match", "-1");
-  args->AddOpt             ("Help"      , 'h', "help"      , "Show usage");
+  args->AddArg<std::string>("Input"      ,                     "Set rawdata filename");
+  args->AddOpt<std::string>("Output"     , 'o', "output"     , "Set output filename", "");
+  // args->AddOpt<Int_t>      ("SyncChannel", 's', "syncchannel", "Set channel of mr sync", "26");
+  // args->AddOpt<Int_t>      ("SyncOffset" , 't', "syncoffset" , "Set time offset of mr sync", "0");
+  args->AddOpt<Int_t>      ("EMChannel"  , 'e', "cmchannel"  , "Set channel of event match", "27");
+  args->AddOpt<Int_t>      ("EMCount"    , 'c', "cmcount"    , "Set default count of event match", "-1");
+  args->AddOpt             ("Help"       , 'h', "help"       , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
     args->ShowUsage();
     return 0;
   }
 
-  const std::string ifilename  = args->GetValue("Input");
-  const std::string ofilename  = args->GetValue("Output");
-  const Int_t       emChannel  = args->GetValue<Int_t>("EMChannel");
-  const Int_t       emDefCount = args->GetValue<Int_t>("EMCount");
+  const std::string ifilename   = args->GetValue("Input");
+  const std::string ofilename   = args->GetValue("Output");
+  // const Int_t       syncChannel = args->GetValue<Int_t>("SyncChannel");
+  // const Int_t       syncOffset  = args->GetValue<Int_t>("SyncOffset");
+  const Int_t       emChannel   = args->GetValue<Int_t>("EMChannel");
+  const Int_t       emDefCount  = args->GetValue<Int_t>("EMCount");
 
   std::string ofilenameRoot;
   if (ofilename.empty()) {
@@ -70,6 +74,11 @@ Int_t main(Int_t argc, Char_t** argv) {
   decoder.InitializeTree();
 
   std::cout << "=== Decode" << std::endl;
+  // Int_t lastMrSyncCount = 0;
+  // Int_t lastMrSyncTdc   = 0;
+  // Int_t mrSyncCount = 0;
+  // Int_t mrSyncTdc   = 0;
+  // std::map<Long64_t, Extinction::FctData::FctData> tdcBuffer;
   std::vector<std::pair<Long64_t, Int_t>> emCount;
   Int_t nextEmCount = emDefCount;
   emCount.push_back({ std::numeric_limits<Long64_t>::max(), nextEmCount });
