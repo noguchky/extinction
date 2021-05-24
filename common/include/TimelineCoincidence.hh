@@ -181,7 +181,7 @@ namespace Extinction {
       inline void          SetResidualFilename(const std::string& filename) { fResidualFilename = filename; }
 
       inline void          SetMrSyncOffsetTime(Double_t offset) {
-        std::cout << "SetMrSyncOffset ... " << offset << std::endl;
+        std::cout << "SetMrSyncOffset ... " << offset / nsec << " nsec" << std::endl;
         fMrSyncOffsetTdc = offset / fProvider->GetTimePerTdc();
       }
       inline Double_t      GetMrSyncOffsetTdc() const { return fMrSyncOffsetTdc; }
