@@ -143,7 +143,6 @@ namespace Extinction {
       Double_t                     fMrSyncOffsetTdc        =   0.0; // tdc count
       Double_t                     fCoinTimeWidth          =  50.0 * nsec;
 
-      Bool_t                       fDebug                  = false;
       Bool_t                       fDrawResidual           = false;
       std::string                  fResidualFilename;
 
@@ -178,8 +177,7 @@ namespace Extinction {
         std::cout << "Tc2 " << fCoincidenceTargetTc2 << std::endl;
       }
 
-      inline void          SetDebug(bool debug) { fDebug = debug; }
-      inline void          SetDrawResidusl(bool flag) { fDrawResidual = flag; }
+      inline void          SetDrawResidual(bool flag) { fDrawResidual = flag; }
       inline void          SetResidualFilename(const std::string& filename) { fResidualFilename = filename; }
 
       inline void          SetMrSyncOffsetTime(Double_t offset) {
@@ -852,12 +850,11 @@ namespace Extinction {
                 hCoinTdcInSync->Fill(bin - 1);
                 hCoinMountain ->Fill(bin - 1, fLastMrSync[0].Time / msec);
 
-                if (fDebug && (fDrawResidual && !InBunch(bin))) {
+                if (fDrawResidual && !InBunch(bin)) {
                   DrawTmpTimeline(bin, 2 * coinBinWidth);
                   if (fResidualFilename.size()) {
                     gPad->Print(fResidualFilename.data());
                   }
-                  gPad->WaitPrimitive();
                 }
 
                 // Skip dead time
@@ -990,7 +987,6 @@ namespace Extinction {
    // setMax1(hTmpHodTimeline);
       setMax1(hTmpTc1Timeline);
       setMax1(hTmpTc2Timeline);
-      
 
       hTmpSumTimeline->Add(hTmpBh1Timeline    );
       hTmpSumTimeline->Add(hTmpBh2Timeline    );
