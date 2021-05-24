@@ -160,7 +160,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     }
   }
 
-  generator->SetMrSyncOffset     (conf->GetValue <Double_t   >("MrSyncOffset"     ));
+  generator->SetMrSyncOffsetTime (conf->GetValue <Double_t   >("MrSyncOffset"     ));
   generator->SetCoinTimeWidth    (conf->GetValue <Double_t   >("CoinTimeWidth"    ));
   generator->SetTimePerTdc       (                             timePerTdc         );
   generator->SetMrSyncInterval   (                             mrSyncInterval     );

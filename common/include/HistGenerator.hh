@@ -193,7 +193,7 @@ namespace Extinction {
 
       Bool_t                       fCyclicCoincidence      = true;
       Bool_t                       fCoinOnlyLeakage        = false;
-      Double_t                     fMrSyncOffset           = 0.0; // tdc count
+      Double_t                     fMrSyncOffsetTdc        = 0.0; // tdc count
       Double_t                     fHistoryWidth           = 600.0 * nsec;
       Double_t                     fCoinTimeWidth          =  10.0 * nsec;
       std::size_t                  fBufferSize             = 5000;
@@ -252,11 +252,11 @@ namespace Extinction {
       }
       inline Bool_t        IsCoinOnlyLeakage() const { return fCoinOnlyLeakage; }
 
-      inline void          SetMrSyncOffset(Double_t offset) {
+      inline void          SetMrSyncOffsetTime(Double_t offset) {
         std::cout << "SetMrSyncOffset ... " << offset / nsec << " nsec" << std::endl;
-        fMrSyncOffset = offset;
+        fMrSyncOffsetTdc = offset / fProvider->GetTimePerTdc();
       }
-      inline Double_t      GetMrSyncOffset() const { return fMrSyncOffset; }
+      inline Double_t      GetMrSyncOffsetTdc() const { return fMrSyncOffsetTdc; }
 
       inline void          SetHistoryWidth(Double_t width) {
         std::cout << "SetHistoryWidth ... " << width / nsec << " nsec" << std::endl;
@@ -2700,7 +2700,7 @@ namespace Extinction {
 
                 for (auto&& data : tdcData) {
                   if (MrSync::Contains(data.Channel)) { 
-                    data.Tdc += fMrSyncOffset;
+                    data.Tdc += fMrSyncOffsetTdc;
                     // std::cout << "[info] find MR Sync @ " << targetBoard << std::endl;
                     if (!mrcount[data.Board]) {
                       mrcount[data.Board] = 1;
