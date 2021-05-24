@@ -176,7 +176,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   generator->SetCyclicCoincidence(conf->GetValue<Int_t      >("CyclicCoincidence"));
   generator->SetHistoryWidth     (conf->GetValue<Double_t   >("HistoryWidth"     ));
-  generator->SetMrSyncOffsetTime (conf->GetValue<Double_t   >("MrSyncOffset"     ));
+  generator->SetMrSyncOffsetTime (conf->GetValue<Double_t   >("MrSyncOffsetTime" ));
   generator->SetCoinTimeWidth    (conf->GetValue<Double_t   >("CoinTimeWidth"    ));
   generator->SetReadBufferSize   (conf->GetValue<std::size_t>("ReadBufferSize"   ));
   generator->SetReadBufferMargin (conf->GetValue<std::size_t>("ReadBufferMargin" ));
