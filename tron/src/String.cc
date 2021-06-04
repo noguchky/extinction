@@ -79,7 +79,7 @@ std::string Tron::String::Wrap(char chara, const char* prefix, const char* suffi
 std::string Tron::String::Replace(const std::string& str, const std::string& pattern, const std::string& replacement) {
   // std::cout << "String::Replace" << std::endl;
   std::string buf = str;
-  
+
   const std::string::size_type patternLength = pattern.length();
   const std::string::size_type replaceLength = replacement.length();
   if (patternLength != 0) {
