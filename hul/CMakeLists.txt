@@ -39,7 +39,7 @@ include_directories(${TRON_INCLUDE_DIR})
 # Add compile option
 #
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -W -Wall")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -W -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -W -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ROOT_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TRON_CXX_FLAGS}")
 
@@ -55,37 +55,22 @@ link_directories(${ROOT_LIBRARY_DIR})
 link_directories(${TRON_LIBRARY_DIR})
 
 # Add the executable
-add_executable(genMock src/genMock.cc ${headers})
 add_executable(emcount src/emcount.cc ${headers})
 add_executable(decoder src/decoder.cc ${headers})
-add_executable(checker src/checker.cc ${headers})
-add_executable(marger  src/marger.cc  ${headers})
-add_executable(anaRaw  src/anaRaw.cc  ${headers})
-add_executable(anaBeam src/anaBeam.cc ${headers})
 add_executable(genHist src/genHist.cc ${headers})
-add_executable(watcher src/watcher.cc ${headers})
+add_executable(genCoin src/genCoin.cc ${headers})
 
 # Add link libraries
-target_link_libraries(genMock ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(emcount ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(decoder ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
-target_link_libraries(checker ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
-target_link_libraries(marger  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
-target_link_libraries(anaRaw  ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
-target_link_libraries(anaBeam ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(genHist ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
-target_link_libraries(watcher ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+target_link_libraries(genCoin ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 
 #----------------------------------------------------------------------------
 # Add install directories
 #
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
-install(TARGETS genMock DESTINATION .)
 install(TARGETS emcount DESTINATION .)
 install(TARGETS decoder DESTINATION .)
-install(TARGETS checker DESTINATION .)
-install(TARGETS marger  DESTINATION .)
-install(TARGETS anaRaw  DESTINATION .)
-install(TARGETS anaBeam DESTINATION .)
 install(TARGETS genHist DESTINATION .)
-install(TARGETS watcher DESTINATION .)
+install(TARGETS genCoin DESTINATION .)

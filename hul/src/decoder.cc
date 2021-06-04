@@ -14,7 +14,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
   args->AddArg<std::string>("Input"     ,                    "Set rawdata filename");
   args->AddOpt<std::string>("Output"    , 'o', "output"    , "Set output filename", "");
-  args->AddOpt<Int_t>      ("EMChannel" , 'e', "cmchannel" , "Set channel of event match", "-1");
+  args->AddOpt<Int_t>      ("EMChannel" , 'e', "cmchannel" , "Set channel of event match", "2");
   args->AddOpt<Int_t>      ("EMCount"   , 'c', "cmcount"   , "Set default count of event match", "-1");
   args->AddOpt             ("Help"      , 'h', "help"      , "Show usage");
 
@@ -84,7 +84,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     if (decoder.Data.IsData()) {
       decoder.Tree->Fill();
       if (decoder.Data.Channel == emChannel) {
-        emdata.push_back(decoder.Data.GetTdcData().front());
+        emdata.push_back(decoder.Data.GetTdcData(-1).front());
       }
     } else if (decoder.Data.IsFooter()) {
       std::cout << "end of spill " << decoder.Data.Spill << std::endl;

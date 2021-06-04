@@ -22,55 +22,6 @@ namespace Extinction {
 
     const std::string Name = "HUL";
 
-    namespace ChannelMap {
-      // (*) key should be board no & raw channel
-      const std::map<Int_t, Int_t> Ext
-        {
-         { 16 - 16 - 1, 48 +  1 - 1 },
-         { 17 - 16 - 1, 48 +  3 - 1 },
-         { 18 - 16 - 1, 48 +  4 - 1 },
-         { 19 - 16 - 1, 48 +  6 - 1 },
-         { 20 - 16 - 1, 48 +  7 - 1 },
-         { 21 - 16 - 1, 48 + 12 - 1 },
-         { 22 - 16 - 1, 48 +  8 - 1 },
-         { 23 - 16 - 1, 48 +  2 - 1 },
-         { 24 - 16 - 1, 48 +  9 - 1 },
-         { 25 - 16 - 1, 48 + 10 - 1 },
-         { 26 - 16 - 1, 48 + 11 - 1 },
-         { 27 - 16 - 1, 48 + 16 - 1 },
-         { 28 - 16 - 1, 48 +  5 - 1 },
-         { 29 - 16 - 1, 48 + 13 - 1 },
-         { 30 - 16 - 1, 48 + 14 - 1 },
-         { 31 - 16 - 1, 48 + 15 - 1 },
-        };
-      const std::map<Int_t, Int_t> Hod
-        {
-         {  6 + 16 - 1, 11 },
-         {  7 + 16 - 1, 10 },
-         {  8 + 16 - 1,  9 },
-         {  9 + 16 - 1,  8 },
-         { 10 + 16 - 1,  7 },
-         { 11 + 16 - 1,  6 },
-         { 12 + 16 - 1,  5 },
-         { 14 + 16 - 1,  4 },
-         {  5 + 16 - 1,  0 }, // TBD: Hod OR
-        };
-      const std::map<Int_t, Int_t> Tc
-        {
-         // TC1
-         // TC2
-        };
-      const std::map<Int_t, Int_t> Bh
-        {
-         {  3 + 16 - 1,  0 }, // BH1
-         {  4 + 16 - 1,  1 }, // BH2
-        };
-      const std::map<Int_t, Int_t> MrSync
-        {
-         {  1 + 16 - 1, 0 },
-        };
-    }
-
     namespace ChannelMapWithBoard {
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Ext;
       std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Hod;
@@ -144,7 +95,7 @@ namespace Extinction {
     }
 
     struct DataType {
-      enum {
+      enum : UChar_t {
             None       = 0x0U,
             SpillStart = 0x1U,
             SpillEnd   = 0x4U,
@@ -163,38 +114,50 @@ namespace Extinction {
       Packet2_t Packet2;
     };
 
-    inline void ShowAsHex(Packet1_t data1, Packet2_t data2) {
-      printf("%08x %02x \n", data1, data2);
-    }
+    namespace Packet {
 
-    inline UInt_t GetHeader(Packet1_t data) {
-      return (data & 0xFE000000U) >> 25;
-    }
-    inline UInt_t GetChannel(Packet1_t data) {
-      return (data & 0x01F80000U) >> 19;
-    }
-    inline UInt_t GetTdc(Packet1_t data) {
-      return (data & 0x0007FFFFU);
-    }
-    inline UInt_t GetHeartbeat(Packet1_t data) {
-      return (data & 0x0000FFFFU);
-    }
-    inline UChar_t GetType(Packet2_t data) {
-      return (data & 0xF0U) >> 4;
-    }
-    inline UChar_t GetFooter(Packet2_t data) {
-      return (data & 0x0FU);
+      inline void ShowAsHex(Packet1_t data1, Packet2_t data2) {
+        printf("%08x %02x \n", data1, data2);
+      }
+
+      inline UInt_t GetHeader(Packet1_t data) {
+        return (data & 0xFE000000U) >> 25;
+      }
+      inline UInt_t GetChannel(Packet1_t data) {
+        return (data & 0x01F80000U) >> 19;
+      }
+      inline UInt_t GetTdc(Packet1_t data) {
+        return (data & 0x0007FFFFU);
+      }
+      inline UInt_t GetHeartbeat(Packet1_t data) {
+        return (data & 0x0000FFFFU);
+      }
+      inline UInt_t GetTot(Packet1_t data1, Packet2_t data2) {
+        return ((data1 & 0xF8000000U) >> 27) + ((data2 & 0x07U) << 4);
+      }
+      inline UChar_t GetType(Packet2_t data) {
+        return (data & 0xF0U) >> 4;
+      }
+      inline UChar_t GetFooter(Packet2_t data) {
+        return (data & 0x0FU);
+      }
+
     }
 
     class HulData : public ITdcDataProvider {
     public:
       ULong64_t Date;
-      UChar_t   Type;
       Int_t     Spill;     // log_2(60 * 60 * 24) = 16.39 -> need more than 16 bit
       Int_t     EMCount;
+      UChar_t   Type;
       UShort_t  Channel;
       UInt_t    Tdc;       // 19 bit
       UShort_t  Heartbeat; // 16 bit
+      UShort_t  Tot;
+      Int_t     MrSyncCount;
+      Long64_t  MrSyncTdc; // set tdc considering with heatbeat
+      Long64_t  TdcFromMrSync;
+
       // TDC (19 bit) + Heartbeat (16 bit) = 35 bit
       // 1.04 GHz sampling -> max 33 sec
       Double_t  ClockFreq;
@@ -204,35 +167,47 @@ namespace Extinction {
         Clear();
       }
       HulData(const HulData& data)
-        : Date     (data.Date     ),
-          Type     (data.Type     ),
-          Spill    (data.Spill    ),
-          EMCount  (data.EMCount  ),
-          Channel  (data.Channel  ),
-          Tdc      (data.Tdc      ),
-          Heartbeat(data.Heartbeat),
-          ClockFreq(data.ClockFreq) {
+        : Date         (data.Date         ),
+          Spill        (data.Spill        ),
+          EMCount      (data.EMCount      ),
+          Type         (data.Type         ),
+          Channel      (data.Channel      ),
+          Tdc          (data.Tdc          ),
+          Heartbeat    (data.Heartbeat    ),
+          Tot          (data.Tot          ),
+          MrSyncCount  (data.MrSyncCount  ),
+          MrSyncTdc    (data.MrSyncTdc    ),
+          TdcFromMrSync(data.TdcFromMrSync),
+          ClockFreq    (data.ClockFreq    ) {
       }
       HulData& operator=(const HulData& data) {
-        Date      = data.Date;
-        Type      = data.Type;
-        Spill     = data.Spill;
-        EMCount   = data.EMCount;
-        Channel   = data.Channel;
-        Tdc       = data.Tdc;
-        Heartbeat = data.Heartbeat;
-        ClockFreq = data.ClockFreq;
+        Date          = data.Date;
+        Spill         = data.Spill;
+        EMCount       = data.EMCount;
+        Type          = data.Type;
+        Channel       = data.Channel;
+        Tdc           = data.Tdc;
+        Heartbeat     = data.Heartbeat;
+        Tot           = data.Tot;
+        MrSyncCount   = data.MrSyncCount;
+        MrSyncTdc     = data.MrSyncTdc;
+        TdcFromMrSync = data.TdcFromMrSync;
+        ClockFreq     = data.ClockFreq;
         return *this;
       }
 
       inline void Clear() {
-        Date      = 0;
-        Type      = DataType::None;
-        Spill     = -1;
-        EMCount   = -1;
-        Channel   = 0;
-        Tdc       = 0;
-        Heartbeat = 0;
+        Date          =  0;
+        Spill         = -1;
+        EMCount       = -1;
+        Type          = DataType::None;
+        Channel       =  0;
+        Tdc           =  0;
+        Heartbeat     =  0;
+        Tot           =  0;
+        MrSyncCount   =  0;
+        MrSyncTdc     =  0;
+        TdcFromMrSync =  0;
       }
 
       std::basic_istream<char>& Read(std::basic_istream<char>& file,
@@ -240,6 +215,7 @@ namespace Extinction {
         Type    = DataType::None;
         Channel = 0;
         Tdc     = 0;
+        Tot     = 0;
 
         Packet1_t buff1;
         auto& ret1 = file.read((char*)&buff1, sizeof(Packet1_t));
@@ -253,7 +229,7 @@ namespace Extinction {
           return ret2;
         }
 
-        Type = Hul::GetType(buff2);
+        Type = Packet::GetType(buff2);
         switch (Type) {
         case DataType::SpillStart:
           {
@@ -276,20 +252,21 @@ namespace Extinction {
           break;
         case DataType::Data:
           {
-            Channel = Hul::GetChannel(buff1);
-            Tdc     = Hul::GetTdc(buff1);
+            Channel = Packet::GetChannel(buff1);
+            Tdc     = Packet::GetTdc(buff1);
+            Tot     = Packet::GetTot(buff1, buff2);
           }
           break;
         case DataType::Error:
           {
-            Heartbeat = Hul::GetHeartbeat(buff1);
+            Heartbeat = Packet::GetHeartbeat(buff1);
             std::cerr << "error detected, spill = " << Spill
                       << ", heartbeat = " << Heartbeat << std::endl;
           }
           break;
         case DataType::Heartbeat:
           {
-            Heartbeat = Hul::GetHeartbeat(buff1);
+            Heartbeat = Packet::GetHeartbeat(buff1);
           }
           break;
         }
@@ -302,8 +279,16 @@ namespace Extinction {
         return file;
       }
 
-      inline Long64_t GetTdc2() const {
-        return Tdc + 0x80000UL * Heartbeat;
+      inline virtual Bool_t IsData() const override {
+        return Type == DataType::Data;
+      }
+
+      inline virtual Bool_t IsFooter() const override {
+        return Type == DataType::SpillEnd;
+      }
+
+      inline virtual std::string GetName() const override {
+        return Name;
       }
 
       inline virtual void SetTimePerTdc(Double_t timePerTdc) override {
@@ -314,33 +299,24 @@ namespace Extinction {
         return 1.0 / ClockFreq;
       }
 
+      inline virtual ULong64_t GetDate() const override {
+        return Date;
+      }
+
+      inline virtual Int_t GetSpill() const override {
+        return Spill;
+      }
+
+      inline virtual Int_t GetEMCount() const override {
+        return EMCount;
+      }
+
+      inline Long64_t GetTdc2() const {
+        return Tdc + 0x80000UL * Heartbeat;
+      }
+
       inline virtual Double_t GetTime() const override {
         return GetTdc2() * GetTimePerTdc();
-      }
-
-      inline void CreateBranch(TTree* tree) {
-        // std::cout << "Hul::HulData::CreateBranch()" << std::endl;
-        tree->Branch("date"     , &Date     , "date"   "/l");
-        tree->Branch("type"     , &Type     , "type"   "/b");
-        tree->Branch("spill"    , &Spill    , "spill"  "/I");
-        tree->Branch("ch"       , &Channel  , "ch"     "/s");
-        tree->Branch("tdc"      , &Tdc      , "tdc"    "/i");
-        tree->Branch("heartbeat", &Heartbeat, "heartbeat/s");
-        tree->SetAlias("tdc2", "tdc + 0x80000 * heartbeat");
-      }
-      inline TBranch* AddEMBranch(TTree* tree) {
-        return tree->Branch("emcount", &EMCount, "emcount/I");
-      }
-
-      inline virtual void SetBranchAddress(TTree* tree) override {
-        // std::cout << "Hul::HulData::SetBranchAddress()" << std::endl;
-        tree->SetBranchAddress("date"     , &Date     );
-        tree->SetBranchAddress("type"     , &Type     );
-        tree->SetBranchAddress("spill"    , &Spill    );
-        tree->SetBranchAddress("emcount"  , &EMCount  );
-        tree->SetBranchAddress("ch"       , &Channel  );
-        tree->SetBranchAddress("tdc"      , &Tdc      );
-        tree->SetBranchAddress("heartbeat", &Heartbeat);
       }
 
       inline void Show() const {
@@ -358,66 +334,22 @@ namespace Extinction {
                   << "TDC = " << Tdc << " + 0x8000 * " << Heartbeat << std::endl;
       }
 
-      inline virtual std::string GetName() const override {
-        return Name;
-      }
-
-      inline virtual Bool_t IsData() const override {
-        return Type == DataType::Data;
-      }
-
-      inline virtual Bool_t IsFooter() const override {
-        return Type == DataType::SpillEnd;
-      }
-
-      inline virtual ULong64_t GetDate() const override {
-        return Date;
-      }
-
-      inline virtual Int_t GetSpill() const override {
-        return Spill;
-      }
-
-      inline virtual Int_t GetEMCount() const override {
-        return EMCount;
-      }
-
-      inline virtual std::vector<TdcData> GetTdcData() const override {
-        TdcData datum;
-        datum.Spill         = Spill;
-        datum.EMCount       = EMCount;
-        datum.Tdc           = GetTdc2();
-        datum.Time          = GetTime();
-        datum.TimePerTdc    = GetTimePerTdc();
-        datum.Board         = 1;
-        if (ChannelMap::MrSync.begin() != ChannelMap::MrSync.end()) {
-          datum.MrSyncChannel = ChannelMap::MrSync.begin()->second + MrSync::GlobalChannelOffset;
-        }
-        if        (ChannelMap::Ext.find(Channel) != ChannelMap::Ext.end()) {
-          datum.Channel     = ChannelMap::Ext.at(Channel) + ExtinctionDetector::GlobalChannelOffset;
-        } else if (ChannelMap::Hod.find(Channel) != ChannelMap::Hod.end()) {
-          datum.Channel     = ChannelMap::Hod.at(Channel) + Hodoscope::GlobalChannelOffset;
-        } else if (ChannelMap::Tc.find(Channel) != ChannelMap::Tc.end()) {
-          datum.Channel     = ChannelMap::Tc.at(Channel) + TimingCounter::GlobalChannelOffset;
-        } else if (ChannelMap::Bh.find(Channel) != ChannelMap::Bh.end()) {
-          datum.Channel     = ChannelMap::Bh.at(Channel) + BeamlineHodoscope::GlobalChannelOffset;
-        } else if (ChannelMap::MrSync.find(Channel) != ChannelMap::MrSync.end()) {
-          datum.Channel     = ChannelMap::MrSync.at(Channel) + MrSync::GlobalChannelOffset;
-     // } else if (Evm   .find(Channel) != Evm   .end()) {
-     //   datum.Channel     = Evm   .at(Channel) + EventMatch        ::GlobalChannelOffset;
-        }
-        return { datum };
-      }
-
       inline virtual std::vector<TdcData> GetTdcData(Int_t board) const override {
         using namespace ChannelMapWithBoard;
         TdcData datum;
-        datum.Spill         = Spill;
-        datum.EMCount       = EMCount;
-        datum.Tdc           = GetTdc2();
-        datum.Time          = GetTime();
-        datum.TimePerTdc    = GetTimePerTdc();
-        datum.Board         = board;
+        datum.Date            = Date;
+        datum.Spill           = Spill;
+        datum.EMCount         = EMCount;
+        datum.Board           = board;
+        datum.TimePerTdc      = GetTimePerTdc();
+        datum.RawChannel      = Channel;
+        datum.Tdc             = GetTdc2();
+        datum.Time            = GetTime();
+        datum.Tot             = Tot;
+        datum.LastMrSyncCount = MrSyncCount;
+        datum.LastMrSyncTdc   = MrSyncTdc;
+        datum.NextMrSyncTdc   = 0;
+        datum.TdcFromMrSync   = TdcFromMrSync;
         typename decltype(MrSync      )::const_iterator itr1;
         typename decltype(itr1->second)::const_iterator itr2;
         if        ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
@@ -444,6 +376,47 @@ namespace Extinction {
           datum.Channel     = itr2->second + EventMatch        ::GlobalChannelOffset;
         }
         return { datum };
+      }
+
+      inline virtual Int_t FindBoard(Int_t globalChannel) const override {
+        std::map<Int_t, Int_t>::const_iterator itr;
+        if ((itr = ChannelMapWithBoard::Board.find(globalChannel)) != ChannelMapWithBoard::Board.end()) {
+          return itr->second;
+        }
+        return -1;
+      }
+
+      inline void CreateBranch(TTree* tree) {
+        // std::cout << "Hul::HulData::CreateBranch()" << std::endl;
+        tree->Branch("date"     , &Date         , "date"   "/l");
+        tree->Branch("spill"    , &Spill        , "spill"  "/I");
+        tree->Branch("type"     , &Type         , "type"   "/b");
+        tree->Branch("ch"       , &Channel      , "ch"     "/s");
+        tree->Branch("tdc"      , &Tdc          , "tdc"    "/i");
+        tree->Branch("heartbeat", &Heartbeat    , "heartbeat/s");
+        tree->Branch("tot"      , &Tot          , "tot"    "/i");
+     // tree->Branch("mscount"  , &MrSyncCount  , "mscount""/I");
+     // tree->Branch("mstdc"    , &MrSyncTdc    , "mstdc"  "/I");
+        tree->Branch("dtdc"     , &TdcFromMrSync, "dtdc"   "/I");
+        tree->SetAlias("tdc2", "tdc + 0x80000 * heartbeat");
+      }
+      inline TBranch* AddEMBranch(TTree* tree) {
+        return tree->Branch("emcount", &EMCount, "emcount/I");
+      }
+
+      inline virtual void SetBranchAddress(TTree* tree) override {
+        // std::cout << "Hul::HulData::SetBranchAddress()" << std::endl;
+        tree->SetBranchAddress("date"     , &Date     );
+        tree->SetBranchAddress("spill"    , &Spill    );
+        tree->SetBranchAddress("emcount"  , &EMCount  );
+        tree->SetBranchAddress("type"     , &Type     );
+        tree->SetBranchAddress("ch"       , &Channel  );
+        tree->SetBranchAddress("tdc"      , &Tdc      );
+        tree->SetBranchAddress("heartbeat", &Heartbeat);
+        tree->SetBranchAddress("tot"      , &Tot      );
+     // tree->SetBranchAddress("mscount"  , &MrSyncCount  );
+     // tree->SetBranchAddress("mstdc"    , &MrSyncTdc    );
+        tree->SetBranchAddress("dtdc"     , &TdcFromMrSync);
       }
 
       inline void WriteSpillStart(std::ofstream& file) const {
@@ -478,57 +451,7 @@ namespace Extinction {
       }
 
       virtual Int_t DecodeEventMatchNumber(const std::vector<TdcData>& eventMatchData) const override {
-        const std::size_t kHeaderSize     =  2;
-        const std::size_t kEventMatchSize = 19;
-        Int_t eventMatchNumber = -1;
-        if (eventMatchData.size() < kHeaderSize) {
-          std::cerr << "[warning] event match data is empty" << std::endl;
-        } else {
-          Int_t eventMatchBits[kEventMatchSize] = { 0 };
-          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
-          // for (auto&& data : eventMatchData) { std::cout << data.Tdc << " "; } std::cout << std::endl;
-          for (auto&& data : eventMatchData) {
-            const Double_t norm = (Double_t)(data.Tdc - eventMatchData[0].Tdc) / (Double_t)(eventMatchData[1].Tdc - eventMatchData[0].Tdc);
-            const std::size_t bit = TMath::Nint(norm);
-            if (bit < kEventMatchSize) {
-              // std::cout << bit << ", ";
-              // std::cout << bit << ": " << data.Tdc << std::endl;
-              eventMatchBits[bit] = 1;
-            } else {
-              // Maybe second event match signals
-              break;
-              // std::cerr << "[warning] invalid event match tdc" << std::endl;
-              // std::cout << "(" << data.Tdc << " - " << eventMatchData[0].Tdc << ") / "
-              //           << "(" << eventMatchData[1].Tdc << " - " << eventMatchData[0].Tdc << ")" << std::endl
-              //           << "-> " << data.Tdc - eventMatchData[0].Tdc
-              //           << " / " << eventMatchData[1].Tdc - eventMatchData[0].Tdc << std::endl
-              //           << "-> " << norm << " -> " << bit << std::endl;
-            }
-          }
-          // std::cout << std::endl;
-          // for (auto i : eventMatchBits) { std::cout << i; } std::cout << std::endl;
-          Int_t parityBit = 0;
-          for (std::size_t bit = 0; bit < kEventMatchSize - 1; ++bit) {
-            parityBit ^= eventMatchBits[bit];
-          }
-          // std::cout << parityBit << " <--> " << eventMatchBits[kEventMatchSize - 1] << std::endl;
-          if (parityBit != eventMatchBits[kEventMatchSize - 1]) {
-            std::cerr << "[warning] invalid parity bit" << std::endl;
-            for (auto&& data : eventMatchData) {
-              const Double_t norm = (Double_t)(data.Tdc - eventMatchData[0].Tdc) / (Double_t)(eventMatchData[1].Tdc - eventMatchData[0].Tdc);
-              const std::size_t bit = TMath::Nint(norm);
-              std::cerr << bit << ": " << data.Tdc << std::endl;
-            }
-          } else {
-            eventMatchNumber = 0;
-            for (std::size_t bit = kHeaderSize; bit < kEventMatchSize - 1; ++bit) {
-              if (eventMatchBits[bit]) {
-                eventMatchNumber += (0x1 << (bit - kHeaderSize));
-              }
-            }
-          }
-        }
-        return eventMatchNumber;
+        return TdcData::DecodeEventMatchNumber(eventMatchData);
       }
     };
 
@@ -558,7 +481,7 @@ namespace Extinction {
         } else {
           for (; Read(file); ++count) {
             // Data.Show();
-            if (Data.Type == DataType::Data) {
+            if (Data.IsData() || Data.IsFooter()) {
               // std::cout << "TTree::Fill()" << std::endl;
               Tree->Fill();
             }

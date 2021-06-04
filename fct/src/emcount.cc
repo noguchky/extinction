@@ -48,7 +48,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   while (decoder.Read(*istr)) {
     if (decoder.Data.IsData()) {
       if (decoder.Data.Channel == emChannel) {
-        emdata.push_back(decoder.Data.GetTdcData().front());
+        emdata.push_back(decoder.Data.GetTdcData(-1).front());
         if (emdata.size() > 2 &&
             (emdata.back().Tdc - emdata[0].Tdc) / (emdata[1].Tdc - emdata[0].Tdc) > 30) {
           break;
