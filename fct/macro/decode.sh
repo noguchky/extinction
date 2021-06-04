@@ -42,13 +42,17 @@ done
 
 emcount=-1
 
-function exec_decode() {
+function exec_decode1() {
     if [ ${force} -eq 1 ] || [ ! -f ${this_root_dirname}/${this_root_filename} ]; then
         ${SOURCEDIR}/../build/decoder \
                     ${this_filename} \
                     -e ${emchannel} \
                     -o ${this_root_dirname}/${this_root_filename} &
     fi
+}
+
+function exec_decode2() {
+    wait
 }
 
 while read line; do
@@ -73,15 +77,16 @@ while read line; do
     # echo "this_root_filename = ${this_root_filename}"
 
     if [ ${emcount} -ne ${this_emcount} ]; then
-        wait
+        exec_decode2
     fi
 
     if [ ! -d ${this_root_dirname} ]; then
         mkdir -p ${this_root_dirname}
     fi
 
-    exec_decode
+    exec_decode1
 
     emcount=${this_emcount}
 done < <(cat ${list} | sort -k 1n,1 -k 2n,2)
-wait
+
+exec_decode2
