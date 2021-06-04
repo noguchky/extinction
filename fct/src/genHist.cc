@@ -3,7 +3,6 @@
 #include <map>
 #include <regex>
 #include "TROOT.h"
-#include "TApplication.h"
 #include "TStyle.h"
 #include "TFile.h"
 #include "TTree.h"
@@ -15,6 +14,7 @@
 #include "Linq.hh"
 #include "ArgReader.hh"
 #include "Units.hh"
+#include "MargedReader.hh"
 #include "HistGenerator.hh"
 #include "Fct.hh"
 
@@ -24,8 +24,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddArg<std::string>("Boards"      ,                "Set comma separated board numbers");
   args->AddArg<std::string>("Input"       ,                "Set comma separated root filenames");
   args->AddOpt<std::string>("Output"      , 'o', "output", "Set prefix of output filename", "");
-  args->AddOpt             ("Event"       , 'e', "event" , "Show coincidence mppc events");
-  args->AddOpt<std::size_t>("EventSize"   , 'n', "num"   , "Show coincidence mppc number", "2");
+  args->AddOpt             ("Delay"       , 'd', "delay" , "Apply software delay");
   args->AddOpt             ("Help"        , 'h', "help"  , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -42,13 +41,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     .ToMap([&](std::pair<std::string, Int_t> pair) { return pair.second; },
            [&](std::pair<std::string, Int_t> pair) { return pair.first;  });
   const auto ofilename    = args->GetValue("Output");
-  const auto showEvents   = args->IsSet("Event");
-  // const auto showSize     = args->GetValue<std::size_t>("EventSize");
-
-  TApplication* app = nullptr;
-  if (showEvents) {
-    app = new TApplication("app", nullptr, nullptr);
-  }
+  const auto delayOption  = args->IsSet("Delay");
 
   std::string ofileprefix;
   if (ofilename.empty()) {
@@ -65,26 +58,20 @@ Int_t main(Int_t argc, Char_t** argv) {
     ofileprefix = buff;
   }
 
-  const std::string ofilenameRoot          = ofileprefix + "_hists.root";
-  const std::string ofilenamePdf           = ofileprefix + "_hists.pdf";
-  const std::string ofilenamePdf_Crosstalk = ofileprefix + "_crosstalk.pdf";
-  const std::string ofilenamePdf_Offset    = ofileprefix + "_offset.pdf";
-  const std::string ofilenamePdf_Time      = ofileprefix + "_time.pdf";
-  const std::string ofilenameSpill         = ofileprefix + "_spill.root";
-  const std::string ofilenameTPT           = ofileprefix + "_timePerTdc.dat";
-  const std::string ofilenameMrSync        = ofileprefix + "_mrSync.dat";
-  const std::string ofilenameBunch         = ofileprefix + "_bunch.dat";
-  const std::string ofilenameOffset        = ofileprefix + "_offset.dat";
+  const std::string ofilenameRoot          = ofileprefix + (delayOption ? "_delayed_hists.root"    : "_hists.root"    );
+  const std::string ofilenamePdf           = ofileprefix + (delayOption ? "_delayed_hists.pdf"     : "_hists.pdf"     );
+  const std::string ofilenamePdf_Offset    = ofileprefix + (delayOption ? "_delayed_offset.pdf"    : "_offset.pdf"    );
+  const std::string ofilenameSpill         = ofileprefix + (delayOption ? "_delayed_spill.root"    : "_spill.root"    );
+  const std::string ofilenameMrSync        = ofileprefix + (delayOption ? "_delayed_mrSync.dat"    : "_mrSync.dat"    );
+  const std::string ofilenameOffset        = ofileprefix + (delayOption ? "_delayed_offset.dat"    : "_offset.dat"    );
+  const std::string ofilenameBunch         = ofileprefix + (delayOption ? "_delayed_bunch.dat"     : "_bunch.dat"     );
   // std::cout << "ofilenameRoot          " << ofilenameRoot          << std::endl;
   // std::cout << "ofilenamePdf           " << ofilenamePdf           << std::endl;
-  // std::cout << "ofilenamePdf_Crosstalk " << ofilenamePdf_Crosstalk << std::endl;
   // std::cout << "ofilenamePdf_Offset    " << ofilenamePdf_Offset    << std::endl;
-  // std::cout << "ofilenamePdf_Time      " << ofilenamePdf_Time      << std::endl;
   // std::cout << "ofilenameSpill         " << ofilenameSpill         << std::endl;
-  // std::cout << "ofilenameTPT           " << ofilenameTPT           << std::endl;
   // std::cout << "ofilenameMrSync        " << ofilenameMrSync        << std::endl;
-  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
   // std::cout << "ofilenameOffset        " << ofilenameOffset        << std::endl;
+  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
 
   std::cout << "--- Load configure" << std::endl;
   Tron::ConfReader* conf = new Tron::ConfReader(confFilename);
@@ -103,92 +90,34 @@ Int_t main(Int_t argc, Char_t** argv) {
   gStyle->SetNdivisions(520, "X");
   gStyle->SetNdivisions(505, "Y");
 
-  std::cout << "--- Initialize histgram generator" << std::endl;
+  std::cout << "--- Initialize providers" << std::endl;
   Extinction::Fct::FctData defaultProvider;
-  auto generator = new Extinction::Analyzer::HistGenerator(&defaultProvider);
 
-  std::map<Int_t, Double_t> timePerTdc;
-  do {
-    const std::string ifilename = conf->GetValue("TimePerTdc");
-    std::ifstream ifile(ifilename);
-    if (!ifile) {
-      std::cout << "[warning] time resolution file was not opened, " << ifilename << std::endl;
-      break;
-    }
+  auto providers = Tron::Linq::From(boards)
+    .ToMap([](Int_t board) { return board; },
+           [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Fct::FctData(); });
 
-    std::string buff;
-    Int_t board; Double_t resolution;
-    while (std::getline(ifile, buff)) {
-      std::stringstream line(buff);
-      if (line >> board >> resolution) {
-        timePerTdc[board] = resolution * Extinction::nsec;
+  std::cout << "--- Initialize marged reader" << std::endl;
+  auto reader = new Extinction::Analyzer::MargedReader(&defaultProvider);
+
+  if (delayOption) {
+    reader->SetMrSyncTimeOffset(conf->GetValue<Double_t>("MrSyncTimeOffset"));
+
+    {
+      const std::string ifilename = conf->GetValue("TdcOffsets");
+      if (reader->LoadTdcOffsets(ifilename) == 0) {
+        std::cerr << "[warning] offset is empty" << std::endl;
       }
     }
-  } while (false);
 
-  std::map<Int_t, Double_t> mrSyncInterval;
-  do {
-    const std::string ifilename = conf->GetValue("MrSyncInterval");
-    std::ifstream ifile(ifilename);
-    if (!ifile) {
-      std::cout << "[warning] MR Sync interval file was not opened, " << ifilename << std::endl;
-      break;
-    }
-
-    std::string buff;
-    Int_t board; Double_t interval;
-    while (std::getline(ifile, buff)) {
-      std::stringstream line(buff);
-      if (line >> board >> interval) {
-        mrSyncInterval[board] = interval;
-      }
-    }
-  } while (false);
-
-  Double_t bunchCenters[Extinction::SpillData::kNofBunches] = { 0 };
-  Double_t bunchWidths [Extinction::SpillData::kNofBunches] = { 0 };
-  do {
-    const std::string ifilename = conf->GetValue("BunchProfile");
-    std::ifstream ifile(ifilename);
-    if (!ifile) {
-      std::cout << "[warning] bunch profile file was not opened, " << ifilename << std::endl;
-      break;
-    }
-
-    std::string buff;
-    Int_t bunch; Double_t center, width;
-    while (std::getline(ifile, buff)) {
-      std::stringstream line(buff);
-      if (line >> bunch >> buff >> center >> buff >> width) {
-        bunchCenters[bunch] = center * Extinction::nsec;
-     // bunchWidths [bunch] = width  * Extinction::nsec;
-        bunchWidths [bunch] = 250.0  * Extinction::nsec;
-      }
-    }
-  } while (false);
-
-  {
-    const std::string ifilename = conf->GetValue("Offset");
-    if (generator->LoadOffset(ifilename) == 0) {
-      std::cerr << "[warning] offset file was not found, " << ifilename << std::endl;
-    }
+    // for (auto&& ifilename : conf->GetValues("TdcOffsets.Add")) {
+    //   if (reader->AddTdcOffsets(ifilename) == 0) {
+    //     std::cerr << "[warning] offset is empty" << std::endl;
+    //   }
+    // }
   }
 
-  generator->SetCyclicCoincidence(conf->GetValue<Int_t      >("CyclicCoincidence"));
-  generator->SetHistoryWidth     (conf->GetValue<Double_t   >("HistoryWidth"     ));
-  generator->SetMrSyncOffsetTime (conf->GetValue<Double_t   >("MrSyncOffsetTime" ));
-  generator->SetCoinTimeWidth    (conf->GetValue<Double_t   >("CoinTimeWidth"    ));
-  generator->SetReadBufferSize   (conf->GetValue<std::size_t>("ReadBufferSize"   ));
-  generator->SetReadBufferMargin (conf->GetValue<std::size_t>("ReadBufferMargin" ));
-  generator->SetMrSyncRefInterval(conf->GetValue<Double_t   >("MrSyncRefInterval"));
-  generator->SetMrSyncRefSize    (conf->GetValue<std::size_t>("MrSyncRefSize"    ));
-  generator->SetTimePerTdc       (                             timePerTdc         );
-  generator->SetMrSyncInterval   (                             mrSyncInterval     );
-  generator->SetBunchCenters     (                             bunchCenters       );
-  generator->SetBunchWidths      (                             bunchWidths        );
-  // generator->SetShowHitEvents    (showEvents,                  showSize           );
-  generator->SetCoincidenceTarget(conf->GetValues<Int_t     >("CoincidenceTarget"));
-
+  std::cout << "--- Initialize histogram profile" << std::endl;
   Extinction::Analyzer::HistGenerator::PlotsProfiles profile;
   profile.TimeInSpill   .NbinsX   = conf->GetValue<Double_t>("TimeInSpill.NbinsX" );
   profile.TimeInSpill   .Xmin     = conf->GetValue<Double_t>("TimeInSpill.Xmin"   );
@@ -201,46 +130,30 @@ Int_t main(Int_t argc, Char_t** argv) {
   profile.MrSyncInterval.Xmax     = conf->GetValue<Double_t>("MrSyncInterval.Xmax");
   profile.TimeDiff      .Xmin     = conf->GetValue<Double_t>("TimeDiff.Xmin"      );
   profile.TimeDiff      .Xmax     = conf->GetValue<Double_t>("TimeDiff.Xmax"      );
-  generator->InitializePlots(profile);
 
+  std::cout << "--- Initialize histogram generator" << std::endl;
+  auto generator = new Extinction::Analyzer::HistGenerator(&defaultProvider);
+  generator->SetHistoryWidth(conf->GetValue<Double_t>("HistoryWidth" ));
+
+  generator->InitializePlots(profile);
   generator->InitializeSpillSummary(ofilenameSpill);
 
-  auto providers = Tron::Linq::From(boards)
-    .ToMap([](Int_t board) { return board; },
-           [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Fct::FctData(); });
-
-  auto parser =
-    [](const std::string& filename) {
-      static const std::regex pattern(R"((\d+)-(\d+)-(\d+)_(\d+)-(\d+)-(\d+))");
-
-      std::cmatch match;
-      if (std::regex_search(filename.data(), match, pattern)) {
-        const Int_t year   = Tron::String::Convert<Int_t>(match[1].str());
-        const Int_t month  = Tron::String::Convert<Int_t>(match[2].str());
-        const Int_t day    = Tron::String::Convert<Int_t>(match[3].str());
-        const Int_t hour   = Tron::String::Convert<Int_t>(match[4].str());
-        const Int_t minute = Tron::String::Convert<Int_t>(match[5].str());
-        const Int_t second = Tron::String::Convert<Int_t>(match[6].str());
-        return TDatime(year, month, day, hour, minute, second);
-      }
-
-      return TDatime(0U);
-    };
-
   std::cout << "--- Generate hists" << std::endl;
-  generator->GeneratePlots(providers, ifilenames, "tree", "", "", "", "", parser);
+  if (reader->Open(providers, ifilenames, "tree")) {
+    exit(1);
+  }
 
-  generator->DrawPlots          (ofilenamePdf, ofilenamePdf_Crosstalk, ofilenamePdf_Offset, ofilenamePdf_Time);
+  generator->GeneratePlots(reader);
+
+  reader->Close();
+
+  generator->DrawPlots          (ofilenamePdf, ofilenamePdf_Offset);
 
   generator->WritePlots         (ofilenameRoot  );
   generator->WriteSpillSummary  (               );
-  generator->WriteTimePerTdc    (ofilenameTPT   );
   generator->WriteMrSyncInterval(ofilenameMrSync);
+  generator->WriteTdcOffsets    (ofilenameOffset);
   generator->WriteBunchProfile  (ofilenameBunch );
-  generator->WriteOffset        (ofilenameOffset);
-
-  delete app;
-  app = nullptr;
 
   return 0;
 }

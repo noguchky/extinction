@@ -3,12 +3,10 @@
 SOURCEDIR=$(cd $(dirname $0) && pwd)
 
 function show_usage() {
-    echo "Usage' ./haddCoin.sh [emlist]"
+    echo "Usage' ./haddHist.sh [emlist]"
     echo
 }
 
-show_events_option=
-exec_single=0
 while :; do
     if [ ${1}_ = "-h_" ]; then
         show_usage
@@ -17,20 +15,36 @@ while :; do
         break
     fi
 done
-list=${1}
+list=${@}
 
-if [ -z ${list} ]; then
+if [ -z "${list}" ]; then
     show_usage
     exit
-elif [ ! -f "${list}" ]; then
-    echo "emlist is not found"
-    exit
 fi
+
+for fname in ${list}; do
+    if [ ! -f "${fname}" ]; then
+        echo "emlist\"${fname}\" is not found"
+        exit
+    fi
+done
 
 emcount=-1
 boards=()
 filenames=()
 coin_filenames=()
+
+function add_filenames() {
+    if [ ${#filenames[@]} -eq 8 ]; then
+        marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
+        marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
+        coin_filename=${marged_filename/.root/_coin.root}
+        # echo "marged_dirname = ${marged_dirname}"
+        # echo "coin_filename = ${coin_filename}"
+
+        coin_filenames+=(${marged_dirname}/${coin_filename})
+    fi
+}
 
 while read line; do
     echo "${line}"
@@ -54,15 +68,7 @@ while read line; do
     # echo "this_root_filename = ${this_root_filename}"
 
     if [ ${emcount} -ne ${this_emcount} ]; then
-        if [ ${#filenames[@]} -ne 0 ]; then
-            marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-            marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-            coin_filename=${marged_filename/.root/_coin.root}
-            # echo "marged_dirname = ${marged_dirname}"
-            # echo "coin_filename  = ${coin_filename}"
-
-            coin_filenames+=(${marged_dirname}/${coin_filename})
-        fi
+        add_filenames
         boards=()
         filenames=()
     fi
@@ -72,32 +78,20 @@ while read line; do
     filenames+=(${this_root_dirname}/${this_root_filename})
 done < <(cat ${list} | sort -k 1n,1 -k 2n,2)
 
+add_filenames
 
-if [ ${#filenames[@]} -ne 0 ]; then
-    marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-    marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-    coin_filename=${marged_filename/.root/_coin.root}
-    # echo "marged_dirname = ${marged_dirname}"
-    # echo "hists_filename = ${hists_filename}"
-    # echo "spill_filename = ${spill_filename}"
-
-    coin_filenames+=(${marged_dirname}/${coin_filename})
-fi
-
-echo "coin_filenames = ${coin_filenames[@]}"
+echo "coin_filenames = ${coin_filenames} etc."
 if [ -z "${coin_filenames}" ]; then
     exit
 fi
 
 hadd_dirname=$(dirname ${coin_filenames[0]/marged/hadd})
-hadd_coin_filename=fct_hadd_$(echo ${list} | grep -o -P '(?<=em_).+(?=\.txt)')_hists.root
-echo ${hadd_dirname}
-echo ${hadd_coin_filename}
+hadd_coin_filename=fct_hadd_$(echo ${list} | grep -o -P '(?<=em_).+(?=\.txt)')_coin.root
+echo "hadd_dirname       = ${hadd_dirname}"
+echo "hadd_coin_filename = ${hadd_coin_filename}"
 
 if [ ! -d ${hadd_dirname} ]; then
     mkdir -p ${hadd_dirname}
 fi
 
 hadd -f ${hadd_dirname}/${hadd_coin_filename} ${coin_filenames[@]}
-
-root -b -q ${SOURCEDIR}/haddCoin.C'("'${hadd_dirname}/${hadd_coin_filename}'")'

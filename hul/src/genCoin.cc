@@ -16,7 +16,7 @@
 #include "Units.hh"
 #include "TimelineCoincidence.hh"
 #include "MargedReader.hh"
-#include "Fct.hh"
+#include "Hul.hh"
 #include "TApplication.h"
 
 Int_t main(Int_t argc, Char_t** argv) {
@@ -79,7 +79,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
   conf->ShowContents();
 
-  Extinction::Fct::ChannelMapWithBoard::Load(conf, boards);
+  Extinction::Hul::ChannelMapWithBoard::Load(conf, boards);
 
   std::cout << "--- Initialize style" << std::endl;
   gStyle->SetPalette(1);
@@ -89,11 +89,11 @@ Int_t main(Int_t argc, Char_t** argv) {
   gStyle->SetNdivisions(505, "Y");
 
   std::cout << "--- Initialize providers" << std::endl;
-  Extinction::Fct::FctData defaultProvider;
+  Extinction::Hul::HulData defaultProvider;
 
   auto providers = Tron::Linq::From(boards)
     .ToMap([](Int_t board) { return board; },
-           [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Fct::FctData(); });
+           [](Int_t) -> Extinction::ITdcDataProvider* { return new Extinction::Hul::HulData(); });
 
   std::cout << "--- Initialize marged reader" << std::endl;
   auto reader = new Extinction::Analyzer::MargedReader(&defaultProvider);

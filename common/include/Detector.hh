@@ -43,10 +43,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
 
     inline Int_t GetType(std::size_t channel) {
@@ -248,7 +245,7 @@ namespace Extinction {
       }
     }
 
-    inline void Fill(TH2* hBottom, TH2* hCenter1, TH2* hCenter2, TH2* hTop, Double_t y, std::size_t channel, Bool_t norm = false) {
+    inline void Fill(TH2* hTop, TH2* hCenter1, TH2* hCenter2, TH2* hBottom, Double_t y, std::size_t channel, Bool_t norm = false) {
       const Int_t    type = GetType(channel);
       const Double_t area = GetArea(type) / cm2;
       switch (type) {
@@ -261,7 +258,7 @@ namespace Extinction {
           const std::size_t boardYi  = boardCh / 8;
           const Double_t    boardX   = 6.4 * (boardId - 3.0) + 0.8 * (boardXi - 3.5);
        // const Double_t    boardY   = (boardYi ? -3.0 : +3.0);
-          TH2*              hist     = (boardYi ? hCenter1 : hCenter2);
+          TH2*              hist     = (boardYi ? hCenter2 : hCenter1);
           const Int_t       bin      = hist->FindBin(boardX, y);
           const Double_t    content  = hist->GetBinContent(bin);
           if (norm) {
@@ -319,7 +316,7 @@ namespace Extinction {
               hist->SetBinError(bin, TMath::Sqrt(content + 1.0));
             }
           } {
-            TH2*              hist        = (boardYi ? hCenter1 : hCenter2);
+            TH2*              hist        = (boardYi ? hCenter2 : hCenter1);
             const Int_t       bin         = hist->FindBin(boardX, y);
             const Double_t    content     = hist->GetBinContent(bin);
             if (norm) {
@@ -346,10 +343,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
 
     inline Double_t GetWidth() {
@@ -458,10 +452,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
   }
 
@@ -474,10 +465,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
   }
 
@@ -490,10 +478,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
   }
 
@@ -506,10 +491,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
   }
 
@@ -522,10 +504,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
   }
 
@@ -538,10 +517,7 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
     }
   }
 
@@ -554,10 +530,25 @@ namespace Extinction {
     }
 
     inline Int_t GetChannel(std::size_t globalChannel) {
-      if (Contains(globalChannel)) {
-        return globalChannel - GlobalChannelOffset;
-      }
-      return -1;
+      return globalChannel - GlobalChannelOffset;
+    }
+  }
+
+  namespace Detectors {
+    constexpr std::size_t NofChannels = MrRf::GlobalChannelOffset;
+
+    enum {
+          Bh1,
+          Bh2,
+          Hod,
+          Ext,
+          Tc1,
+          Tc2,
+          NofTypes,
+    };
+
+    inline Bool_t Contains(std::size_t globalChannel) {
+      return globalChannel < NofChannels;
     }
   }
 

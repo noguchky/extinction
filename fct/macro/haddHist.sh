@@ -7,8 +7,6 @@ function show_usage() {
     echo
 }
 
-show_events_option=
-exec_single=0
 while :; do
     if [ ${1}_ = "-h_" ]; then
         show_usage
@@ -17,21 +15,40 @@ while :; do
         break
     fi
 done
-list=${1}
+list=${@}
 
-if [ -z ${list} ]; then
+if [ -z "${list}" ]; then
     show_usage
     exit
-elif [ ! -f "${list}" ]; then
-    echo "emlist is not found"
-    exit
 fi
+
+for fname in ${list}; do
+    if [ ! -f "${fname}" ]; then
+        echo "emlist\"${fname}\" is not found"
+        exit
+    fi
+done
 
 emcount=-1
 boards=()
 filenames=()
 hists_filenames=()
 spill_filenames=()
+
+function add_filenames() {
+    if [ ${#filenames[@]} -eq 8 ]; then
+        marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
+        marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
+        hists_filename=${marged_filename/.root/_hists.root}
+        spill_filename=${marged_filename/.root/_spill.root}
+        # echo "marged_dirname = ${marged_dirname}"
+        # echo "hists_filename = ${hists_filename}"
+        # echo "spill_filename = ${spill_filename}"
+
+        hists_filenames+=(${marged_dirname}/${hists_filename})
+        spill_filenames+=(${marged_dirname}/${spill_filename})
+    fi
+}
 
 while read line; do
     echo "${line}"
@@ -55,17 +72,7 @@ while read line; do
     # echo "this_root_filename = ${this_root_filename}"
 
     if [ ${emcount} -ne ${this_emcount} ]; then
-        if [ ${#filenames[@]} -ne 0 ]; then
-            marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-            marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-            hists_filename=${marged_filename/.root/_hists.root}
-            spill_filename=${marged_filename/.root/_spill.root}
-            # echo "marged_dirname  = ${output_dirname}"
-            # echo "marged_filename = ${output_filename}"
-
-            hists_filenames+=(${marged_dirname}/${hists_filename})
-            spill_filenames+=(${marged_dirname}/${spill_filename})
-        fi
+        add_filenames
         boards=()
         filenames=()
     fi
@@ -75,22 +82,10 @@ while read line; do
     filenames+=(${this_root_dirname}/${this_root_filename})
 done < <(cat ${list} | sort -k 1n,1 -k 2n,2)
 
+add_filenames
 
-if [ ${#filenames[@]} -ne 0 ]; then
-    marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-    marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-    hists_filename=${marged_filename/.root/_hists.root}
-    spill_filename=${marged_filename/.root/_spill.root}
-    # echo "marged_dirname  = ${marged_dirname}"
-    # echo "hists_filename = ${hists_filename}"
-    # echo "spill_filename = ${spill_filename}"
-
-    hists_filenames+=(${marged_dirname}/${hists_filename})
-    spill_filenames+=(${marged_dirname}/${spill_filename})
-fi
-
-echo "hists_filenames = ${hists_filenames[@]}"
-echo "spill_filenames = ${spill_filenames[@]}"
+echo "hists_filenames = ${hists_filenames} etc."
+echo "spill_filenames = ${spill_filenames} etc."
 if [ -z "${hists_filenames}" ]; then
     exit
 fi
@@ -109,4 +104,4 @@ fi
 hadd -f ${hadd_dirname}/${hadd_hists_filename} ${hists_filenames[@]}
 hadd -f ${hadd_dirname}/${hadd_spill_filename} ${spill_filenames[@]}
 
-${SOURCEDIR}/../build/haddHist ${hadd_dirname}/${hadd_hists_filename}
+${SOURCEDIR}/../build/repHist ${hadd_dirname}/${hadd_hists_filename}

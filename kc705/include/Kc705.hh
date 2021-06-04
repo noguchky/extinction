@@ -4,8 +4,6 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
-#include <set>
-#include "TFile.h"
 #include "TTree.h"
 #include "Units.hh"
 #include "Inet.hh"
@@ -14,6 +12,7 @@
 
 #include "ConfReader.hh"
 #include "String.hh"
+#include "Linq.hh"
 
 // #define KC705_FORMAT_VERSION 1 // initial version                  ---           ~2021/01/??
 // #define KC705_FORMAT_VERSION 2 // header/footer format is modified --- 2021/01/??~2021/05/11
@@ -25,68 +24,14 @@ namespace Extinction {
 
     const std::string Name = "KC705";
 
-    namespace ChannelMap {
-      // (*) key should be board no & raw channel
-      const std::map<Int_t/*MppcCh*/, Int_t> ExtMppc
-        {
-         { 32, 49 - 1 },
-         { 33, 51 - 1 },
-         { 42, 52 - 1 },
-         { 43, 54 - 1 },
-         { 52, 55 - 1 },
-         { 53, 60 - 1 },
-         { 54, 56 - 1 },
-         { 55, 50 - 1 },
-         { 56, 57 - 1 },
-         { 57, 58 - 1 },
-         { 58, 59 - 1 },
-         { 59, 64 - 1 },
-         { 60, 53 - 1 },
-         { 61, 61 - 1 },
-         { 62, 62 - 1 },
-         { 63, 63 - 1 },
-        };
-      const std::map<Int_t/*SubCh*/, Int_t> ExtSub
-        {
-         // LeftRight (ch128-131)
-        };
-      const std::map<Int_t/*SubCh*/, Int_t> Hod
-        {
-         {  3, 11 },
-         {  4, 10 },
-         {  5,  9 },
-         {  6,  8 },
-         {  7,  7 },
-         {  8,  6 },
-         {  9,  5 },
-         { 10,  4 },
-         {  2,  0 }, // TBD: Hod OR
-        };
-      const std::map<Int_t/*SubCh*/, Int_t> Tc
-        {
-         // TC1
-         // TC2
-        };
-      const std::map<Int_t/*SubCh*/, Int_t> Bh
-        {
-         { 0, 0 }, // BH1
-         { 1, 1 }, // BH2
-        };
-      const std::map<Int_t/*BoardId*/, Int_t> MrSync
-        {
-         { 0, 0 },
-         { 1, 1 },
-        };
-    }
-
     namespace ChannelMapWithBoard {
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> ExtMppc;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> ExtSub;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> Hod;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> Tc;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> Bh;
-      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, std::set<Int_t>>> MrSync;
-      std::map<Int_t/*global*/, std::set<Int_t/*board*/>> Board;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> ExtMppc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> ExtSub;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Hod;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Tc;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> Bh;
+      std::map<Int_t/*board*/, std::map<Int_t/*raw*/, Int_t>> MrSync;
+      std::map<Int_t/*global*/, Int_t/*board*/>               Board;
 
       void Load(const Tron::ConfReader* conf, const std::vector<Int_t>& boards) {
         for (auto&& board : boards) {
@@ -100,47 +45,64 @@ namespace Extinction {
                 const std::string detector =                              elems[1] ;
                 const Int_t       channel  = Tron::String::Convert<Int_t>(elems[2]);
                 if        (detector == "ExtMppc") {
-                  ExtMppc[board][raw].insert(channel);
-                  Board  [channel + ExtinctionDetector::GlobalChannelOffset].insert(board);
+                  ExtMppc[board][raw] = channel;
+                  Board  [channel + ExtinctionDetector::GlobalChannelOffset] = board;
                 } else if (detector == "ExtSub" ) {
-                  ExtSub [board][raw].insert(channel);
-                  Board  [channel + ExtinctionDetector::GlobalChannelOffset].insert(board);
+                  ExtSub [board][raw] = channel;
+                  Board  [channel + ExtinctionDetector::GlobalChannelOffset] = board;
                 } else if (detector == "Hod"    ) {
-                  Hod    [board][raw].insert(channel);
-                  Board  [channel + Hodoscope         ::GlobalChannelOffset].insert(board);
+                  Hod    [board][raw] = channel;
+                  Board  [channel + Hodoscope         ::GlobalChannelOffset] = board;
                 } else if (detector == "Bh"     ) {
-                  Bh     [board][raw].insert(channel);
-                  Board  [channel + BeamlineHodoscope ::GlobalChannelOffset].insert(board);
+                  Bh     [board][raw] = channel;
+                  Board  [channel + BeamlineHodoscope ::GlobalChannelOffset] = board;
                 } else if (detector == "Tc"     ) {
-                  Tc     [board][raw].insert(channel);
-                  Board  [channel + TimingCounter     ::GlobalChannelOffset].insert(board);
+                  Tc     [board][raw] = channel;
+                  Board  [channel + TimingCounter     ::GlobalChannelOffset] = board;
              // } else if (detector == "MrP3"   ) {
-             //   MrP3   [board][raw].insert(channel);
-             //   Board  [channel + MrP3              ::GlobalChannelOffset].insert(board);
+             //   MrP3   [board][raw] = channel;
+             //   Board  [channel + MrP3              ::GlobalChannelOffset] = board;
              // } else if (detector == "MrRf"   ) {
-             //   MrRf   [board][raw].insert(channel);
-             //   Board  [channel + MrRf              ::GlobalChannelOffset].insert(board);
+             //   MrRf   [board][raw] = channel;
+             //   Board  [channel + MrRf              ::GlobalChannelOffset] = board;
                 } else if (detector == "MrSync" ) {
-                  MrSync [board][raw].insert(channel);
-                  Board  [channel + MrSync            ::GlobalChannelOffset].insert(board);
+                  MrSync [board][raw] = channel;
+                  Board  [channel + MrSync            ::GlobalChannelOffset] = board;
                 }
               }
             }
           }
         }
 
-        // Nothing to check
+        auto checkDouplicate =
+          [&](const std::string& name, std::map<Int_t, std::map<Int_t, Int_t>>& map, std::size_t nch) {
+            for (auto&& board : boards) {
+              for (std::size_t ch = 0; ch < nch; ++ch) {
+                auto count = Tron::Linq::From(map[board])
+                  .Where([&](const std::pair<Int_t, Int_t>& pair) { return pair.second == (Int_t)ch; })
+                  .Count();
+                if (count > 1) {
+                  std::cerr << "[warning] channel duplicate at " << name << "'s ch" << ch << std::endl;
+                }
+              }
+            }
+          };
+        checkDouplicate("ExtinctionDetector", ExtMppc, ExtinctionDetector::NofChannels);
+        checkDouplicate("ExtinctionDetector", ExtSub , ExtinctionDetector::NofChannels);
+        checkDouplicate("Hodoscope"         , Hod    , Hodoscope         ::NofChannels);
+        checkDouplicate("BeamlineHodoscope" , Bh     , BeamlineHodoscope ::NofChannels);
+        checkDouplicate("TimingCounter"     , Tc     , TimingCounter     ::NofChannels);
+        checkDouplicate("MRSync"            , MrSync , MrSync            ::NofChannels);
       }
     }
-    
+
     struct DataType {
-      enum {
+      enum : UChar_t {
             None,
             Header,
             Data,
             Footer,
             HeaderError,
-            PacketLoss = -1,
       };
     };
 
@@ -148,264 +110,274 @@ namespace Extinction {
     const std::size_t SubNch  = 12UL;
 
     using Packet_t = UChar_t[13];
-    inline void ShowAsHex(Packet_t data) {
-      for (std::size_t i = 0, n = sizeof(Packet_t); i < n; ++i) {
-        printf("%02x ", data[i]);
-      }
-      puts("");
-    }
-    inline Bool_t HasBit(Packet_t data, std::size_t bit) {
-      std::size_t byte = bit / 8;
-      return data[sizeof(Packet_t) - 1 - byte] & (1U << (bit % 8));
-    }
-    inline std::size_t GetBitCount(UChar_t data) {
-      std::size_t bitCount = 0UL;
-      for (std::size_t i = 0UL; i < 8UL; ++i) {
-        if (data & (1U << i)) {
-          ++bitCount;
+
+    namespace Packet {
+
+      inline void ShowAsHex(Packet_t data) {
+        for (std::size_t i = 0, n = sizeof(Packet_t); i < n; ++i) {
+          printf("%02x ", data[i]);
         }
+        puts("");
       }
-      return bitCount;
-    }
+      inline Bool_t HasBit(Packet_t data, std::size_t bit) {
+        std::size_t byte = bit / 8;
+        return data[sizeof(Packet_t) - 1 - byte] & (1U << (bit % 8));
+      }
+      inline std::size_t GetBitCount(UChar_t data) {
+        std::size_t bitCount = 0UL;
+        for (std::size_t i = 0UL; i < 8UL; ++i) {
+          if (data & (1U << i)) {
+            ++bitCount;
+          }
+        }
+        return bitCount;
+      }
 
 #if KC705_FORMAT_VERSION == 1
 
-    /// Header
-    // Format : Id[83:0], BoardId[3:0], Spill[15:0]
-    //          II II II II II II II II II II IB SS SS
-    //                                       ^*F
-    //                                          ^FF-FF
-    //     Id : AB B0 00 12 34 56 70 12 34 56 7_ __ __
-    //         ^FF-FF-F*-**
-    //         ^**-**-*F-FF-FF-FF-F*-**
-    //                     ^**-**-*F-FF-FF-FF-F*-**
-    inline UInt_t GetHeaderId1(Packet_t data) {
-      return pntohl(data) >> 12;
-    }
-    inline UInt_t GetHeaderId2(Packet_t data) {
-      return (pntohll(data    ) >> 12) & 0xFFFFFFFFU;
-    }
-    inline UChar_t GetHeaderId3(Packet_t data) {
-      return (pntohll(data + 4) >> 12) & 0xFFFFFFFFU;
-    }
-    inline UChar_t GetBoardId(Packet_t data) {
-      return pntohc(data + 10) & 0x0FU;
-    }
-    inline UShort_t GetSpill(Packet_t data) {
-      return pntohs(data + 11);
-    }
-    inline Bool_t IsHeader(Packet_t data) {
-      // return
-      //   GetHeaderId1(data) ==    0xABB00 &&
-      //   GetHeaderId2(data) == 0x01234567 &&
-      //   GetHeaderId3(data) == 0x01234567;
-      return
-        (data[ 0]        ) == 0xABU &&
-        (data[ 1]        ) == 0xB0U &&
-        (data[ 2]        ) == 0x00U &&
-        (data[ 3]        ) == 0x12U &&
-        (data[ 4]        ) == 0x34U &&
-        (data[ 5]        ) == 0x56U &&
-        (data[ 6]        ) == 0x70U &&
-        (data[ 7]        ) == 0x12U &&
-        (data[ 8]        ) == 0x34U &&
-        (data[ 9]        ) == 0x56U &&
-        (data[10] & 0xF0U) == 0x70U;
-    }
-    /// Data
-    // Format : MPPC[63:0], Sub[11:0], MR_SYNC, TDC[26:0]
-    //          MM MM MM MM MM MM MM MM SS SM TT TT TT
-    //         ^FF-FF-FF-FF-FF-FF-FF-FF
-    //                                 ^FF-F*
-    //                                    ^*8
-    //                                    ^*7-FF-FF-FF
-    inline ULong64_t GetMppcBit(Packet_t data) {
-      return pntohll(data);
-    }
-    inline UShort_t GetSubBit(Packet_t data) {
-      return pntohs(data + 8) >> 4;
-    }
-    inline Bool_t GetMrSync(Packet_t data) {
-      return (pntohc(data + 9) >> 3) & 0x01U;
-    }
-    inline UInt_t GetTdc(Packet_t data) {
-      return pntohl(data + 9) & 0x07FFFFFFU;
-    }
-    /// Footer
-    // Format : EMCount[15:0], ????[23:0], Id[63:0]
-    //          EE EE ?? ?? ?? II II II II II II II II
-    //         ^FF-FF         ^FF-FF-FF-FF-FF-FF-FF-FF
-    //     Id :                AA-AA-AA-AA-AA-AA-AA-AA
-    inline UShort_t GetEMCount(Packet_t data) {
-      return pntohs(data);
-    }
-    inline UShort_t GetWRCount(Packet_t) {
-      return 0;
-    }
-    inline ULong64_t GetFooterId(Packet_t data) {
-      return pntohll(data + 5);
-    }
-    inline Bool_t IsFooter(Packet_t data) {
-      // return GetFooterId(data) == 0xAAAAAAAAAAAAAAAAULL;
-      return
-        data[ 5] == 0xAAU &&
-        data[ 6] == 0xAAU &&
-        data[ 7] == 0xAAU &&
-        data[ 8] == 0xAAU &&
-        data[ 9] == 0xAAU &&
-        data[10] == 0xAAU &&
-        data[11] == 0xAAU &&
-        data[12] == 0xAAU;
-    }
+      /// Header
+      // Format : Id[83:0], BoardId[3:0], Spill[15:0]
+      //          II II II II II II II II II II IB SS SS
+      //                                       ^*F
+      //                                          ^FF-FF
+      //     Id : AB B0 00 12 34 56 70 12 34 56 7_ __ __
+      //         ^FF-FF-F*-**
+      //         ^**-**-*F-FF-FF-FF-F*-**
+      //                     ^**-**-*F-FF-FF-FF-F*-**
+      inline UInt_t GetHeaderId1(Packet_t data) {
+        return pntohl(data) >> 12;
+      }
+      inline UInt_t GetHeaderId2(Packet_t data) {
+        return (pntohll(data    ) >> 12) & 0xFFFFFFFFU;
+      }
+      inline UChar_t GetHeaderId3(Packet_t data) {
+        return (pntohll(data + 4) >> 12) & 0xFFFFFFFFU;
+      }
+      inline UChar_t GetBoardId(Packet_t data) {
+        return pntohc(data + 10) & 0x0FU;
+      }
+      inline UShort_t GetSpill(Packet_t data) {
+        return pntohs(data + 11);
+      }
+      inline Bool_t IsHeader(Packet_t data) {
+        // return
+        //   GetHeaderId1(data) ==    0xABB00 &&
+        //   GetHeaderId2(data) == 0x01234567 &&
+        //   GetHeaderId3(data) == 0x01234567;
+        return
+          (data[ 0]        ) == 0xABU &&
+          (data[ 1]        ) == 0xB0U &&
+          (data[ 2]        ) == 0x00U &&
+          (data[ 3]        ) == 0x12U &&
+          (data[ 4]        ) == 0x34U &&
+          (data[ 5]        ) == 0x56U &&
+          (data[ 6]        ) == 0x70U &&
+          (data[ 7]        ) == 0x12U &&
+          (data[ 8]        ) == 0x34U &&
+          (data[ 9]        ) == 0x56U &&
+          (data[10] & 0xF0U) == 0x70U;
+      }
+      /// Data
+      // Format : MPPC[63:0], Sub[11:0], MR_SYNC, TDC[26:0]
+      //          MM MM MM MM MM MM MM MM SS SM TT TT TT
+      //         ^FF-FF-FF-FF-FF-FF-FF-FF
+      //                                 ^FF-F*
+      //                                    ^*8
+      //                                    ^*7-FF-FF-FF
+      inline ULong64_t GetMppcBit(Packet_t data) {
+        return pntohll(data);
+      }
+      inline UShort_t GetSubBit(Packet_t data) {
+        return pntohs(data + 8) >> 4;
+      }
+      inline Bool_t GetMrSync(Packet_t data) {
+        return (pntohc(data + 9) >> 3) & 0x01U;
+      }
+      inline UInt_t GetTdc(Packet_t data) {
+        return pntohl(data + 9) & 0x07FFFFFFU;
+      }
+      /// Footer
+      // Format : EMCount[15:0], ????[23:0], Id[63:0]
+      //          EE EE ?? ?? ?? II II II II II II II II
+      //         ^FF-FF         ^FF-FF-FF-FF-FF-FF-FF-FF
+      //     Id :                AA-AA-AA-AA-AA-AA-AA-AA
+      inline UShort_t GetEMCount(Packet_t data) {
+        return pntohs(data);
+      }
+      inline UShort_t GetWRCount(Packet_t) {
+        return 0;
+      }
+      inline ULong64_t GetFooterId(Packet_t data) {
+        return pntohll(data + 5);
+      }
+      inline Bool_t IsFooter(Packet_t data) {
+        // return GetFooterId(data) == 0xAAAAAAAAAAAAAAAAULL;
+        return
+          data[ 5] == 0xAAU &&
+          data[ 6] == 0xAAU &&
+          data[ 7] == 0xAAU &&
+          data[ 8] == 0xAAU &&
+          data[ 9] == 0xAAU &&
+          data[10] == 0xAAU &&
+          data[11] == 0xAAU &&
+          data[12] == 0xAAU;
+      }
 
 #else
 
-    /// Header
-    // Format : Id1[31:0], Spill[15:0], Zero[3:0], BoardId[3:0], Id2[47:0]
-    //          II II II II SS SS 0B II II II II II II
-    //         ^FF-FF-FF-FF
-    //                     ^FF-FF
-    //                           ^FF
-    //                        ^**-**-FF-FF-FF-FF-FF-FF
-    //     Id : 01-23-45-67          01-23-45-67-89-AB
-    inline UInt_t GetHeaderId1(Packet_t data) {
-      return pntohl(data);
-    }
-    inline UShort_t GetSpill(Packet_t data) {
-      return pntohs(data + 4);
-    }
-    inline UChar_t GetBoardId(Packet_t data) {
-      return pntohc(data + 6) & 0x0FU;
-    }
-    inline ULong64_t GetHeaderId2(Packet_t data) {
-      return pntohll(data + 5) & 0x00FFFFFFU;
-    }
-    inline Bool_t IsHeader(Packet_t data) {
-      return GetHeaderId1(data) == 0x01234567U;
-    }
-    /// Data
-    // Format : MPPC[63:0], Sub[11:0], MR_SYNC, TDC[26:0]
-    //          MM MM MM MM MM MM MM MM SS SM TT TT TT
-    //         ^FF-FF-FF-FF-FF-FF-FF-FF
-    //                                 ^FF-F*
-    //                                    ^*8
-    //                                    ^*7-FF-FF-FF
-    inline ULong64_t GetMppcBit(Packet_t data) {
-      return pntohll(data);
-    }
-    inline UShort_t GetSubBit(Packet_t data) {
-      return pntohs(data + 8) >> 4;
-    }
-    inline Bool_t GetMrSync(Packet_t data) {
-      return (pntohc(data + 9) >> 3) & 0x01U;
-    }
-    inline UInt_t GetTdc(Packet_t data) {
-      return pntohl(data + 9) & 0x07FFFFFFU;
-    }
-    /// Footer
-    // Format : EMCount[15:0], ????[23:0], Id[63:0]
-    //          Id1[31:0], Spill[15:0], EMCount[15:0], WrCnt[31:0], Id2[1:0]
-    //          II II II II SS SS EE EE WW WW WW WW II
-    //         ^FF-FF-FF-FF
-    //                     ^FF-FF
-    //                           ^FF-FF
-    //                                 ^FF-FF-FF-FF
-    //                                             ^FF
-    //     Id : AA-AA-AA-AA                         AB
-    inline UInt_t GetFooterId1(Packet_t data) {
-      return pntohl(data);
-    }
-    // inline UShort_t GetSpill(Packet_t data) {
-    //   return pntohs(data + 4);
-    // } // the same as header
-    inline UShort_t GetEMCount(Packet_t data) {
-      return pntohs(data + 6);
-    }
-    inline UShort_t GetWRCount(Packet_t data) {
-      return pntohl(data + 8);
-    }
-    inline UInt_t GetFooterId2(Packet_t data) {
-      return pntohc(data + 12);
-    }
-    inline Bool_t IsFooter(Packet_t data) {
-      return GetFooterId1(data) == 0xAAAAAAAAULL;
-    }
+      /// Header
+      // Format : Id1[31:0], Spill[15:0], Zero[3:0], BoardId[3:0], Id2[47:0]
+      //          II II II II SS SS 0B II II II II II II
+      //         ^FF-FF-FF-FF
+      //                     ^FF-FF
+      //                           ^FF
+      //                        ^**-**-FF-FF-FF-FF-FF-FF
+      //     Id : 01-23-45-67          01-23-45-67-89-AB
+      inline UInt_t GetHeaderId1(Packet_t data) {
+        return pntohl(data);
+      }
+      inline UShort_t GetSpill(Packet_t data) {
+        return pntohs(data + 4);
+      }
+      inline UChar_t GetBoardId(Packet_t data) {
+        return pntohc(data + 6) & 0x0FU;
+      }
+      inline ULong64_t GetHeaderId2(Packet_t data) {
+        return pntohll(data + 5) & 0x00FFFFFFU;
+      }
+      inline Bool_t IsHeader(Packet_t data) {
+        return GetHeaderId1(data) == 0x01234567U;
+      }
+      /// Data
+      // Format : MPPC[63:0], Sub[11:0], MR_SYNC, TDC[26:0]
+      //          MM MM MM MM MM MM MM MM SS SM TT TT TT
+      //         ^FF-FF-FF-FF-FF-FF-FF-FF
+      //                                 ^FF-F*
+      //                                    ^*8
+      //                                    ^*7-FF-FF-FF
+      inline ULong64_t GetMppcBit(Packet_t data) {
+        return pntohll(data);
+      }
+      inline UShort_t GetSubBit(Packet_t data) {
+        return pntohs(data + 8) >> 4;
+      }
+      inline Bool_t GetMrSync(Packet_t data) {
+        return (pntohc(data + 9) >> 3) & 0x01U;
+      }
+      inline UInt_t GetTdc(Packet_t data) {
+        return pntohl(data + 9) & 0x07FFFFFFU;
+      }
+      /// Footer
+      // Format : EMCount[15:0], ????[23:0], Id[63:0]
+      //          Id1[31:0], Spill[15:0], EMCount[15:0], WrCnt[31:0], Id2[1:0]
+      //          II II II II SS SS EE EE WW WW WW WW II
+      //         ^FF-FF-FF-FF
+      //                     ^FF-FF
+      //                           ^FF-FF
+      //                                 ^FF-FF-FF-FF
+      //                                             ^FF
+      //     Id : AA-AA-AA-AA                         AB
+      inline UInt_t GetFooterId1(Packet_t data) {
+        return pntohl(data);
+      }
+      // inline UShort_t GetSpill(Packet_t data) {
+      //   return pntohs(data + 4);
+      // } // the same as header
+      inline UShort_t GetEMCount(Packet_t data) {
+        return pntohs(data + 6);
+      }
+      inline UShort_t GetWRCount(Packet_t data) {
+        return pntohl(data + 8);
+      }
+      inline UInt_t GetFooterId2(Packet_t data) {
+        return pntohc(data + 12);
+      }
+      inline Bool_t IsFooter(Packet_t data) {
+        return GetFooterId1(data) == 0xAAAAAAAAULL;
+      }
 
 #endif
+    }
 
     class Kc705Data : public ITdcDataProvider {
     public:
       ULong64_t Date;
-      
-      Char_t    Type;
-
-      // Header
-      UChar_t   BoardId;  //  2 bit
       Int_t     Spill;    //  8 bit
-
-      // Data
+      Int_t     EMCount;  // 16 bit
+      Int_t     WRCount;  // 16 bit
+      UChar_t   Type;
+      UChar_t   BoardId;  //  2 bit
       ULong64_t MppcBit;  // 64 bit: MPPCs of extinction detector
       UShort_t  SubBit;   // 12 bit: PMTs of detectors and MR RF
       Bool_t    MrSync;   //  1 bit
-      UInt_t    Tdc;      // 27 bit
-
-      // Footer
-      Int_t     EMCount;  // 16 bit
-      Int_t     WRCount;  // 16 bit
-
-      // Additional
-      UInt_t    Overflow; // TrueTdc = Tdc + 0x8000000 * Overflow
-      Double_t  TimePerTdc = 5.0 * nsec;
       UChar_t   Mppcs[MppcNch];
       UChar_t   Subs[SubNch];
+      UInt_t    Tdc;      // 27 bit
+      UInt_t    Overflow; // TrueTdc = Tdc + 0x8000000 * Overflow
+      Int_t     MrSyncCount;
+      Int_t     MrSyncTdc;
+      Int_t     TdcFromMrSync;
+
+      Double_t  TimePerTdc = 5.0 * nsec;
 
       Kc705Data() {
         Clear();
       }
       Kc705Data(const Kc705Data& data)
-        : Date    (data.Date    ),
-          Type    (data.Type    ),
-          BoardId (data.BoardId ),
-          Spill   (data.Spill   ),
-          MppcBit (data.MppcBit ),
-          SubBit  (data.SubBit  ),
-          MrSync  (data.MrSync  ),
-          Tdc     (data.Tdc     ),
-          EMCount (data.EMCount ),
-          WRCount (data.WRCount ),
-          Overflow(data.Overflow) {
+        : Date         (data.Date         ),
+          Spill        (data.Spill        ),
+          EMCount      (data.EMCount      ),
+          WRCount      (data.WRCount      ),
+          Type         (data.Type         ),
+          BoardId      (data.BoardId      ),
+          MppcBit      (data.MppcBit      ),
+          SubBit       (data.SubBit       ),
+          MrSync       (data.MrSync       ),
+          Tdc          (data.Tdc          ),
+          Overflow     (data.Overflow     ),
+          MrSyncCount  (data.MrSyncCount  ),
+          MrSyncTdc    (data.MrSyncTdc    ),
+          TdcFromMrSync(data.TdcFromMrSync),
+          TimePerTdc   (data.TimePerTdc   ) {
         std::memcpy(Mppcs, data.Mppcs, MppcNch);
         std::memcpy( Subs, data. Subs,  SubNch);
       }
       Kc705Data& operator=(const Kc705Data& data) {
-        Date     = data.Date;
-        Type     = data.Type;
-        BoardId  = data.BoardId;
-        Spill    = data.Spill;
-        MppcBit  = data.MppcBit;
-        SubBit   = data.SubBit;
-        MrSync   = data.MrSync;
-        Tdc      = data.Tdc;
-        EMCount  = data.EMCount;
-        WRCount  = data.WRCount;
-        Overflow = data.Overflow;
+        Date          = data.Date;
+        Spill         = data.Spill;
+        EMCount       = data.EMCount;
+        WRCount       = data.WRCount;
+        Type          = data.Type;
+        BoardId       = data.BoardId;
+        MppcBit       = data.MppcBit;
+        SubBit        = data.SubBit;
+        MrSync        = data.MrSync;
+        Tdc           = data.Tdc;
+        Overflow      = data.Overflow;
+        MrSyncCount   = data.MrSyncCount;
+        MrSyncTdc     = data.MrSyncTdc;
+        TdcFromMrSync = data.TdcFromMrSync;
+        TimePerTdc    = data.TimePerTdc;
         std::memcpy(Mppcs, data.Mppcs, MppcNch);
         std::memcpy( Subs, data. Subs,  SubNch);
         return *this;
       }
 
       inline void Clear() {
-        Date     = 0;
-        Type     = DataType::None;
-        BoardId  = 0;
-        Spill    = -1;
-        MppcBit  = 0;
-        SubBit   = 0;
-        MrSync   = 0;
-        Tdc      = 0;
-        EMCount  = 0;
-        WRCount  = 0;
-        Overflow = 0;
+        Date          =  0;
+        Spill         = -1;
+        EMCount       =  0;
+        WRCount       =  0;
+        Type          = DataType::None;
+        BoardId       = -1;
+        MppcBit       =  0;
+        SubBit        =  0;
+        MrSync        =  0;
+        Tdc           =  0;
+        Overflow      =  0;
+        MrSyncCount   =  0;
+        MrSyncTdc     =  0;
+        TdcFromMrSync =  0;
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
       }
@@ -414,14 +386,14 @@ namespace Extinction {
 
       inline void SetDataAsHeader(Packet_t packet) {
         Type     = DataType::Header;
-        BoardId  = Kc705::GetBoardId(packet);
-        Spill    = Kc705::GetSpill(packet);
+        Spill    = Packet::GetSpill(packet);
+        EMCount  = 0;
+        WRCount  = 0;
+        BoardId  = Packet::GetBoardId(packet);
         MppcBit  = 0;
         SubBit   = 0;
         MrSync   = 0;
         Tdc      = 0;
-        EMCount  = 0;
-        WRCount  = 0;
         Overflow = 0;
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
@@ -430,10 +402,10 @@ namespace Extinction {
       inline void SetDataAsData(Packet_t packet) {
         const UInt_t lastTdc = Tdc;
         Type    = DataType::Data;
-        MppcBit = Kc705::GetMppcBit(packet);
-        SubBit  = Kc705::GetSubBit(packet);
-        MrSync  = Kc705::GetMrSync(packet);
-        Tdc     = Kc705::GetTdc(packet);
+        MppcBit = Packet::GetMppcBit(packet);
+        SubBit  = Packet::GetSubBit(packet);
+        MrSync  = Packet::GetMrSync(packet);
+        Tdc     = Packet::GetTdc(packet);
         if (Tdc < lastTdc) { ++Overflow; }
         for (std::size_t ch = 0; ch < MppcNch; ++ch) {
           Mppcs[ch] = IsMppcHit(ch);
@@ -449,8 +421,8 @@ namespace Extinction {
         SubBit  = 0;
         MrSync  = 0;
         Tdc     = 0;
-        EMCount = Kc705::GetEMCount(packet);
-        WRCount = Kc705::GetWRCount(packet);
+        EMCount = Packet::GetEMCount(packet);
+        WRCount = Packet::GetWRCount(packet);
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
       }
@@ -475,14 +447,14 @@ namespace Extinction {
 
       inline void SetDataAsHeader(Packet_t packet) {
         Type     = DataType::Header;
-        BoardId  = Kc705::GetBoardId(packet);
-        Spill    = Kc705::GetSpill(packet);
+        Spill    = Packet::GetSpill(packet);
+        EMCount  = 0;
+        WRCount  = 0;
+        BoardId  = Packet::GetBoardId(packet);
         MppcBit  = 0;
         SubBit   = 0;
         MrSync   = 0;
         Tdc      = 0;
-        EMCount  = 0;
-        WRCount  = 0;
         Overflow = 0;
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
@@ -491,10 +463,10 @@ namespace Extinction {
       inline void SetDataAsData(Packet_t packet) {
         const UInt_t lastTdc = Tdc;
         Type    = DataType::Data;
-        MppcBit = Kc705::GetMppcBit(packet);
-        SubBit  = Kc705::GetSubBit(packet);
-        MrSync  = Kc705::GetMrSync(packet);
-        Tdc     = Kc705::GetTdc(packet);
+        MppcBit = Packet::GetMppcBit(packet);
+        SubBit  = Packet::GetSubBit(packet);
+        MrSync  = Packet::GetMrSync(packet);
+        Tdc     = Packet::GetTdc(packet);
         if (Tdc < lastTdc) { ++Overflow; }
         for (std::size_t ch = 0; ch < MppcNch; ++ch) {
           Mppcs[ch] = IsMppcHit(ch);
@@ -507,16 +479,16 @@ namespace Extinction {
       inline void SetDataAsFooter(Packet_t packet) {
         Type    = DataType::Footer;
         const Int_t lastSpill = Spill;
-        Spill   = Kc705::GetSpill(packet);
+        Spill   = Packet::GetSpill(packet);
         if (Spill != lastSpill) {
           std::cerr << "[warning] spill inconsistent" << std::endl;
         }
+        EMCount = Packet::GetEMCount(packet);
+        WRCount = Packet::GetWRCount(packet);
         MppcBit = 0;
         SubBit  = 0;
         MrSync  = 0;
         Tdc     = 0;
-        EMCount = Kc705::GetEMCount(packet);
-        WRCount = Kc705::GetWRCount(packet);
         std::memset(Mppcs, 0, MppcNch);
         std::memset( Subs, 0,  SubNch);
       }
@@ -547,7 +519,7 @@ namespace Extinction {
           return ret1;
         }
 
-        if (Kc705::IsHeader(buff)) {
+        if (Packet::IsHeader(buff)) {
           SetDataAsHeader(buff);
 #if   KC705_FORMAT_VERSION == 1
           // No time stamp
@@ -563,7 +535,7 @@ namespace Extinction {
           // Nothing to do
         } else {
           std::cerr << "[error] invalid header, maybe "
-                    << (Kc705::IsFooter(buff) ? "footer" : "data") << std::endl;
+                    << (Packet::IsFooter(buff) ? "footer" : "data") << std::endl;
           Type = DataType::HeaderError;
         }
 
@@ -582,7 +554,7 @@ namespace Extinction {
           return ret;
         }
 
-        if (Kc705::IsFooter(buff)) {
+        if (Packet::IsFooter(buff)) {
           SetDataAsFooter(buff);
         } else {
           SetDataAsData(buff);
@@ -593,6 +565,38 @@ namespace Extinction {
         }
 
         return file;
+      }
+
+      inline virtual Bool_t IsData() const override {
+        return Type == DataType::Data;
+      }
+
+      inline virtual Bool_t IsFooter() const override {
+        return Type == DataType::Footer;
+      }
+
+      inline virtual std::string GetName() const override {
+        return Name;
+      }
+
+      inline virtual void SetTimePerTdc(Double_t timePerTdc) override {
+        TimePerTdc = timePerTdc;
+      }
+
+      inline virtual Double_t GetTimePerTdc() const override {
+        return TimePerTdc;
+      }
+
+      inline virtual ULong64_t GetDate() const override {
+        return Date;
+      }
+
+      inline virtual Int_t GetSpill() const override {
+        return Spill;
+      }
+
+      inline virtual Int_t GetEMCount() const override {
+        return EMCount;
       }
 
       inline Bool_t IsMppcHit(Int_t ch) const {
@@ -625,51 +629,8 @@ namespace Extinction {
         return Tdc + 0x8000000ULL * Overflow;
       }
 
-      inline virtual void SetTimePerTdc(Double_t timePerTdc) override {
-        TimePerTdc = timePerTdc;
-      }
-
-      inline virtual Double_t GetTimePerTdc() const override {
-        return TimePerTdc;
-      }
-
       inline virtual Double_t GetTime() const override {
         return GetTdc2() * GetTimePerTdc();
-      }
-
-      inline void CreateBranch(TTree* tree) {
-        // std::cout << "Kc705::Kc705Data::CreateBranch()" << std::endl;
-        tree->Branch("date"    , &Date    , "date"    "/l");
-        tree->Branch("type"    , &Type    , "type"    "/B");
-        tree->Branch("boardId" , &BoardId , "boardId" "/b");
-        tree->Branch("spill"   , &Spill   , "spillC"  "/I");
-        tree->Branch("tdc"     , &Tdc     , "tdc"     "/i");
-        tree->Branch("mrSync"  , &MrSync  , "MrSync"  "/O");
-        tree->Branch("mppc"    , &MppcBit , "mppc"    "/l");
-        tree->Branch("sub"     , &SubBit  , "sub"     "/s");
-        tree->Branch("overflow", &Overflow, "overflow""/i");
-        tree->Branch("mppcs"   ,  Mppcs   , Form("mppcs[%lu]" "/b", MppcNch));
-        tree->Branch("subs"    ,  Subs    , Form("subs [%lu]" "/b", SubNch));
-        tree->SetAlias("tdc2", "tdc + 0x8000000 * overflow");
-      }
-      inline TBranch* AddEMBranch(TTree* tree) {
-        return tree->Branch("emcount", &EMCount, "emcount/I");
-      }
-
-      inline virtual void SetBranchAddress(TTree* tree) override {
-        // std::cout << "Kc705::Kc705Data::SetBranchAddress()" << std::endl;
-        tree->SetBranchAddress("date"    , &Date    );
-        tree->SetBranchAddress("type"    , &Type    );
-        tree->SetBranchAddress("boardId" , &BoardId );
-        tree->SetBranchAddress("spill"   , &Spill   );
-        tree->SetBranchAddress("emcount" , &EMCount );
-        tree->SetBranchAddress("tdc"     , &Tdc     );
-        tree->SetBranchAddress("mrSync"  , &MrSync  );
-        tree->SetBranchAddress("mppc"    , &MppcBit );
-        tree->SetBranchAddress("sub"     , &SubBit  );
-        tree->SetBranchAddress("overflow", &Overflow);
-        tree->SetBranchAddress("mppcs"   ,  Mppcs   );
-        tree->SetBranchAddress("subs"    ,  Subs    );
       }
 
       inline void ShowAsHex() const {
@@ -708,82 +669,6 @@ namespace Extinction {
         std::cout << ", MrSync = " << (MrSync ? "true" : "false") << std::endl;
       }
 
-      inline virtual std::string GetName() const override {
-        return Name;
-      }
-
-      inline virtual Bool_t IsData() const override {
-        return Type == DataType::Data;
-      }
-
-      inline virtual Bool_t IsFooter() const override {
-        return Type == DataType::Footer;
-      }
-
-      inline virtual ULong64_t GetDate() const override {
-        return Date;
-      }
-
-      inline virtual Int_t GetSpill() const override {
-        return Spill;
-      }
-
-      inline virtual Int_t GetEMCount() const override {
-        return EMCount;
-      }
-
-      inline virtual std::vector<TdcData> GetTdcData() const override {
-        using namespace ChannelMap;
-        namespace CM = ChannelMap;
-        std::vector<TdcData> data;
-        const Long64_t tdc  = GetTdc2();
-        const Double_t time = GetTime();
-        for (auto&& mppcCh : GetMppcHitChannels()) {
-          TdcData datum;
-          datum.Spill   = Spill;
-          datum.Tdc     = tdc;
-          datum.Time    = time;
-          if (CM::MrSync.find(BoardId) != CM::MrSync.end()) {
-            datum.MrSyncChannel = CM::MrSync.at(BoardId) + MrSync            ::GlobalChannelOffset;
-          }
-          if (ExtMppc.find(mppcCh) != ExtMppc.end()) {
-            datum.Channel       = ExtMppc   .at(mppcCh ) + ExtinctionDetector::GlobalChannelOffset;
-          }
-          data.push_back(datum);
-        }
-        for (auto&& subCh : GetSubHitChannels()) {
-          TdcData datum;
-          datum.Spill   = Spill;
-          datum.Tdc     = tdc;
-          datum.Time    = time;
-          if (CM::MrSync.find(BoardId) != CM::MrSync.end()) {
-            datum.MrSyncChannel = CM::MrSync.at(BoardId) + MrSync            ::GlobalChannelOffset;
-          }
-          if        (ExtSub.find(subCh) != ExtSub.end()) {
-            datum.Channel       = ExtSub    .at(subCh  ) + ExtinctionDetector::GlobalChannelOffset;
-          } else if (Hod   .find(subCh) != Hod   .end()) {
-            datum.Channel       = Hod       .at(subCh  ) + Hodoscope         ::GlobalChannelOffset;
-          } else if (Tc    .find(subCh) != Tc    .end()) {
-            datum.Channel       = Tc        .at(subCh  ) + TimingCounter     ::GlobalChannelOffset;
-          } else if (Bh    .find(subCh) != Bh    .end()) {
-            datum.Channel       = Bh        .at(subCh  ) + BeamlineHodoscope ::GlobalChannelOffset;
-          }
-          data.push_back(datum);
-        }
-        if (MrSync) {
-          TdcData datum;
-          datum.Spill   = Spill;
-          datum.Tdc     = tdc;
-          datum.Time    = time;
-          if (CM::MrSync.find(BoardId) != CM::MrSync.end()) {
-            datum.Channel       = CM::MrSync.at(BoardId) + MrSync            ::GlobalChannelOffset;
-            datum.MrSyncChannel = datum.Channel;
-          }
-          data.push_back(datum);
-        }
-        return data;
-      }
-
       inline virtual std::vector<TdcData> GetTdcData(Int_t board) const override {
         using namespace ChannelMapWithBoard;
         namespace CM = ChannelMapWithBoard;
@@ -794,64 +679,135 @@ namespace Extinction {
         typename decltype(itr1->second)::const_iterator itr2;
         for (auto&& mppcCh : GetMppcHitChannels()) {
           TdcData datum;
-          datum.Spill      = Spill;
-          datum.EMCount    = EMCount;
-          datum.Tdc        = tdc;
-          datum.Time       = time;
-          datum.TimePerTdc = TimePerTdc;
-          datum.Board      = board;
+          datum.Date            = Date;
+          datum.Spill           = Spill;
+          datum.EMCount         = EMCount;
+          datum.Board           = board;
+          datum.TimePerTdc      = TimePerTdc;
+          datum.Tdc             = tdc;
+          datum.Time            = time;
+          datum.Tot             = 0;
+          datum.LastMrSyncCount = MrSyncCount;
+          datum.LastMrSyncTdc   = MrSyncTdc;
+          datum.NextMrSyncTdc   = 0;
+          datum.TdcFromMrSync   = TdcFromMrSync;
           if        ((itr1 = CM::MrSync  .find(board )) != CM::MrSync  .end() &&
                      (itr2 = itr1->second.begin()     ) != itr1->second.end()) {
-            datum.MrSyncChannel = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
+            datum.MrSyncChannel = itr2->second + MrSync            ::GlobalChannelOffset;
           }
           if        ((itr1 = ExtMppc     .find(board )) != ExtMppc     .end() &&
                      (itr2 = itr1->second.find(mppcCh)) != itr1->second.end()) {
-            datum.Channel       = *itr2->second.begin() + ExtinctionDetector::GlobalChannelOffset;
+            datum.Channel       = itr2->second + ExtinctionDetector::GlobalChannelOffset;
           }
           data.push_back(datum);
         }
         for (auto&& subCh : GetSubHitChannels()) {
           TdcData datum;
-          datum.Spill      = Spill;
-          datum.EMCount    = EMCount;
-          datum.Tdc        = tdc;
-          datum.Time       = time;
-          datum.TimePerTdc = TimePerTdc;
-          datum.Board      = board;
+          datum.Date            = Date;
+          datum.Spill           = Spill;
+          datum.EMCount         = EMCount;
+          datum.Board           = board;
+          datum.TimePerTdc      = TimePerTdc;
+          datum.Tdc             = tdc;
+          datum.Time            = time;
+          datum.Tot             = 0;
+          datum.LastMrSyncCount = MrSyncCount;
+          datum.LastMrSyncTdc   = MrSyncTdc;
+          datum.NextMrSyncTdc   = 0;
+          datum.TdcFromMrSync   = TdcFromMrSync;
           if        ((itr1 = CM::MrSync  .find(board)) != CM::MrSync  .end() &&
                      (itr2 = itr1->second.begin()    ) != itr1->second.end()) {
-            datum.MrSyncChannel = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
+            datum.MrSyncChannel = itr2->second + MrSync            ::GlobalChannelOffset;
           }
           if        ((itr1 = ExtSub      .find(board)) != ExtSub      .end() &&
                      (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
-            datum.Channel       = *itr2->second.begin() + ExtinctionDetector::GlobalChannelOffset;
+            datum.Channel       = itr2->second + ExtinctionDetector::GlobalChannelOffset;
           } else if ((itr1 = Hod         .find(board)) != Hod         .end() &&
                      (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
-            datum.Channel       = *itr2->second.begin() + Hodoscope         ::GlobalChannelOffset;
+            datum.Channel       = itr2->second + Hodoscope         ::GlobalChannelOffset;
           } else if ((itr1 = Tc          .find(board)) != Tc          .end() &&
                      (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
-            datum.Channel       = *itr2->second.begin() + TimingCounter     ::GlobalChannelOffset;
+            datum.Channel       = itr2->second + TimingCounter     ::GlobalChannelOffset;
           } else if ((itr1 = Bh          .find(board)) != Bh          .end() &&
                      (itr2 = itr1->second.find(subCh)) != itr1->second.end()) {
-            datum.Channel       = *itr2->second.begin() + BeamlineHodoscope ::GlobalChannelOffset;
+            datum.Channel       = itr2->second + BeamlineHodoscope ::GlobalChannelOffset;
           }
           data.push_back(datum);
         }
         if (MrSync) {
           TdcData datum;
-          datum.Spill      = Spill;
-          datum.EMCount    = EMCount;
-          datum.Tdc        = tdc;
-          datum.Time       = time;
-          datum.TimePerTdc = TimePerTdc;
-          datum.Board      = board;
+          datum.Date            = Date;
+          datum.Spill           = Spill;
+          datum.EMCount         = EMCount;
+          datum.Board           = board;
+          datum.TimePerTdc      = TimePerTdc;
+          datum.Tdc             = tdc;
+          datum.Time            = time;
+          datum.Tot             = 0;
+          datum.LastMrSyncCount = MrSyncCount;
+          datum.LastMrSyncTdc   = MrSyncTdc;
+          datum.NextMrSyncTdc   = 0;
+          datum.TdcFromMrSync   = TdcFromMrSync;
           if ((itr1 = CM::MrSync  .find(board)) != CM::MrSync  .end() &&
               (itr2 = itr1->second.begin()    ) != itr1->second.end()) {
-            datum.Channel       = *itr2->second.begin() + MrSync            ::GlobalChannelOffset;
+            datum.Channel       = itr2->second + MrSync            ::GlobalChannelOffset;
           }
           data.push_back(datum);
         }
         return data;
+      }
+
+      inline virtual Int_t FindBoard(Int_t globalChannel) const override {
+        std::map<Int_t, Int_t>::const_iterator itr;
+        if ((itr = ChannelMapWithBoard::Board.find(globalChannel)) != ChannelMapWithBoard::Board.end()) {
+          return itr->second;
+        }
+        return -1;
+      }
+
+      inline void CreateBranch(TTree* tree) {
+        // std::cout << "Kc705::Kc705Data::CreateBranch()" << std::endl;
+        tree->Branch("date"    , &Date         , "date"    "/l");
+        tree->Branch("spill"   , &Spill        , "spillC"  "/I");
+        tree->Branch("type"    , &Type         , "type"    "/b");
+        tree->Branch("boardId" , &BoardId      , "boardId" "/b");
+        tree->Branch("mppc"    , &MppcBit      , "mppc"    "/l");
+        tree->Branch("sub"     , &SubBit       , "sub"     "/s");
+        tree->Branch("mrSync"  , &MrSync       , "MrSync"  "/O");
+        tree->Branch("mppcs"   ,  Mppcs        , Form("mppcs[%lu]" "/b", MppcNch));
+        tree->Branch("subs"    ,  Subs         , Form("subs [%lu]" "/b", SubNch));
+        tree->Branch("tdc"     , &Tdc          , "tdc"     "/i");
+        tree->Branch("overflow", &Overflow     , "overflow""/i");
+     // tree->Branch("mscount" , &MrSyncCount  , "mscount" "/I");
+     // tree->Branch("mstdc"   , &MrSyncTdc    , "mstdc"   "/I");
+        tree->Branch("dtdc"    , &TdcFromMrSync, "dtdc"    "/I");
+        tree->SetAlias("tdc2", "tdc + 0x8000000 * overflow");
+      }
+      inline TBranch* AddEMBranch(TTree* tree) {
+        return tree->Branch("emcount", &EMCount, "emcount/I");
+      }
+      // inline TBranch* AddWRBranch(TTree* tree) {
+      //   return tree->Branch("wrcount", &WRCount, "wrcount/I");
+      // }
+
+      inline virtual void SetBranchAddress(TTree* tree) override {
+        // std::cout << "Kc705::Kc705Data::SetBranchAddress()" << std::endl;
+        tree->SetBranchAddress("date"    , &Date         );
+        tree->SetBranchAddress("spill"   , &Spill        );
+        tree->SetBranchAddress("emcount" , &EMCount      );
+     // tree->SetBranchAddress("wrcount" , &WRCount      );
+        tree->SetBranchAddress("type"    , &Type         );
+        tree->SetBranchAddress("boardId" , &BoardId      );
+        tree->SetBranchAddress("mppc"    , &MppcBit      );
+        tree->SetBranchAddress("sub"     , &SubBit       );
+        tree->SetBranchAddress("mrSync"  , &MrSync       );
+        tree->SetBranchAddress("mppcs"   ,  Mppcs        );
+        tree->SetBranchAddress("subs"    ,  Subs         );
+        tree->SetBranchAddress("tdc"     , &Tdc          );
+        tree->SetBranchAddress("overflow", &Overflow     );
+     // tree->SetBranchAddress("mscount" , &MrSyncCount  );
+     // tree->SetBranchAddress("mstdc"   , &MrSyncTdc    );
+        tree->SetBranchAddress("dtdc"    , &TdcFromMrSync);
       }
 
 #if KC705_FORMAT_VERSION == 1
@@ -996,7 +952,7 @@ namespace Extinction {
         } else {
           for (; Read(file); ++count) {
             // Data.Show();
-            if (Data.Type == DataType::Data || Data.Type == DataType::Footer) {
+            if (Data.IsData() || Data.IsFooter()) {
               // std::cout << "TTree::Fill()" << std::endl;
               Tree->Fill();
             }

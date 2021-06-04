@@ -84,7 +84,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     if (decoder.Data.IsData()) {
       decoder.Tree->Fill();
       if (decoder.Data.Channel == emChannel) {
-        emdata.push_back(decoder.Data.GetTdcData().front());
+        emdata.push_back(decoder.Data.GetTdcData(-1).front());
       }
     } else if (decoder.Data.IsFooter()) {
       std::cout << "end of spill " << decoder.Data.Spill << std::endl;

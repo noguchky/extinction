@@ -34,38 +34,34 @@ Int_t main(Int_t argc, Char_t** argv) {
   std::string ofileprefix;
   if (ofilename.empty()) {
     TString buff = ifilename.data();
-    if (buff.EndsWith(".root")) {
+    if (buff.EndsWith("_hists.root")) {
+      buff.Replace(buff.Length() - 11, 11, "");
+    } else if (buff.EndsWith(".root")) {
       buff.Replace(buff.Length() - 5, 5, "");
     }
     ofileprefix = buff;
   } else {
     TString buff = ofilename.data();
-    if (buff.EndsWith(".pdf")) {
+    if (buff.EndsWith("_hists.pdf")) {
+      buff.Replace(buff.Length() - 10, 10, "");
+    } else if (buff.EndsWith(".pdf")) {
       buff.Replace(buff.Length() - 4, 4, "");
     }
     ofileprefix = buff;
   }
 
-  const std::string ofilenameRoot          = ofileprefix + "_hists.root";
   const std::string ofilenamePdf           = ofileprefix + "_hists.pdf";
-  const std::string ofilenamePdf_Crosstalk = ofileprefix + "_crosstalk.pdf";
   const std::string ofilenamePdf_Offset    = ofileprefix + "_offset.pdf";
-  const std::string ofilenamePdf_Time      = ofileprefix + "_time.pdf";
   const std::string ofilenameSpill         = ofileprefix + "_spill.root";
-  const std::string ofilenameTPT           = ofileprefix + "_timePerTdc.dat";
   const std::string ofilenameMrSync        = ofileprefix + "_mrSync.dat";
-  const std::string ofilenameBunch         = ofileprefix + "_bunch.dat";
   const std::string ofilenameOffset        = ofileprefix + "_offset.dat";
-  // std::cout << "ofilenameRoot          " << ofilenameRoot          << std::endl;
+  const std::string ofilenameBunch         = ofileprefix + "_bunch.dat";
   // std::cout << "ofilenamePdf           " << ofilenamePdf           << std::endl;
-  // std::cout << "ofilenamePdf_Crosstalk " << ofilenamePdf_Crosstalk << std::endl;
   // std::cout << "ofilenamePdf_Offset    " << ofilenamePdf_Offset    << std::endl;
-  // std::cout << "ofilenamePdf_Time      " << ofilenamePdf_Time      << std::endl;
   // std::cout << "ofilenameSpill         " << ofilenameSpill         << std::endl;
-  // std::cout << "ofilenameTPT           " << ofilenameTPT           << std::endl;
   // std::cout << "ofilenameMrSync        " << ofilenameMrSync        << std::endl;
-  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
   // std::cout << "ofilenameOffset        " << ofilenameOffset        << std::endl;
+  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
 
   std::cout << "--- Initialize style" << std::endl;
   gStyle->SetPalette(1);
@@ -82,14 +78,16 @@ Int_t main(Int_t argc, Char_t** argv) {
     return 1;
   }
 
-  generator->DrawPlots(ofilenamePdf, ofilenamePdf_Crosstalk, ofilenamePdf_Offset, ofilenamePdf_Time);
+  generator->CalcMrSyncInterval();
+  generator->CalcBunchProfile();
+  generator->CalcTdcOffsets();
 
-  // generator->WritePlots         (ofilenameRoot  );
+  generator->DrawPlots(ofilenamePdf, ofilenamePdf_Offset);
+
   // generator->WriteSpillSummary  (               );
-  // generator->WriteTimePerTdc    (ofilenameTPT   );
   // generator->WriteMrSyncInterval(ofilenameMrSync);
+  // generator->WriteTdcOffsets    (ofilenameOffset);
   // generator->WriteBunchProfile  (ofilenameBunch );
-  // generator->WriteOffset        (ofilenameOffset);
 
   return 0;
 }

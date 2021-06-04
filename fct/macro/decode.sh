@@ -10,11 +10,15 @@ function show_usage() {
     echo
 }
 
-EM_CH=27
+force=0
+emchannel=27
 while :; do
     if   [ ${1}_ == "-e_" ]; then
-        EM_CH=${2}
+        emchannel=${2}
         shift 2
+    elif [ ${1}_ == "-f_" ]; then
+        force=1
+        shift 1
     elif [ ${1}_ == "-h_" ]; then
         show_usage
         exit
@@ -22,17 +26,30 @@ while :; do
         break
     fi
 done
-list=${1}
+list=${@}
 
-if [ -z ${list} ]; then
+if [ -z "${list}" ]; then
     show_usage
-    exit
-elif [ ! -f "${list}" ]; then
-    echo "emlist is not found"
     exit
 fi
 
+for fname in ${list}; do
+    if [ ! -f "${fname}" ]; then
+        echo "emlist \"${fname}\" is not found"
+        exit
+    fi
+done
+
 emcount=-1
+
+function exec_decode() {
+    if [ ${force} -eq 1 ] || [ ! -f ${this_root_dirname}/${this_root_filename} ]; then
+        ${SOURCEDIR}/../build/decoder \
+                    ${this_filename} \
+                    -e ${emchannel} \
+                    -o ${this_root_dirname}/${this_root_filename} &
+    fi
+}
 
 while read line; do
     echo "${line}"
@@ -63,12 +80,7 @@ while read line; do
         mkdir -p ${this_root_dirname}
     fi
 
-    if [ ! -f ${this_root_dirname}/${this_root_filename} ]; then
-        ${SOURCEDIR}/../build/decoder \
-                    ${this_filename} \
-                    -e ${EM_CH} \
-                    -o ${this_root_dirname}/${this_root_filename} &
-    fi
+    exec_decode
 
     emcount=${this_emcount}
 done < <(cat ${list} | sort -k 1n,1 -k 2n,2)

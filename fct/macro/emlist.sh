@@ -10,10 +10,13 @@ function show_usage() {
     echo
 }
 
-EM_CH=27
+prefix=fct
+boards=7
+idoffset=56
+emchannel=27
 while :; do
     if   [ ${1}_ = "-e_" ]; then
-        EM_CH=${2}
+        emchannel=${2}
         shift 2
     elif [ ${1}_ = "-h_" ]; then
         show_usage
@@ -33,16 +36,17 @@ tag=${7:-${year}${month}${day}${hour}${minute}${second}}
 
 listname=./list/em_${tag}.txt
 
-if [ -z ${year}${month} ]; then
+if [ -z "${year}${month}" ]; then
     show_usage
     exit
 fi
 
-for board in {0..7}; do
-    for filename in ../data/id00$(expr ${board} + 56)/${year}${month}${day//x/}/${hour//x/}*/fct_*_${year}${month}${day//x/}${hour//x/}${minute//x/}${second//x/}*.dat; do
-        fullpath_filename=${SOURCEDIR/macro/}/${filename/"../"/}
+for ((board=0; board < boards; ++board)); do
+    idstr=id00$(printf %02d $(expr ${board} + ${idoffset}))
+    for filename in ../data/${idstr}/${year}${month}${day//x/}*/${hour//x/}*/${prefix}_${idstr}_${year}${month}${day//x/}${hour//x/}${minute//x/}${second//x/}*.dat; do
+        fullpath_filename=$(echo ${SOURCEDIR}${filename} | sed -r -e 's#/[^/]+/\.\./#/#g' | sed -r -e 's#/+#/#g')
         if [ -n "${fullpath_filename}" ]; then
-            ${SOURCEDIR}/../build/emcount ${fullpath_filename} -b ${board} -e ${EM_CH}
+            ${SOURCEDIR}/../build/emcount ${fullpath_filename} -b ${board} -e ${emchannel}
         else
             echo "'${filename}' has no link" > /dev/stderr
         fi

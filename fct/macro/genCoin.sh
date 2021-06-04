@@ -7,41 +7,76 @@ function show_usage() {
     echo
 }
 
-plotany=0
+confFilename="${SOURCEDIR}/../conf/genHist.conf"
 single=0
-efficiency=
+plotany=0
+timelineopt=
+mscount=-1
 while :; do
-    if [ ${1}_ = "-h_" ]; then
+    if   [ ${1}_ = "-h_" ]; then
         show_usage
         exit 
+    elif [ ${1}_ = "-c_" ]; then
+        confFilename=${2}
+        shift 2
     elif [ ${1}_ = "-s_" ]; then
         single=1
-        shift 1
-    elif [ ${1}_ = "-e_" ]; then
-        efficiency="-e"
         shift 1
     elif [ ${1}_ = "-a_" ]; then
         plotany=1
         shift 1
+    elif [ ${1}_ = "-t_" ]; then
+        timelineopt="-t"
+        shift 1
+    elif [ ${1}_ = "-m_" ]; then
+        mscount=${2}
+        shift 2
     else
         break
     fi
 done
-list=${1}
+list=${@}
 
-if [ -z ${list} ]; then
+if [ -z "${list}" ]; then
     show_usage
-    exit
-elif [ ! -f "${list}" ]; then
-    echo "emlist is not found"
     exit
 fi
 
-./decode.sh ${list}
+for fname in ${list}; do
+    if [ ! -f "${fname}" ]; then
+        echo "emlist\"${fname}\" is not found"
+        exit
+    fi
+done
 
 emcount=-1
 boards=()
 filenames=()
+
+function exec_genCoin() {
+    if [ ${#filenames[@]} -eq 8 ] || [ ${plotany} -eq 1 ] && [ ${#filenames[@]} -ne 0 ]; then
+        marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
+        marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
+        marged_filename=${marged_filename/.root/.pdf}
+        # echo "marged_dirname  = ${marged_dirname}"
+        # echo "marged_filename = ${marged_filename}"
+
+        if [ ! -d ${marged_dirname} ]; then
+            mkdir -p ${marged_dirname}
+        fi
+
+        ${SOURCEDIR}/../build/genCoin \
+                    ${confFilename} \
+                    $(echo ${boards[@]} | tr " " ",") \
+                    $(echo ${filenames[@]} | tr " " ",") \
+                    -o ${marged_dirname}/${marged_filename} \
+                    -m ${mscount} ${timelineopt}
+
+        if [ ${single} -eq 1 ]; then
+            exit
+        fi
+    fi
+}
 
 while read line; do
     echo "${line}"
@@ -64,29 +99,13 @@ while read line; do
     # echo "this_root_dirname  = ${this_root_dirname}"
     # echo "this_root_filename = ${this_root_filename}"
 
+    if [ ! -f ${this_root_dirname}/${this_root_filename} ]; then
+        echo "root file is not exist, need to decode"
+        exit
+    fi
+
     if [ ${emcount} -ne ${this_emcount} ]; then
-        if [ ${#filenames[@]} -eq 8 ] || [ ${plotany} -eq 1 ] && [ ${#filenames[@]} -ne 0 ]; then
-            marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-            marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-            marged_filename=${marged_filename/.root/.pdf}
-            # echo "marged_dirname  = ${marged_dirname}"
-            # echo "marged_filename = ${marged_filename}"
-
-            if [ ! -d ${marged_dirname} ]; then
-                mkdir -p ${marged_dirname}
-            fi
-
-            ${SOURCEDIR}/../build/genCoin \
-                        ${SOURCEDIR}/../conf/genHist.conf \
-                        $(echo ${boards[@]} | tr " " ",") \
-                        $(echo ${filenames[@]} | tr " " ",") \
-                        ${efficiency} \
-                        -o ${marged_dirname}/${marged_filename}
-
-            if [ ${single} -eq 1 ]; then
-                exit
-            fi
-        fi
+        exec_genCoin
         boards=()
         filenames=()
     fi
@@ -96,21 +115,4 @@ while read line; do
     filenames+=(${this_root_dirname}/${this_root_filename})
 done < <(cat ${list} | sort -k 1n,1 -k 2n,2)
 
-if [ ${#filenames[@]} -eq 8 ] || [ ${plotany} -eq 1 ] && [ ${#filenames[@]} -ne 0 ]; then
-    marged_dirname=$(dirname ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-    marged_filename=$(basename ${filenames[0]//id[0-9][0-9][0-9][0-9]/marged})
-    marged_filename=${marged_filename/.root/.pdf}
-    # echo "marged_dirname  = ${marged_dirname}"
-    # echo "marged_filename = ${marged_filename}"
-
-    if [ ! -d ${marged_dirname} ]; then
-        mkdir -p ${marged_dirname}
-    fi
-
-    ${SOURCEDIR}/../build/genCoin \
-                ${SOURCEDIR}/../conf/genHist.conf \
-                $(echo ${boards[@]} | tr " " ",") \
-                $(echo ${filenames[@]} | tr " " ",") \
-                ${efficiency} \
-                -o ${marged_dirname}/${marged_filename}
-fi
+exec_genCoin
