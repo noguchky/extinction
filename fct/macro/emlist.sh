@@ -11,7 +11,7 @@ function show_usage() {
 }
 
 prefix=fct
-boards=7
+boards=8
 idoffset=56
 emchannel=27
 while :; do
@@ -44,7 +44,7 @@ fi
 for ((board=0; board < boards; ++board)); do
     idstr=id00$(printf %02d $(expr ${board} + ${idoffset}))
     for filename in ../data/${idstr}/${year}${month}${day//x/}*/${hour//x/}*/${prefix}_${idstr}_${year}${month}${day//x/}${hour//x/}${minute//x/}${second//x/}*.dat; do
-        fullpath_filename=$(echo ${SOURCEDIR}${filename} | sed -r -e 's#/[^/]+/\.\./#/#g' | sed -r -e 's#/+#/#g')
+        fullpath_filename=$(echo ${SOURCEDIR}/${filename} | sed -r -e 's#/[^/]+/+\.\./#/#g' | sed -r -e 's#/+#/#g')
         if [ -n "${fullpath_filename}" ]; then
             ${SOURCEDIR}/../build/emcount ${fullpath_filename} -b ${board} -e ${emchannel}
         else
