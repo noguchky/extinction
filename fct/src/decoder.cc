@@ -96,7 +96,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
       if (decoder.Data.Channel == msChannel) {
         ++lastMrSyncCount;
-        lastMrSyncCount = decoder.Data.Tdc;
+        lastMrSyncTdc = decoder.Data.Tdc;
       } else if (decoder.Data.Channel == emChannel) {
         emdata.push_back(decoder.Data.GetTdcData(-1).front());
       }

@@ -84,10 +84,9 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   generator->DrawPlots(ofilenamePdf, ofilenamePdf_Offset);
 
-  // generator->WriteSpillSummary  (               );
-  // generator->WriteMrSyncInterval(ofilenameMrSync);
-  // generator->WriteTdcOffsets    (ofilenameOffset);
-  // generator->WriteBunchProfile  (ofilenameBunch );
+  generator->WriteMrSyncInterval(ofilenameMrSync);
+  generator->WriteTdcOffsets    (ofilenameOffset);
+  generator->WriteBunchProfile  (ofilenameBunch );
 
   return 0;
 }

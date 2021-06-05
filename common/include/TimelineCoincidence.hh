@@ -147,10 +147,10 @@ namespace Extinction {
       TH2*                         fExtHitMap              = nullptr;
       TList*                       fExtBorderLine          = nullptr;
 
-      TFile*                       fSpillFile              = nullptr;
-      TTree*                       fSpillTree              = nullptr;
+      // TFile*                       fSpillFile              = nullptr;
+      // TTree*                       fSpillTree              = nullptr;
 
-      Long64_t                     fSpillCount             = 0;
+      // Long64_t                     fSpillCount             = 0;
 
       Bool_t                       fCoincidenceTargetBh1;
       Bool_t                       fCoincidenceTargetBh2;
@@ -207,10 +207,6 @@ namespace Extinction {
       TimelineCoincidence(ITdcDataProvider* provider);
       ~TimelineCoincidence();
 
-      void                 SetTimePerTdc(const std::map<Int_t, Double_t>& map);
-
-      Int_t                LoadOffset(const std::string& ffilename);
-
       void                 SetCoincidenceTarget(const std::vector<Int_t>& flags) {
         std::cout << "SetCoincidenceTarget" << std::endl;
         if (flags.size() < 6) {
@@ -244,10 +240,10 @@ namespace Extinction {
       void                 WritePlots(const std::string& ofilename);
       void                 WriteCoinTree();
 
-      Int_t                GenerateEfficiency(MargedReader*                       reader,
-                                              std::map<Int_t, ITdcDataProvider*>  providers,
-                                              const std::map<Int_t, std::string>& ifilenames,
-                                              const std::string&                  itreename);
+      Int_t                GenerateEfficiency(MargedReader*                  reader,
+                                              BoardMap_t<ITdcDataProvider*>  providers,
+                                              const BoardMap_t<std::string>& ifilenames,
+                                              const std::string&             itreename);
 
       Int_t                GeneratePlots(MargedReader* reader,
                                          Bool_t        drawCoinTimeline = false,
@@ -257,13 +253,6 @@ namespace Extinction {
       void                 ClearLastSpill(Bool_t clearHists);
 
       void                 DrawTmpTimeline(Int_t bin, Int_t range);
-
-      template <typename T, typename V>
-      inline void          FillToSeconds(std::map<T, V>* map, V value) {
-        for (auto&& pair : *map) {
-          pair.second = value;
-        }
-      }
     };
 
     TimelineCoincidence::TimelineCoincidence(ITdcDataProvider* provider)
@@ -517,10 +506,13 @@ namespace Extinction {
         return;
       }
 
-      hCoinTlTdcInSync->Write();
-      hCoinTlMountain ->Write();
+      hCoinTlTdcInSync ->Write();
+      hCoinTlMountain  ->Write();
       hCoinExtTdcInSync->Write();
       hCoinExtMountain ->Write();
+
+      hEfficiencyFrame ->Write();
+      hEfficiency      ->Write();
 
       file->Close();
     }
@@ -541,17 +533,17 @@ namespace Extinction {
 
     void TimelineCoincidence::ClearLastSpill(Bool_t clearHists) {
       if (clearHists) {
-        hCoinTlTdcInSync->Reset();
-        hCoinTlMountain ->Reset();
+        hCoinTlTdcInSync ->Reset();
+        hCoinTlMountain  ->Reset();
         hCoinExtTdcInSync->Reset();
         hCoinExtMountain ->Reset();
       }
     }
 
-    Int_t TimelineCoincidence::GenerateEfficiency(MargedReader*                      reader,
-                                                  std::map<Int_t, ITdcDataProvider*> providers,
-                                                  const std::map<int, std::string>&  ifilenames,
-                                                  const std::string&                 itreename) {
+    Int_t TimelineCoincidence::GenerateEfficiency(MargedReader*                  reader,
+                                                  BoardMap_t<ITdcDataProvider*>  providers,
+                                                  const BoardMap_t<std::string>& ifilenames,
+                                                  const std::string&             itreename) {
       for (std::size_t i = 0; i < 7; ++i) {
         fEfficiencyTargetBh1 = (i == 0);
         fEfficiencyTargetBh2 = (i == 1);
@@ -590,7 +582,7 @@ namespace Extinction {
 
       // std::cout << "[debug] check end of spill" << std::endl;
       // Throw away first mr sync
-      std::map<Tag_t, TdcData> tdcDataInMrSync;
+      SortedTdcData_t tdcDataInMrSync;
       reader->Read(tdcDataInMrSync);
       tdcDataInMrSync.clear();
 
@@ -736,8 +728,8 @@ namespace Extinction {
                     auto& tag = pair.first;
                     auto& ch  = tag.first;
 
-                    hCoinTlTdcInSync->Fill(hitdtdcs[tag]);
-                    hCoinTlMountain ->Fill(hitdtdcs[tag], mrSyncTime / msec);
+                    hCoinExtTdcInSync->Fill(hitdtdcs[tag]);
+                    hCoinExtMountain ->Fill(hitdtdcs[tag], mrSyncTime / msec);
 
                     fHitChannels      [fNofHits] = ch;
                     fHitMrSyncCounts  [fNofHits] = pair.second;
@@ -752,7 +744,9 @@ namespace Extinction {
                   }
 
                   fBlurWidth = coinTdcWidth - fCoinWidth + 1;
-                  fCoinTree->Fill();
+                  if (fCoinTree) {
+                    fCoinTree->Fill();
+                  }
                 }
               }
 
@@ -809,7 +803,7 @@ namespace Extinction {
       fTimelineCanvas->cd();
 
       hTmpBh1Timeline    ->Reset();
-      hTmpBh2Timeline    ->Reset();
+   // hTmpBh2Timeline    ->Reset();
       hTmpTc1Timeline    ->Reset();
       hTmpTc2Timeline    ->Reset();
       hTmpExtTimeline_Any->Reset();
@@ -825,7 +819,7 @@ namespace Extinction {
         };
 
       setTimeline(fBh1Timeline, hTmpBh1Timeline);
-      setTimeline(fBh2Timeline, hTmpBh2Timeline);
+   // setTimeline(fBh2Timeline, hTmpBh2Timeline);
       setTimeline(fTc1Timeline, hTmpTc1Timeline);
       setTimeline(fTc2Timeline, hTmpTc2Timeline);
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
@@ -833,14 +827,14 @@ namespace Extinction {
       }
 
       hTmpSumTimeline->Add(hTmpBh1Timeline    );
-      hTmpSumTimeline->Add(hTmpBh2Timeline    );
+   // hTmpSumTimeline->Add(hTmpBh2Timeline    );
    // hTmpSumTimeline->Add(hTmpHodTimeline    );
       hTmpSumTimeline->Add(hTmpExtTimeline_Any);
       hTmpSumTimeline->Add(hTmpTc1Timeline    );
       hTmpSumTimeline->Add(hTmpTc2Timeline    );
 
       hTmpBh1Timeline    ->Draw();
-      hTmpBh2Timeline    ->Draw("same");
+   // hTmpBh2Timeline    ->Draw("same");
    // hTmpHodTimeline    ->Draw("same");
       hTmpExtTimeline_Any->Draw("same");
       hTmpTc1Timeline    ->Draw("same");

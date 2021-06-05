@@ -67,6 +67,10 @@ Int_t main(Int_t argc, Char_t** argv) {
   std::cout << "=== Initialize Tree" << std::endl;
   decoder.InitializeTree();
 
+  std::cout << "=== Initialize Variables" << std::endl;
+  Int_t lastMrSyncCount = 0;
+  Int_t lastMrSyncTdc   = 0;
+
   std::cout << "=== Decode" << std::endl;
   std::vector<std::pair<Long64_t, Int_t>> emCount;
   Int_t nextEmCount = emDefCount;
@@ -77,18 +81,32 @@ Int_t main(Int_t argc, Char_t** argv) {
       std::cout << ">> " << count << std::endl;
     }
 
+    decoder.Data.MrSyncCount   = lastMrSyncCount;
+    decoder.Data.MrSyncTdc     = lastMrSyncTdc;
+    decoder.Data.TdcFromMrSync = decoder.Data.Tdc - lastMrSyncTdc;
+
     if (decoder.Data.IsData()) {
+      // std::cout << "data" << std::endl;
       decoder.Tree->Fill();
+
+      if (decoder.Data.MrSync) {
+        ++lastMrSyncCount;
+        lastMrSyncTdc = decoder.Data.Tdc;
+      }
+
     } else if (decoder.Data.IsFooter()) {
       std::cout << "end of spill " << decoder.Data.Spill << std::endl;
+      decoder.Tree->Fill();
+
       emCount.back() = { decoder.Tree->GetEntries(), decoder.Data.DecodeEventMatchNumber(emdata) };
       if (emCount.back().second < 0) {
         emCount.back().second = nextEmCount < 0 ? nextEmCount : nextEmCount++;
       } else {
         nextEmCount = emCount.back().second + 1;
       }
-      emdata.clear();
       emCount.push_back({ std::numeric_limits<Long64_t>::max(), nextEmCount });
+
+      emdata.clear();
     }
   }
   std::cout << "[info] # of data record = " << count << std::endl;

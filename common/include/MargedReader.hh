@@ -33,12 +33,6 @@ namespace Extinction {
     class MargedReader {
     public:
       using TdcOffsets_t = std::map<std::size_t/*globalChannel*/, Long64_t>;
-
-    private:
-      using SortedTdcData_t = std::map<Tag_t, TdcData>;
-
-      template <typename V>
-      using BoardMap_t = std::map<Int_t, V>;
       
     private:
       ITdcDataProvider*                   fProvider               = nullptr;
@@ -87,11 +81,11 @@ namespace Extinction {
       void                 WriteMargedTree();
 
       // File operation
-      Int_t                Open(std::map<Int_t, ITdcDataProvider*>  providers,
-                                const std::map<Int_t, std::string>& ifilenames,
-                                const std::string&                  itreename);
+      Int_t                Open(BoardMap_t<ITdcDataProvider*>  providers,
+                                const BoardMap_t<std::string>& ifilenames,
+                                const std::string&             itreename);
 
-      Int_t                Read(std::map<Tag_t, TdcData>& tdcDataInMrSync);
+      Int_t                Read(SortedTdcData_t& tdcDataInMrSync);
 
       Int_t                Close();
 
@@ -193,9 +187,9 @@ namespace Extinction {
       fMargedFile->Close();
     }
 
-    Int_t MargedReader::Open(std::map<Int_t, ITdcDataProvider*> providers,
-                             const std::map<int, std::string>&  ifilenames,
-                             const std::string&                 itreename) {
+    Int_t MargedReader::Open(BoardMap_t<ITdcDataProvider*>  providers,
+                             const BoardMap_t<std::string>& ifilenames,
+                             const std::string&             itreename) {
       // Check arguments
       {
         std::set<Int_t> boardP;
@@ -255,7 +249,7 @@ namespace Extinction {
       return 0;
     }
 
-    Int_t MargedReader::Read(std::map<Tag_t, TdcData>& tdcDataInMrSync) {
+    Int_t MargedReader::Read(SortedTdcData_t& tdcDataInMrSync) {
       // Shift MrSync
       for (auto&& pair : fProviders) {
         const Int_t board = pair.first;
@@ -381,21 +375,9 @@ namespace Extinction {
                 continue;
               }
 
-              if (fNextMrSync[board].Tdc) {
-                if (data.Tdc - fNextMrSync[board].Tdc > 0) {
-                  // std::cout << "[debug] data is between next and next next" << std::endl;
-                  data.LastMrSyncCount = fMrSyncCount + 1;
-                  data.LastMrSyncTdc   = fNextMrSync[board].Tdc;
-                } else {
-                  // std::cout << "[debug] data is between last and next" << std::endl;
-                  data.LastMrSyncCount = fMrSyncCount;
-                  data.LastMrSyncTdc   = fLastMrSync[board].Tdc;
-                }
-                data.TdcFromMrSync = data.Tdc - data.LastMrSyncTdc;
-                // std::cout << "[debug] push data into tdc buffers" << std::endl;
-                const Tag_t tag { data.LastMrSyncCount, data.TdcFromMrSync, data.Channel };
-                fTdcBuffers[board].emplace_hint(fTdcBuffers[board].end(), tag, data);
-              }
+              // std::cout << "[debug] push data into tdc buffers" << std::endl;
+              Tag_t tag = { 0, data.Tdc, data.Channel };
+              fTdcBuffers[board].emplace_hint(fTdcBuffers[board].end(), tag, data);
             }
           }
         }
@@ -413,18 +395,23 @@ namespace Extinction {
 
       // Extract tdc data
       for (auto&& pair : fProviders) {
-        const Int_t    board         = pair.first;
-        const Long64_t nextMrSyncTdc = fNextMrSync[board].Tdc;
-        std::map<Tag_t, TdcData>::iterator itr, end;
+        const Int_t    board      = pair.first;
+        const TdcData& lastMrSync = fLastMrSync[board];
+        const TdcData& nextMrSync = fNextMrSync[board];
+        SortedTdcData_t::iterator itr, end;
         for (itr = fTdcBuffers[board].begin(), end = fTdcBuffers[board].end(); itr != end; ++itr) {
-          const Tag_t& tag = itr->first;
-          if (std::get<0>(tag) != fMrSyncCount) {
-            // std::cout << "[debug] find next mr sync @ " << board << std::endl;
+          TdcData& data = itr->second;
+          if        (data.Tdc > nextMrSync.Tdc) {
             break;
+          } else if (data.Tdc > lastMrSync.Tdc) {
+            data.LastMrSyncCount = fMrSyncCount;
+            data.LastMrSyncTdc   = lastMrSync.Tdc;
+            data.NextMrSyncTdc   = nextMrSync.Tdc;
+            data.TdcFromMrSync   = data.Tdc - data.LastMrSyncTdc;
+            const Tag_t tag { data.LastMrSyncCount, data.TdcFromMrSync, data.Channel };
+            tdcDataInMrSync.emplace(tag, data);
           } else {
-            // std::cout << "[debug] extract tdc = " << itr->second.Channel << std::endl;
-            itr->second.NextMrSyncTdc = nextMrSyncTdc;
-            tdcDataInMrSync.emplace(tag, itr->second);
+            // Nothing to do
           }
         }
         // std::cout << "[debug] erase buffer" << std::endl;

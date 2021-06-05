@@ -63,14 +63,16 @@ Int_t main(Int_t argc, Char_t** argv) {
     ofileprefix = buff;
   }
 
-  const std::string ofilenameRoot     = ofileprefix + "_coin.root";
-  const std::string ofilenamePdf      = ofileprefix + "_coin.pdf";
-  const std::string ofilenameCoinTree = ofileprefix + "_ctree.root";
+  const std::string ofilenameRoot            = ofileprefix + "_coin.root";
+  const std::string ofilenameRoot_Efficiency = ofileprefix + "_coin_efficiency.root";
+  const std::string ofilenamePdf             = ofileprefix + "_coin.pdf";
+  const std::string ofilenamePdf_Efficiency  = ofileprefix + "_coin_efficiency.pdf";
+  const std::string ofilenameCoinTree        = ofileprefix + "_ctree.root";
 
   if (drawCoinTimeline || mscountSelection > 0) {
     new TApplication("app", nullptr, nullptr);
   }
-  
+
   std::cout << "--- Load configure" << std::endl;
   Tron::ConfReader* conf = new Tron::ConfReader(confFilename);
   if (!conf->IsOpen()) {
@@ -132,13 +134,19 @@ Int_t main(Int_t argc, Char_t** argv) {
   generator->SetCoincidenceTarget(conf->GetValues<Int_t   >("CoincidenceTarget"));
 
   generator->InitializePlots(profile);
-  generator->InitializeCoinTree(ofilenameCoinTree);
 
   if (efficiency) {
     std::cout << "--- Generate efficiency" << std::endl;
     generator->GenerateEfficiency(reader, providers, ifilenames, "tree");
+
+    generator->DrawPlots(ofilenamePdf_Efficiency);
+
+    generator->WritePlots(ofilenameRoot_Efficiency);
+
   } else {
     std::cout << "--- Generate hists" << std::endl;
+
+    generator->InitializeCoinTree(ofilenameCoinTree);
 
     if (reader->Open(providers, ifilenames, "tree")) {
       exit(1);
@@ -147,12 +155,12 @@ Int_t main(Int_t argc, Char_t** argv) {
     generator->GeneratePlots(reader, drawCoinTimeline, mscountSelection);
 
     reader->Close();
+
+    generator->DrawPlots(ofilenamePdf);
+
+    generator->WritePlots(ofilenameRoot);
+    generator->WriteCoinTree();
   }
-
-  generator->DrawPlots(ofilenamePdf);
-
-  generator->WritePlots(ofilenameRoot);
-  generator->WriteCoinTree();
 
   return 0;
 }

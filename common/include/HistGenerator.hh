@@ -1328,6 +1328,25 @@ namespace Extinction {
       std::cerr << "Info in <HistGenerator::WriteMrSyncInterval>: dat file " << ofilename << " has been created" << std::endl;
     }
 
+    void HistGenerator::WriteTdcOffsets(const std::string& ofilename) {
+      std::cout << "Write tdc offset" << std::endl;
+      std::ofstream ofile(ofilename);
+      if (!ofile) {
+        std::cerr << "[error] output file is not opened, " << ofilename << std::endl;
+        return;
+      }
+
+      for (auto&& pair : fTdcOffsets) {
+        auto& gch   = pair.first;
+        auto& value = pair.second;
+        ofile << gch << "\t" << value << std::endl;
+      }
+
+      ofile.close();
+
+      std::cerr << "Info in <HistGenerator::WriteTdcOffsets>: dat file " << ofilename << " has been created" << std::endl;
+    }
+
     void HistGenerator::WriteBunchProfile(const std::string &ofilename) {
       std::cout << "Write bunch profile" << std::endl;
       std::ofstream ofile(ofilename);
@@ -1347,25 +1366,6 @@ namespace Extinction {
       ofile.close();
 
       std::cerr << "Info in <HistGenerator::WriteBunchProfile>: dat file " << ofilename << " has been created" << std::endl;
-    }
-
-    void HistGenerator::WriteTdcOffsets(const std::string& ofilename) {
-      std::cout << "Write tdc offset" << std::endl;
-      std::ofstream ofile(ofilename);
-      if (!ofile) {
-        std::cerr << "[error] output file is not opened, " << ofilename << std::endl;
-        return;
-      }
-
-      for (auto&& pair : fTdcOffsets) {
-        auto& gch   = pair.first;
-        auto& value = pair.second;
-        ofile << gch << "\t" << value << std::endl;
-      }
-
-      ofile.close();
-
-      std::cerr << "Info in <HistGenerator::WriteTdcOffsets>: dat file " << ofilename << " has been created" << std::endl;
     }
 
     void HistGenerator::ClearLastSpill(Bool_t clearHists) {

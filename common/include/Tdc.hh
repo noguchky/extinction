@@ -8,8 +8,6 @@
 
 namespace Extinction {
 
-  using Tag_t = std::tuple<Int_t/*MrSyncCount*/, Long64_t/*TdcFromMrSync*/, Int_t/*GlobalChannel*/>;
-
   class TdcData {
   public:
     // Spill information
@@ -217,6 +215,13 @@ namespace Extinction {
     }
     
   };
+
+  using Tag_t = std::tuple<Int_t/*MrSyncCount*/, Long64_t/*TdcFromMrSync*/, Int_t/*GlobalChannel*/>;
+
+  template <typename V>
+  using BoardMap_t = std::map<Int_t, V>;
+
+  using SortedTdcData_t = std::map<Tag_t, TdcData>;
 
   class ITdcDataProvider {
   public:
