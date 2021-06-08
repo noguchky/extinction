@@ -170,7 +170,7 @@ namespace Extinction {
       Double_t  TimePerTdc = 7.5 * nsec;
 
       Int_t     PreviousCarry[NofChannels];
-      UInt_t    PreviousTdc  [NofChannels];
+      Int_t     PreviousTdc  [NofChannels];
 
       FctData() {
         Clear();
@@ -273,9 +273,15 @@ namespace Extinction {
         // }
         if (PreviousTdc[Channel] == 0 || tdc < 0xF00000) {
           Tdc = tdc + (PreviousCarry[Channel] = Carry) * 0x1000000;
+          if (Tdc < PreviousTdc[Channel]) {
+            Tdc = tdc + (PreviousCarry[Channel] = ++Carry) * 0x1000000;
+            std::cerr << "[warning] Carry was skipped, "
+                      << "Carry " << Carry << ", "
+                      << "Tdc " << Form("%x", PreviousTdc[Channel]) << " -> " << Form("%x", Tdc) << std::endl;
+          }
         } else {
           Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
-          if ((Long64_t)Tdc < PreviousTdc[Channel]) {
+          if (Tdc < PreviousTdc[Channel]) {
             PreviousCarry[Channel] = Carry;
             Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
           }
@@ -293,6 +299,8 @@ namespace Extinction {
 
         if        (Packet::IsHeader(buff)) {
           SetDataAsHeader(buff);
+        } else if (Packet::IsGateStart(buff)) {
+          SetDataAsGateStart(buff);
 #if FCT_FORMAT_VERSION == 1
           // No time stamp
 #else
@@ -301,8 +309,6 @@ namespace Extinction {
             return ret2;
           }
 #endif
-        } else if (Packet::IsGateStart(buff)) {
-          SetDataAsGateStart(buff);
         } else if (Packet::IsGateEnd(buff)) {
           SetDataAsGateEnd(buff);
         } else if (Packet::IsCarry(buff)) {
