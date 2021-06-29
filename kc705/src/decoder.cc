@@ -13,7 +13,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
   args->AddArg<std::string>("Input"     ,                    "Set rawdata filename");
   args->AddOpt<std::string>("Output"    , 'o', "output"    , "Set output filename", "");
-  args->AddOpt<Int_t>      ("EMCount"   , 'c', "cmcount"   , "Set default count of event match", "-1");
+  args->AddOpt<Int_t>      ("EMCount"   , 'c', "emcount"   , "Set default count of event match", "-1");
   args->AddOpt             ("Help"      , 'h', "help"      , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -109,7 +109,7 @@ Int_t main(Int_t argc, Char_t** argv) {
       emdata.clear();
     }
   }
-  std::cout << "[info] # of data record = " << count << std::endl;
+  std::cout << "# of data record = " << count << std::endl;
 
   TBranch* emBranch = decoder.Data.AddEMBranch(decoder.Tree);
   for (Long64_t entry = 0, entries = decoder.Tree->GetEntries(), iem = 0; entry < entries; ++entry) {
@@ -123,7 +123,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   std::cout << "=== Write Objects" << std::endl;
-  std::cout << decoder.Tree->GetName() << std::endl;
+  std::cout << decoder.Tree->GetName() << "\t" << decoder.Tree->GetEntries() << " entries" << std::endl;
   decoder.Tree->Write();
 
   std::cout << "=== Close Files" << std::endl;

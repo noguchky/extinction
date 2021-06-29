@@ -88,6 +88,7 @@ namespace Extinction {
       TH1**                        hMrSyncTdcInSpill          = nullptr;
       TH1**                        hEvmTdcInSpill             = nullptr;
       TH1**                        hVetoTdcInSpill            = nullptr;
+      TH1**                        hErrTdcInSpill             = nullptr;
       TH1**                        hBhTdcInSync               = nullptr;
       TH1**                        hHodTdcInSync              = nullptr;
       TH1*                         hHodTdcInSync_Any          = nullptr;
@@ -102,6 +103,7 @@ namespace Extinction {
       TH2*                         hExtMountain_Any           = nullptr;
       TH2**                        hTcMountain                = nullptr;
       TH2**                        hVetoMountain              = nullptr;
+      TH2**                        hErrMountain               = nullptr;
       TH1**                        hMrSyncInterval            = nullptr;
       TH2**                        hMrSyncInterval2           = nullptr;
       TH2**                        hBhTdcOffset               = nullptr;
@@ -111,7 +113,7 @@ namespace Extinction {
       TFile*                       fSpillFile                 = nullptr;
       TTree*                       fSpillTree                 = nullptr;
 
-      SpillData                    fSpillData;
+      RawSpillData                 fSpillData;
       std::size_t                  fRefExtChannel             = ExtinctionDetector::NofChannels / 2;
       TdcOffsets_t                 fTdcOffsets;
 
@@ -123,20 +125,45 @@ namespace Extinction {
       std::vector<TdcData>         fLastTcData;
       std::map<Int_t, TdcData>     fLastMrSyncData;
 
-      TF1*                         fGauss                     = nullptr;
+      Double_t                     fBunchCenters [Extinction::kNofBunches] = { };
+   // Double_t                     fBunchWidths  [Extinction::kNofBunches] = { };
+      Double_t                     fBunchMinEdges[Extinction::kNofBunches] = { };
+      Double_t                     fBunchMaxEdges[Extinction::kNofBunches] = { };
+      Bool_t                       fOffsetFromBunch           = false;
 
     public:
       HistGenerator(ITdcDataProvider* provider);
       ~HistGenerator();
-
-      void                 SetBunchCenters(const Double_t bunchCenters[SpillData::kNofBunches]);
-      void                 SetBunchWidths(const Double_t bunchWidths[SpillData::kNofBunches]);
 
       inline void          SetHistoryWidth(Double_t width) {
         std::cout << "SetHistoryWidth ... " << width / nsec << " nsec" << std::endl;
         fHistoryWidth = width;
       }
       inline Double_t      GetHistoryWidth() const { return fHistoryWidth; }
+
+      Int_t                LoadBunchProfile(const std::string& ifilename) {
+        std::cout << "LoadBunchProfile ... " << ifilename << std::endl;
+
+        std::ifstream ifile(ifilename);
+        if (!ifile) {
+          std::cout << "[error] bunch profile is not opened, " << ifilename << std::endl;
+          return 1;
+        }
+
+        Int_t bunch;
+        Double_t center, sigma;
+        Long64_t minEdge, maxEdge;
+        while (ifile >> bunch >> center >> sigma >> minEdge >> maxEdge) {
+          fBunchCenters [bunch] = center;
+       // fBunchWidths  [bunch] = sigma;
+          fBunchMinEdges[bunch] = minEdge;
+          fBunchMaxEdges[bunch] = maxEdge;
+        }
+
+        return 0;
+      }
+      void                 SetOffsetFromBunch(Bool_t flag) { fOffsetFromBunch = flag; }
+      Bool_t               IsOffsetFromBunch() const { return fOffsetFromBunch; }
 
       Int_t                ReadPlots(const std::string& ifilename);
       void                 InitializePlots(const PlotsProfiles& profile);
@@ -147,18 +174,32 @@ namespace Extinction {
       void                 WriteSpillSummary();
       void                 WriteMrSyncInterval(const std::string& ofilename);
       void                 WriteTdcOffsets(const std::string& ofilename);
-      void                 WriteBunchProfile(const std::string& ofilename);
 
       Int_t                GeneratePlots(MargedReader* reader);
 
       void                 CalcEntries();
       void                 CalcMrSyncInterval();
       void                 CalcTdcOffsets();
-      void                 CalcBunchProfile();
 
     private:
       void                 ClearLastSpill(Bool_t clearHists);
       std::size_t          RemoveOldTdc(std::vector<TdcData>* lastData, const TdcData& tdc);
+
+      Bool_t               IsInBunch(Long64_t dtdc) const {
+        for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+          if (!fBunchCenters[bunch]) {
+            return false;
+          }
+
+          if        (dtdc <  fBunchMinEdges[bunch]) {
+            return false;
+          } else if (dtdc <= fBunchMaxEdges[bunch]) {
+            return true;
+          }
+        }
+        return false;
+      }
+
     };
 
     HistGenerator::HistGenerator(ITdcDataProvider* provider)
@@ -167,8 +208,6 @@ namespace Extinction {
       fLastHodData.reserve(100);
       fLastExtData.reserve(100);
       fLastTcData .reserve(100);
-
-      fGauss  = new TF1("fGauss" , "gaus(0)");
     }
 
     HistGenerator::~HistGenerator() {
@@ -286,6 +325,12 @@ namespace Extinction {
         hVetoTdcInSpill[ch]->SetDirectory(nullptr);
       }
 
+      hErrTdcInSpill = new TH1*[MrSync::NofChannels];
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hErrTdcInSpill[ch] = dynamic_cast<TH1*>(getFromFile(Form("hErrTdcInSpill_%03lu", ch)));
+        hErrTdcInSpill[ch]->SetDirectory(nullptr);
+      }
+
       hMrSyncTdcInSpill = new TH1*[MrSync::NofChannels];
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
         hMrSyncTdcInSpill[ch] = dynamic_cast<TH1*>(getFromFile(Form("hMrSyncTdcInSpill_%03lu", ch)));
@@ -368,6 +413,12 @@ namespace Extinction {
       for (std::size_t ch = 0; ch < Veto::NofChannels; ++ch) {
         hVetoMountain[ch] = dynamic_cast<TH2*>(getFromFile(Form("hVetoMountain_%03lu", ch)));
         hVetoMountain[ch]->SetDirectory(nullptr);
+      }
+
+      hErrMountain = new TH2*[MrSync::NofChannels];
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hErrMountain[ch] = dynamic_cast<TH2*>(getFromFile(Form("hErrMountain_%03lu", ch)));
+        hErrMountain[ch]->SetDirectory(nullptr);
       }
 
       hMrSyncInterval = new TH1*[MrSync::NofChannels];
@@ -579,6 +630,15 @@ namespace Extinction {
                                        xbinsInSpill, xminInSpill, xmaxInSpill);
       }
 
+      // Error TDC in spill
+      hErrTdcInSpill = new TH1*[MrSync::NofChannels];
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hErrTdcInSpill[ch] = new TH1D(Form("hErrTdcInSpill_%03lu", ch),
+                                      Form("%s, Error %ld TDC in Spill;"
+                                           "Time [ms]", tdcName.data(), ch + 1),
+                                      xbinsInSpill, xminInSpill, xmaxInSpill);
+      }
+
       // Beamline Hodoscope TDC in sync
       hBhTdcInSync = new TH1*[BeamlineHodoscope::NofChannels];
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
@@ -710,6 +770,18 @@ namespace Extinction {
         hVetoMountain[ch]->SetStats(false);
       }
 
+      // Error Mountain Plot
+      hErrMountain = new TH2*[MrSync::NofChannels];
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hErrMountain[ch] = new TH2D(Form("hErrMountain_%03lu", ch),
+                                    Form("%s, Error Mountain Plot @ %lu;"
+                                         "TDC [count];"
+                                         "Time [ms]", tdcName.data(), ch),
+                                    xbinsInSync / 2, xminInSync, xmaxInSync,
+                                    xbinsInSpill / 2, xminInSpill, xmaxInSpill);
+        hErrMountain[ch]->SetStats(false);
+      }
+
       // Offset monitor hists
       hMrSyncInterval = new TH1*[MrSync::NofChannels];
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
@@ -763,7 +835,7 @@ namespace Extinction {
         hExtTdcOffset[ch]->SetStats(false);
       }
     }
-      
+
     void HistGenerator::InitializeSpillSummary(const std::string& filename, const std::string& treename) {
       std::cout << "Initialize spill summary" << std::endl;
 
@@ -962,6 +1034,17 @@ namespace Extinction {
       }
       gPad->SetLogy(false);
 
+      std::cout << "hErrTdcInSpill" << std::endl;
+      gPad->SetLogy(true);
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        if (hErrTdcInSpill[ch]->GetEntries()) {
+          hErrTdcInSpill[ch]->Draw();
+          hErrTdcInSpill[ch]->SetMinimum(0.2);
+          gPad->Print(ofilename.data());
+        }
+      }
+      gPad->SetLogy(false);
+
       std::cout << "hBhTdcInSync" << std::endl;
       gPad->SetLogy(true);
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
@@ -1083,6 +1166,17 @@ namespace Extinction {
         if (hVetoMountain[ch]->GetEntries()) {
           hVetoMountain[ch]->Draw("colz");
           hVetoMountain[ch]->SetMinimum(0);
+          gPad->Print(ofilename.data());
+        }
+      }
+      gPad->SetGrid(true, true);
+
+      std::cout << "hErrMountain" << std::endl;
+      gPad->SetGrid(false, true);
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        if (hErrMountain[ch]->GetEntries()) {
+          hErrMountain[ch]->Draw("colz");
+          hErrMountain[ch]->SetMinimum(0);
           gPad->Print(ofilename.data());
         }
       }
@@ -1224,6 +1318,10 @@ namespace Extinction {
         hVetoTdcInSpill[ch]->Write();
       }
 
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hErrTdcInSpill[ch]->Write();
+      }
+
       for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
         hBhTdcInSync[ch]->Write();
       }
@@ -1270,6 +1368,10 @@ namespace Extinction {
 
       for (std::size_t ch = 0; ch < Veto::NofChannels; ++ch) {
         hVetoMountain[ch]->Write();
+      }
+
+      for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+        hErrMountain[ch]->Write();
       }
 
       for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
@@ -1347,27 +1449,6 @@ namespace Extinction {
       std::cerr << "Info in <HistGenerator::WriteTdcOffsets>: dat file " << ofilename << " has been created" << std::endl;
     }
 
-    void HistGenerator::WriteBunchProfile(const std::string &ofilename) {
-      std::cout << "Write bunch profile" << std::endl;
-      std::ofstream ofile(ofilename);
-      if (!ofile) {
-        std::cerr << "[error] output file is not opened, " << ofilename << std::endl;
-        return;
-      }
-
-      for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
-        ofile << bunch << "\t"
-              << Form("%23.15e", fSpillData.BunchCenters[bunch] / fProvider->GetTimePerTdc()) << "\t"
-              << Form("%23.15e", fSpillData.BunchCenters[bunch] / nsec                      ) << "\t"
-              << Form("%23.15e", fSpillData.BunchWidths [bunch] / fProvider->GetTimePerTdc()) << "\t"
-              << Form("%23.15e", fSpillData.BunchWidths [bunch] / nsec                      ) << std::endl;
-      }
-
-      ofile.close();
-
-      std::cerr << "Info in <HistGenerator::WriteBunchProfile>: dat file " << ofilename << " has been created" << std::endl;
-    }
-
     void HistGenerator::ClearLastSpill(Bool_t clearHists) {
       fLastExtData.clear();
       fLastHodData.clear();
@@ -1423,6 +1504,10 @@ namespace Extinction {
           hVetoTdcInSpill[ch]->Reset();
         }
 
+        for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+          hErrTdcInSpill[ch]->Reset();
+        }
+
         for (std::size_t ch = 0; ch < BeamlineHodoscope::NofChannels; ++ch) {
           hBhTdcInSync[ch]->Reset();
         }
@@ -1469,6 +1554,10 @@ namespace Extinction {
 
         for (std::size_t ch = 0; ch < Veto::NofChannels; ++ch) {
           hVetoMountain[ch]->Reset();
+        }
+
+        for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
+          hErrMountain[ch]->Reset();
         }
 
         for (std::size_t ch = 0; ch < MrSync::NofChannels; ++ch) {
@@ -1535,6 +1624,15 @@ namespace Extinction {
             const Double_t time    = data.Time;
             const Long64_t syncTdc = fLastMrSyncData[board].Tdc;
 
+            if (data.Channel < 0) {
+              hErrTdcInSpill[board]->Fill(time / msec);
+              for (Int_t xbin = 0, nbinsx = hErrMountain[board]->GetNbinsX(); xbin < nbinsx; ++xbin) {
+                const Double_t dtdc = hErrMountain[board]->GetXaxis()->GetBinCenter(xbin);
+                hErrMountain[board]->Fill(dtdc, time / msec);
+              }
+              continue;
+            }
+
             if (Detectors::Contains(data.Channel)) {
               ++entriesInMrSyncByCh[data.Channel];
             }
@@ -1552,41 +1650,91 @@ namespace Extinction {
                 hBhTdcInSync[ch]->Fill(tdc - syncTdc);
                 hBhMountain [ch]->Fill(tdc - syncTdc, time / msec);
 
-                for (auto&& lastData : fLastBhData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hBhTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hBhTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                if (fOffsetFromBunch) {
+                  const Bool_t thisIsInBunch = IsInBunch(tdc - syncTdc);
+
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hBhTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hBhTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastHodData) {
+                    auto lastGch     = lastData.Channel;
+                    // auto lastCh      = Hodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hBhTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hBhTdcOffset [    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = TimingCounter::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hBhTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hTcTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  
+                } else {
+
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hBhTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hBhTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastHodData) {
+                    auto lastGch     = lastData.Channel;
+                    // auto lastCh      = Hodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hBhTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hBhTdcOffset [    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = TimingCounter::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hBhTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hTcTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
                 }
-                for (auto&& lastData : fLastHodData) {
-                  auto lastGch     = lastData.Channel;
-               // auto lastCh      = Hodoscope::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hBhTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
-                  }
-                }
-                for (auto&& lastData : fLastExtData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hBhTdcOffset [    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
-                  }
-                }
-                for (auto&& lastData : fLastTcData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = TimingCounter::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hBhTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hTcTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
-                  }
-                }
+
               }
 
               fLastBhData.push_back(data);
@@ -1615,26 +1763,58 @@ namespace Extinction {
                 hHodMountain [ch]->Fill(tdc - syncTdc, time / msec);
                 hHodMountain_Any ->Fill(tdc - syncTdc, time / msec);
 
-                for (auto&& lastData : fLastBhData) {
-                  auto lastCh      = BeamlineHodoscope::GetChannel(lastData.Channel);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hBhTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                if (fOffsetFromBunch) {
+                  // const Bool_t thisIsInBunch = IsInBunch(tdc - syncTdc);
+
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastData.Channel);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hBhTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
-                }
-                for (auto&& lastData : fLastExtData) {
-                  auto lastCh      = ExtinctionDetector::GetChannel(lastData.Channel);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hExtTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastData.Channel);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hExtTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
-                }
-                for (auto&& lastData : fLastTcData) {
-                  auto lastCh      = TimingCounter::GetChannel(lastData.Channel);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hTcTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastCh      = TimingCounter::GetChannel(lastData.Channel);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hTcTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
+
+                } else {
+
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastData.Channel);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hBhTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastData.Channel);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hExtTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastCh      = TimingCounter::GetChannel(lastData.Channel);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hTcTdcOffset[lastCh]->Fill(gch, (tdc - syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+
                 }
               }
 
@@ -1664,40 +1844,90 @@ namespace Extinction {
                 hExtMountain [ch]->Fill(tdc - syncTdc, time / msec);
                 hExtMountain_Any ->Fill(tdc - syncTdc, time / msec);
 
-                for (auto&& lastData : fLastBhData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hBhTdcOffset [lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                if (fOffsetFromBunch) {
+                  const Bool_t thisIsInBunch = IsInBunch(tdc - syncTdc);
+
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hBhTdcOffset [lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
-                }
-                for (auto&& lastData : fLastHodData) {
-                  auto lastGch     = lastData.Channel;
-               // auto lastCh      = Hodoscope::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hExtTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                  for (auto&& lastData : fLastHodData) {
+                    auto lastGch     = lastData.Channel;
+                    // auto lastCh      = Hodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hExtTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                    }
                   }
-                }
-                for (auto&& lastData : fLastExtData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
-                }
-                for (auto&& lastData : fLastTcData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = TimingCounter::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hTcTdcOffset [lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = TimingCounter::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hTcTdcOffset [lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
                   }
+
+                } else {
+
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hBhTdcOffset [lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastHodData) {
+                    auto lastGch     = lastData.Channel;
+                    // auto lastCh      = Hodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hExtTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = TimingCounter::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hExtTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hTcTdcOffset [lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+
                 }
               }
 
@@ -1720,42 +1950,91 @@ namespace Extinction {
                 hTcTdcInSync[ch]->Fill(tdc - syncTdc);
                 hTcMountain [ch]->Fill(tdc - syncTdc, time / msec);
 
-                for (auto&& lastData : fLastBhData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hTcTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hBhTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
-                  }
-                }
-                for (auto&& lastData : fLastHodData) {
-                  auto lastGch     = lastData.Channel;
-               // auto lastCh      = Hodoscope::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hTcTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
-                  }
-                }
-                for (auto&& lastData : fLastExtData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hTcTdcOffset [    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
-                  }
-                }
-                for (auto&& lastData : fLastTcData) {
-                  auto lastGch     = lastData.Channel;
-                  auto lastCh      = TimingCounter::GetChannel(lastGch);
-                  auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
-                  if (lastSyncTdc) {
-                    hTcTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
-                    hTcTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
-                  }
-                }
+                if (fOffsetFromBunch) {
+                  const Bool_t thisIsInBunch = IsInBunch(tdc - syncTdc);
 
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hTcTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hBhTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastHodData) {
+                    auto lastGch     = lastData.Channel;
+                    // auto lastCh      = Hodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hTcTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hTcTdcOffset [    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = TimingCounter::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      if (thisIsInBunch)
+                        hTcTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      if (IsInBunch(lastData.Tdc - lastSyncTdc))
+                        hTcTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+
+                } else {
+                
+                  for (auto&& lastData : fLastBhData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = BeamlineHodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hTcTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hBhTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastHodData) {
+                    auto lastGch     = lastData.Channel;
+                    // auto lastCh      = Hodoscope::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hTcTdcOffset[ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (tdc - syncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastExtData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = ExtinctionDetector::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hTcTdcOffset [    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hExtTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+                  for (auto&& lastData : fLastTcData) {
+                    auto lastGch     = lastData.Channel;
+                    auto lastCh      = TimingCounter::GetChannel(lastGch);
+                    auto lastSyncTdc = fLastMrSyncData[lastData.Board].Tdc;
+                    if (lastSyncTdc) {
+                      hTcTdcOffset[    ch]->Fill(lastGch, (lastData.Tdc - lastSyncTdc) - (         tdc -     syncTdc));
+                      hTcTdcOffset[lastCh]->Fill(    gch, (         tdc -     syncTdc) - (lastData.Tdc - lastSyncTdc));
+                    }
+                  }
+
+                }
               }
 
               fLastTcData.push_back(data);
@@ -1821,6 +2100,18 @@ namespace Extinction {
         // std::cout << "[debug] check end of spill" << std::endl;
         // Check end of spill
         if (reader->IsSpillEnded()) {
+          std::cout << "[info] end of spill" << std::endl;
+
+          // Calc spill summary
+          CalcEntries();
+          CalcMrSyncInterval();
+          CalcTdcOffsets();
+
+          // Fill spill summary
+          if (fSpillTree) {
+            fSpillTree->Fill();
+          }
+
           reader->ClearLastSpill();
           // std::cout << "[debug] Throw away first mr sync" << std::endl;
           // Throw away first mr sync
@@ -1836,7 +2127,7 @@ namespace Extinction {
         // std::cout << "[debug] check end of file" << std::endl;
         // Check end of file
         if (reader->IsFileEnded()) {
-          std::cout << "[info] end of spill" << std::endl;
+          std::cout << "[info] end of file" << std::endl;
 
           // Get projections
           for (Int_t xbin = 1, nbinsx = hExtHitMap->GetNbinsX(); xbin <= nbinsx; ++xbin) {
@@ -1849,15 +2140,6 @@ namespace Extinction {
             hExtEntriesByChCenter2->SetBinError  (xbin, hExtHitMap->GetBinError  (xbin, 3));
             hExtEntriesByChTop    ->SetBinError  (xbin, hExtHitMap->GetBinError  (xbin, 4));
           }
-
-          // Calc spill summary
-          CalcEntries();
-          CalcMrSyncInterval();
-          CalcTdcOffsets();
-          CalcBunchProfile();
-
-          // Fill spill summary
-          fSpillTree->Fill();
 
           break;
         }
@@ -1887,54 +2169,6 @@ namespace Extinction {
       }
       for (std::size_t ch = 0; ch < EventMatch        ::NofChannels; ++ch) {
         fSpillData.Entries[ch + EventMatch        ::GlobalChannelOffset] = hEvmTdcInSpill   [ch]->GetEntries();
-      }
-    }
-
-    void HistGenerator::CalcBunchProfile() {
-      std::cout << "_____ Bunch Profile _____" << std::endl;
-      {
-        TH1* hTdcInSync = hExtTdcInSync[fRefExtChannel];
-
-        for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
-          fSpillData.BunchCenters[bunch] = 0.0;
-          fSpillData.BunchWidths [bunch] = 0.0;
-        }
-
-        Int_t xbin = 1, nbinsx = hTdcInSync->GetNbinsX();
-        const Double_t ymax = hTdcInSync->GetBinContent(hTdcInSync->GetMaximumBin());
-        for (std::size_t bunch = 0; bunch < SpillData::kNofBunches; ++bunch) {
-          Int_t xbin1 = xbin, xbin2 = xbin;
-          // std::cout << "... search start edge" << std::endl;
-          for (; xbin <= nbinsx && hTdcInSync->GetBinContent(xbin) < ymax * 0.10; ++xbin) {
-            // std::cout << xbin << "\t" << hTdcInSync->GetBinContent(xbin) << "\t" << ymax * 0.10 << std::endl;
-            xbin1 = xbin;
-          }
-          // std::cout << "... search end edge" << std::endl;
-          for (; xbin <= nbinsx && hTdcInSync->GetBinContent(xbin) > ymax * 0.01; ++xbin) {
-            // std::cout << xbin << "\t" << hTdcInSync->GetBinContent(xbin) << "\t" << ymax * 0.01 << std::endl;
-            xbin2 = xbin;
-          }
-          // std::cout << "xbin1 = " << xbin1 << "\txbin2 = " << xbin2 << std::endl;
-
-          if (xbin1 < xbin2) {
-            const Double_t width  = hTdcInSync->GetBinCenter(xbin2) - hTdcInSync->GetBinCenter(xbin1);
-            const Double_t center = hTdcInSync->GetBinCenter((xbin1 + xbin2) / 2);
-            fGauss->SetParameters(ymax, center, width / 2.0);
-            hTdcInSync->Fit(fGauss, "+", "", center - 3.0 * width, center + 3.0 * width);
-
-            fSpillData.BunchCenters[bunch] = fGauss->GetParameter(1) * fProvider->GetTimePerTdc();
-            fSpillData.BunchWidths [bunch] = fGauss->GetParameter(2) * fProvider->GetTimePerTdc();
-            std::cout << bunch << "\t"
-                      << fSpillData.BunchCenters[bunch] / nsec << "\t"
-                      << fSpillData.BunchWidths [bunch] / nsec << std::endl;
-          } else {
-            std::cout << "[warning] " << (bunch == 0 ? "1st" :
-                                          bunch == 1 ? "2nd" :
-                                          bunch == 2 ? "3rd" :
-                                          Form("%ldth", bunch + 1)) << " bunch was not found" << std::endl;
-            break;
-          }
-        }
       }
     }
 

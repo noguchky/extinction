@@ -28,6 +28,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddOpt             ("Timeline"    , 't', "timeline"    , "Draw timeline of coincidence");
   args->AddOpt<Int_t      >("MSCount"     , 'm', "mscount"     , "Draw timeline in mr sync count", "-1");
   args->AddOpt             ("Efficiency"  , 'e', "efficiency"  , "Execute efficiency analysis");
+  args->AddOpt             ("Keyword"     , 'k', "keyword"     , "Set keyword for filename");
   args->AddOpt             ("Help"        , 'h', "help"        , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -47,6 +48,8 @@ Int_t main(Int_t argc, Char_t** argv) {
   const auto drawCoinTimeline = args->IsSet("Timeline");
   const auto mscountSelection = args->GetValue<Int_t>("MSCount");
   const auto efficiency       = args->IsSet("Efficiency");
+  const auto keyword          = args->GetValue("Keyword");
+  const std::string keywordSuffix = keyword.empty() ? "" : ("_" + keyword);
 
   std::string ofileprefix;
   if (ofilename.empty()) {
@@ -63,11 +66,20 @@ Int_t main(Int_t argc, Char_t** argv) {
     ofileprefix = buff;
   }
 
-  const std::string ofilenameRoot            = ofileprefix + "_coin.root";
-  const std::string ofilenameRoot_Efficiency = ofileprefix + "_coin_efficiency.root";
-  const std::string ofilenamePdf             = ofileprefix + "_coin.pdf";
-  const std::string ofilenamePdf_Efficiency  = ofileprefix + "_coin_efficiency.pdf";
-  const std::string ofilenameCoinTree        = ofileprefix + "_ctree.root";
+  const std::string ofilenameRoot            = ofileprefix + "_coin"       + keywordSuffix + ".root";
+  const std::string ofilenameRoot_Efficiency = ofileprefix + "_efficiency" + keywordSuffix + ".root";
+  const std::string ofilenamePdf             = ofileprefix + "_coin"       + keywordSuffix + ".pdf";
+  const std::string ofilenamePdf_Efficiency  = ofileprefix + "_efficiency" + keywordSuffix + ".pdf";
+  const std::string ofilenameCoinTree        = ofileprefix + "_ctree"      + keywordSuffix + ".root";
+  const std::string ofilenameSpill           = ofileprefix + "_cspill"     + keywordSuffix + ".root";
+  const std::string ofilenameBunch           = ofileprefix + "_cbunch"     + keywordSuffix + ".dat";
+  // std::cout << "ofilenameRoot            " << ofilenameRoot            << std::endl;
+  // std::cout << "ofilenameRoot_Efficiency " << ofilenameRoot_Efficiency << std::endl;
+  // std::cout << "ofilenamePdf             " << ofilenamePdf             << std::endl;
+  // std::cout << "ofilenamePdf_Efficiency  " << ofilenamePdf_Efficiency  << std::endl;
+  // std::cout << "ofilenameCoinTree        " << ofilenameCoinTree        << std::endl;
+  // std::cout << "ofilenameSpill           " << ofilenameSpill           << std::endl;
+  // std::cout << "ofilenameBunch           " << ofilenameBunch           << std::endl;
 
   if (drawCoinTimeline || mscountSelection > 0) {
     new TApplication("app", nullptr, nullptr);
@@ -130,8 +142,9 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   std::cout << "--- Initialize coincidence generator" << std::endl;
   auto generator = new Extinction::Analyzer::TimelineCoincidence(&defaultProvider);
-  generator->SetCoinTimeWidth    (conf->GetValue <Double_t>("CoinTimeWidth"    ));
   generator->SetCoincidenceTarget(conf->GetValues<Int_t   >("CoincidenceTarget"));
+  generator->SetCoinTimeWidth    (conf->GetValue <Double_t>("CoinTimeWidth"    ));
+  generator->SetBunchEdgeMargin  (conf->GetValue <Double_t>("BunchEdgeMargin"  ));
 
   generator->InitializePlots(profile);
 
@@ -147,6 +160,7 @@ Int_t main(Int_t argc, Char_t** argv) {
     std::cout << "--- Generate hists" << std::endl;
 
     generator->InitializeCoinTree(ofilenameCoinTree);
+    generator->InitializeSpillSummary(ofilenameSpill);
 
     if (reader->Open(providers, ifilenames, "tree")) {
       exit(1);
@@ -158,8 +172,10 @@ Int_t main(Int_t argc, Char_t** argv) {
 
     generator->DrawPlots(ofilenamePdf);
 
-    generator->WritePlots(ofilenameRoot);
-    generator->WriteCoinTree();
+    generator->WritePlots       (ofilenameRoot  );
+    generator->WriteCoinTree    (               );
+    generator->WriteSpillSummary(               );
+    generator->WriteBunchProfile(ofilenameBunch );
   }
 
   return 0;

@@ -254,6 +254,12 @@ namespace Extinction {
         for (std::size_t ch = 0; ch < NofChannels; ++ch) {
           PreviousCarry[ch] = Carry - 1;
         }
+        // std::cerr << "[info] Carry was detected, Carry " << Carry << std::endl;
+        // std::cerr << "       PreviousTdc = ";
+        // for (std::size_t ch = 0; ch < NofChannels; ++ch) {
+        //   std::cerr << Form("%08x", PreviousTdc[ch]) << " ";
+        // }
+        // std::cerr << std::endl;
       }
 
       inline void SetDataAsData(Packet_t data) {
@@ -271,19 +277,47 @@ namespace Extinction {
         //   PreviousCarry[Channel] = Carry;
         //   Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
         // }
-        if (PreviousTdc[Channel] == 0 || tdc < 0xF00000) {
-          Tdc = tdc + (PreviousCarry[Channel] = Carry) * 0x1000000;
+        if (PreviousTdc[Channel] == 0) {
+          Long64_t sum = 0, cnt = 0;
+          for (std::size_t ch = 0; ch < NofChannels; ++ch) {
+            if (PreviousTdc[ch]) {
+              sum += PreviousTdc[ch];
+              cnt += 1;
+            }
+          }
+          const Long64_t ave = cnt ? sum / cnt : 0;
+          
+          const Long64_t tdc1 = tdc + PreviousCarry[Channel] * 0x1000000;
+          const Long64_t tdc2 = tdc + Carry * 0x1000000;
+          if (ave == 0 || std::abs(tdc1 - ave) < std::abs(tdc2 - ave)) {
+            Tdc = tdc1;
+          } else {
+            Tdc = tdc2;
+            PreviousCarry[Channel] = Carry;
+          }
+
+        } else if (tdc < 0xF00000) {
+          Tdc = tdc + Carry * 0x1000000;
+          // if (Carry != PreviousCarry[Channel]) {
+          //   std::cerr << "[info] Carry was set, "
+          //             << "Carry " << Carry << ", "
+          //             << "Channel " << Channel << ", "
+          //             << "Tdc " << Form("%08x = %02x %06x", PreviousTdc[Channel], PreviousCarry[Channel], PreviousTdc[Channel] & 0xffffff) << " -> " << Form("%08x = %02x %06x", Tdc, Carry, tdc) << std::endl;
+          // }
           if (Tdc < PreviousTdc[Channel]) {
-            Tdc = tdc + (PreviousCarry[Channel] = ++Carry) * 0x1000000;
             std::cerr << "[warning] Carry was skipped, "
                       << "Carry " << Carry << ", "
-                      << "Tdc " << Form("%x", PreviousTdc[Channel]) << " -> " << Form("%x", Tdc) << std::endl;
+                      << "Channel " << Channel << ", "
+                      << "Tdc " << Form("%08x = %02x %06x", PreviousTdc[Channel], PreviousCarry[Channel], PreviousTdc[Channel] & 0xffffff) << " -> " << Form("%08x = %02x %06x", Tdc, Carry, tdc) << std::endl;
+            Tdc = tdc + (++Carry) * 0x1000000;
           }
+          PreviousCarry[Channel] = Carry;
         } else {
           Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
           if (Tdc < PreviousTdc[Channel]) {
+            // std::cerr << "[info] Carry was set, Channel " << Channel << std::endl;
+            Tdc = tdc + Carry * 0x1000000;
             PreviousCarry[Channel] = Carry;
-            Tdc = tdc + PreviousCarry[Channel] * 0x1000000;
           }
         }
         PreviousTdc[Channel] = Tdc;
@@ -431,7 +465,7 @@ namespace Extinction {
         tree->Branch("ch"     , &Channel      , "ch"     "/I");
         tree->Branch("tdc"    , &Tdc          , "tdc"    "/I");
      // tree->Branch("carry"  , &Carry        , "carry"  "/I");
-     // tree->Branch("mscount", &MrSyncCount  , "mscount""/I");
+        tree->Branch("mscount", &MrSyncCount  , "mscount""/I");
      // tree->Branch("mstdc"  , &MrSyncTdc    , "mstdc"  "/I");
         tree->Branch("dtdc"   , &TdcFromMrSync, "dtdc"   "/I");
       }
@@ -448,7 +482,7 @@ namespace Extinction {
         tree->SetBranchAddress("ch"     , &Channel      );
         tree->SetBranchAddress("tdc"    , &Tdc          );
      // tree->SetBranchAddress("carry"  , &Carry        );
-     // tree->SetBranchAddress("mscount", &MrSyncCount  );
+        tree->SetBranchAddress("mscount", &MrSyncCount  );
      // tree->SetBranchAddress("mstdc"  , &MrSyncTdc    );
         tree->SetBranchAddress("dtdc"   , &TdcFromMrSync);
       }

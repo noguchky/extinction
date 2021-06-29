@@ -103,6 +103,7 @@ namespace Extinction {
             Data,
             Footer,
             HeaderError,
+            DataError,
       };
     };
 
@@ -461,13 +462,22 @@ namespace Extinction {
       }
 
       inline void SetDataAsData(Packet_t packet) {
-        const UInt_t lastTdc = Tdc;
+        const UChar_t lastType = Type;
+        const UInt_t  lastTdc  = Tdc;
         Type    = DataType::Data;
         MppcBit = Packet::GetMppcBit(packet);
         SubBit  = Packet::GetSubBit(packet);
         MrSync  = Packet::GetMrSync(packet);
         Tdc     = Packet::GetTdc(packet);
-        if (Tdc < lastTdc) { ++Overflow; }
+        if (lastType == DataType::Header) {
+          if (Tdc > 2000U) {
+            std::cerr << "[warning] the tdc reset might be late, Tdc " << Tdc << std::endl;
+            Type = DataType::DataError;
+            Tdc  = 0;
+          }
+        } else if (Tdc < lastTdc) {
+          ++Overflow;
+        }
         for (std::size_t ch = 0; ch < MppcNch; ++ch) {
           Mppcs[ch] = IsMppcHit(ch);
         }
@@ -778,7 +788,7 @@ namespace Extinction {
         tree->Branch("subs"    ,  Subs         , Form("subs [%lu]" "/b", SubNch));
         tree->Branch("tdc"     , &Tdc          , "tdc"     "/i");
         tree->Branch("overflow", &Overflow     , "overflow""/i");
-     // tree->Branch("mscount" , &MrSyncCount  , "mscount" "/I");
+        tree->Branch("mscount" , &MrSyncCount  , "mscount" "/I");
      // tree->Branch("mstdc"   , &MrSyncTdc    , "mstdc"   "/I");
         tree->Branch("dtdc"    , &TdcFromMrSync, "dtdc"    "/I");
         tree->SetAlias("tdc2", "tdc + 0x8000000 * overflow");
@@ -805,7 +815,7 @@ namespace Extinction {
         tree->SetBranchAddress("subs"    ,  Subs         );
         tree->SetBranchAddress("tdc"     , &Tdc          );
         tree->SetBranchAddress("overflow", &Overflow     );
-     // tree->SetBranchAddress("mscount" , &MrSyncCount  );
+        tree->SetBranchAddress("mscount" , &MrSyncCount  );
      // tree->SetBranchAddress("mstdc"   , &MrSyncTdc    );
         tree->SetBranchAddress("dtdc"    , &TdcFromMrSync);
       }
@@ -979,6 +989,7 @@ namespace Extinction {
           return Data.ReadHeader(file, packet);
         case DataType::Header:
         case DataType::Data:
+        case DataType::DataError:
           return Data.ReadDataOrFooter(file, packet);
         default:
           std::cerr << "[error] invalid data type" << std::endl;

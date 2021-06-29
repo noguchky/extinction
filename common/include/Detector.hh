@@ -186,7 +186,7 @@ namespace Extinction {
       }
     }
 
-    inline void Fill(TH2* hist, std::size_t channel, Bool_t norm = true) {
+    inline void Fill(TH2* hist, std::size_t channel, Bool_t norm = true, Double_t n = 1) {
       const Int_t    type = GetType(channel);
       const Double_t area = norm ? GetArea(type) / cm2 : 1.0;
       switch (type) {
@@ -201,8 +201,8 @@ namespace Extinction {
           const Double_t    boardY   = (boardYi ? -3.0 : +3.0);
           const Int_t       bin      = hist->FindBin(boardX, boardY);
           const Double_t    content  = hist->GetBinContent(bin);
-          hist->SetBinContent(bin, content + 1.0 / area);
-          hist->SetBinError(bin, TMath::Sqrt((content + 1.0 / area) / area));
+          hist->SetBinContent(bin, content + n / area);
+          hist->SetBinError(bin, TMath::Sqrt((content + n / area) / area));
         }
         break;
 
@@ -218,8 +218,8 @@ namespace Extinction {
           const Int_t       ybin        = hist->GetYaxis()->FindBin(boardY);
           const Double_t    content     = hist->GetBinContent(xbin1, ybin);
           for (Int_t xbin = xbin1; xbin <= xbin2; ++xbin) {
-            hist->SetBinContent(xbin, ybin, content + 1.0 / area);
-            hist->SetBinError(xbin, ybin, TMath::Sqrt((content + 1.0 / area) / area));
+            hist->SetBinContent(xbin, ybin, content + n / area);
+            hist->SetBinError(xbin, ybin, TMath::Sqrt((content + n / area) / area));
           }
         }
         break;
@@ -235,10 +235,10 @@ namespace Extinction {
           const Int_t       bin1        = hist->FindBin(boardX, boardY1);
           const Int_t       bin2        = hist->FindBin(boardX, boardY2);
           const Double_t    content     = hist->GetBinContent(bin1);
-          hist->SetBinContent(bin1, content + 1.0 / area);
-          hist->SetBinContent(bin2, content + 1.0 / area);
-          hist->SetBinError(bin1, TMath::Sqrt((content + 1.0 / area) / area));
-          hist->SetBinError(bin2, TMath::Sqrt((content + 1.0 / area) / area));
+          hist->SetBinContent(bin1, content + n / area);
+          hist->SetBinContent(bin2, content + n / area);
+          hist->SetBinError(bin1, TMath::Sqrt((content + n / area) / area));
+          hist->SetBinError(bin2, TMath::Sqrt((content + n / area) / area));
         }
         break;
 
@@ -535,7 +535,7 @@ namespace Extinction {
   }
 
   namespace Detectors {
-    constexpr std::size_t NofChannels = MrRf::GlobalChannelOffset;
+    constexpr std::size_t NofChannels = MrRf::GlobalChannelOffset; // 152
 
     enum {
           Bh1,

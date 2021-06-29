@@ -59,12 +59,18 @@ add_executable(emcount src/emcount.cc ${headers})
 add_executable(decoder src/decoder.cc ${headers})
 add_executable(genHist src/genHist.cc ${headers})
 add_executable(genCoin src/genCoin.cc ${headers})
+add_executable(repHist src/repHist.cc ${headers})
+add_executable(repCoin src/repCoin.cc ${headers})
+add_executable(getLeak src/getLeak.cc ${headers})
 
 # Add link libraries
 target_link_libraries(emcount ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(decoder ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(genHist ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 target_link_libraries(genCoin ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+target_link_libraries(repHist ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+target_link_libraries(repCoin ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
+target_link_libraries(getLeak ${ROOT_LIBRARIES} ${TRON_LIBRARIES})
 
 #----------------------------------------------------------------------------
 # Add install directories
@@ -74,3 +80,6 @@ install(TARGETS emcount DESTINATION .)
 install(TARGETS decoder DESTINATION .)
 install(TARGETS genHist DESTINATION .)
 install(TARGETS genCoin DESTINATION .)
+install(TARGETS repHist DESTINATION .)
+install(TARGETS repCoin DESTINATION .)
+install(TARGETS getLeak DESTINATION .)

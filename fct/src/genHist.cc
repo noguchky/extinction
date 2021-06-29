@@ -64,14 +64,12 @@ Int_t main(Int_t argc, Char_t** argv) {
   const std::string ofilenameSpill         = ofileprefix + (delayOption ? "_delayed_spill.root"    : "_spill.root"    );
   const std::string ofilenameMrSync        = ofileprefix + (delayOption ? "_delayed_mrSync.dat"    : "_mrSync.dat"    );
   const std::string ofilenameOffset        = ofileprefix + (delayOption ? "_delayed_offset.dat"    : "_offset.dat"    );
-  const std::string ofilenameBunch         = ofileprefix + (delayOption ? "_delayed_bunch.dat"     : "_bunch.dat"     );
   // std::cout << "ofilenameRoot          " << ofilenameRoot          << std::endl;
   // std::cout << "ofilenamePdf           " << ofilenamePdf           << std::endl;
   // std::cout << "ofilenamePdf_Offset    " << ofilenamePdf_Offset    << std::endl;
   // std::cout << "ofilenameSpill         " << ofilenameSpill         << std::endl;
   // std::cout << "ofilenameMrSync        " << ofilenameMrSync        << std::endl;
   // std::cout << "ofilenameOffset        " << ofilenameOffset        << std::endl;
-  // std::cout << "ofilenameBunch         " << ofilenameBunch         << std::endl;
 
   std::cout << "--- Load configure" << std::endl;
   Tron::ConfReader* conf = new Tron::ConfReader(confFilename);
@@ -133,7 +131,15 @@ Int_t main(Int_t argc, Char_t** argv) {
 
   std::cout << "--- Initialize histogram generator" << std::endl;
   auto generator = new Extinction::Analyzer::HistGenerator(&defaultProvider);
-  generator->SetHistoryWidth(conf->GetValue<Double_t>("HistoryWidth" ));
+  generator->SetHistoryWidth(conf->GetValue<Double_t>("HistoryWidth"));
+
+  if (delayOption) {
+    if (generator->LoadBunchProfile(conf->GetValue("BunchProfile"))) {
+      // nothing to do
+    } else {
+      generator->SetOffsetFromBunch(true);
+    }
+  }
 
   generator->InitializePlots(profile);
   generator->InitializeSpillSummary(ofilenameSpill);
@@ -153,7 +159,6 @@ Int_t main(Int_t argc, Char_t** argv) {
   generator->WriteSpillSummary  (               );
   generator->WriteMrSyncInterval(ofilenameMrSync);
   generator->WriteTdcOffsets    (ofilenameOffset);
-  generator->WriteBunchProfile  (ofilenameBunch );
 
   return 0;
 }

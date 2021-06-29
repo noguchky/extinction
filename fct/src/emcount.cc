@@ -15,7 +15,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   Tron::ArgReader* args = new Tron::ArgReader(argv[0]);
   args->AddArg<std::string>("Input"     ,                    "Set rawdata filename");
   args->AddOpt<Int_t>      ("Board"     , 'b', "board"     , "Set board id");
-  args->AddOpt<Int_t>      ("EMChannel" , 'e', "cmchannel" , "Set channel of event match", "-1");
+  args->AddOpt<Int_t>      ("EMChannel" , 'e', "emchannel" , "Set channel of event match", "27");
   args->AddOpt             ("Help"      , 'h', "help"      , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {

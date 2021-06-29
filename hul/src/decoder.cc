@@ -15,8 +15,8 @@ Int_t main(Int_t argc, Char_t** argv) {
   args->AddArg<std::string>("Input"    ,                   "Set rawdata filename");
   args->AddOpt<std::string>("Output"   , 'o', "output"   , "Set output filename", "");
   args->AddOpt<Int_t>      ("MSChannel", 'm', "mschannel", "Set channel of mr sync", "14");
-  args->AddOpt<Int_t>      ("EMChannel", 'e', "cmchannel", "Set channel of event match", "2");
-  args->AddOpt<Int_t>      ("EMCount"  , 'c', "cmcount"  , "Set default count of event match", "-1");
+  args->AddOpt<Int_t>      ("EMChannel", 'e', "emchannel", "Set channel of event match", "2");
+  args->AddOpt<Int_t>      ("EMCount"  , 'c', "emcount"  , "Set default count of event match", "-1");
   args->AddOpt             ("Help"     , 'h', "help"     , "Show usage");
 
   if (!args->Parse(argc, argv) || args->IsSet("Help") || args->HasUnsetRequired()) {
@@ -78,10 +78,11 @@ Int_t main(Int_t argc, Char_t** argv) {
   Int_t lastMrSyncCount = 0;
   Int_t lastMrSyncTdc   = 0;
 
-  std::cout << "=== Decode" << std::endl;
   std::vector<std::pair<Long64_t, Int_t>> emCount;
   Int_t nextEmCount = emDefCount;
   emCount.push_back({ std::numeric_limits<Long64_t>::max(), nextEmCount });
+
+  std::cout << "=== Decode" << std::endl;
   std::size_t count = 0UL;
   for (; decoder.Read(*istr); ++count) {
     if (count % 100000 == 0) {
@@ -90,7 +91,7 @@ Int_t main(Int_t argc, Char_t** argv) {
 
     decoder.Data.MrSyncCount   = lastMrSyncCount;
     decoder.Data.MrSyncTdc     = lastMrSyncTdc;
-    decoder.Data.TdcFromMrSync = decoder.Data.Tdc - lastMrSyncTdc;
+    decoder.Data.TdcFromMrSync = decoder.Data.GetTdc2() - lastMrSyncTdc;
 
     if (decoder.Data.IsData()) {
       // std::cout << "data" << std::endl;
@@ -98,10 +99,14 @@ Int_t main(Int_t argc, Char_t** argv) {
 
       if (decoder.Data.Channel == msChannel) {
         ++lastMrSyncCount;
-        lastMrSyncTdc = decoder.Data.Tdc;
+        lastMrSyncTdc = decoder.Data.GetTdc2();
       } else if (decoder.Data.Channel == emChannel) {
         emdata.push_back(decoder.Data.GetTdcData(-1).front());
       }
+
+    } else if (decoder.Data.Type == Extinction::Hul::DataType::Error) {
+      // std::cout << "error" << std::endl;
+      decoder.Tree->Fill();
 
     } else if (decoder.Data.IsFooter()) {
       std::cout << "end of spill " << decoder.Data.Spill << std::endl;
@@ -132,7 +137,7 @@ Int_t main(Int_t argc, Char_t** argv) {
   }
 
   std::cout << "=== Write Objects" << std::endl;
-  std::cout << decoder.Tree->GetName() << std::endl;
+  std::cout << decoder.Tree->GetName() << "\t" << decoder.Tree->GetEntries() << " entries" << std::endl;
   decoder.Tree->Write();
   auto param = new TParameter<Double_t>("ClockFreq", clock);
   std::cout << param->GetName() << " = " << param->GetVal() << std::endl;

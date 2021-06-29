@@ -15,7 +15,6 @@
 #include "TGraphErrors.h"
 #include "TText.h"
 #include "TDatime.h"
-#include "TF1.h"
 #include "TParameter.h"
 #include "TEfficiency.h"
 
@@ -26,6 +25,7 @@
 
 #include "Linq.hh"
 #include "String.hh"
+#include "ObjectHelper.hh"
 #include "ScopeSubstituter.hh"
 #include "MargedReader.hh"
 
@@ -39,6 +39,7 @@ namespace Extinction {
       Long64_t*             pTdcs = nullptr;
 
     public:
+      Int_t                 fChannel;
       std::vector<Long64_t> fTdcs;
       std::vector<Int_t>    fMrSyncCounts;
       std::vector<Long64_t> fTdcFromMrSyncs;
@@ -72,7 +73,7 @@ namespace Extinction {
 
       inline void FillHit(TdcData& data, Int_t width) {
         const Int_t x = data.TdcFromMrSync;
-        const Int_t last = std::min((std::size_t)(x + width + 1), fSize);
+        const Int_t last = std::min((std::size_t)(x + width), fSize);
         if (x < 0 || last <= x) { return; }
         std::fill(fTdcs          .begin() + x, fTdcs          .begin() + last, data.Tdc            );
         std::fill(fMrSyncCounts  .begin() + x, fMrSyncCounts  .begin() + last, data.LastMrSyncCount);
@@ -114,74 +115,77 @@ namespace Extinction {
       };
 
     private:
-      ITdcDataProvider*            fProvider               = nullptr;
+      ITdcDataProvider*          fProvider               = nullptr;
 
-      Timeline_t                   fBh1Timeline;
-      Timeline_t                   fBh2Timeline;
-      Timeline_t                   fTc1Timeline;
-      Timeline_t                   fTc2Timeline;
-      std::vector<Timeline_t>      fExtTimeline;
+      Timeline_t                 fBh1Timeline;
+      Timeline_t                 fBh2Timeline;
+      Timeline_t                 fTc1Timeline;
+      Timeline_t                 fTc2Timeline;
+      std::vector<Timeline_t>    fExtTimeline;
 
-      TH1I*                        hTmpBh1Timeline         = nullptr;
-      TH1I*                        hTmpBh2Timeline         = nullptr;
-      TH1I*                        hTmpTc1Timeline         = nullptr;
-      TH1I*                        hTmpTc2Timeline         = nullptr;
-      std::vector<TH1I*>           hTmpExtTimeline;
-      TH1I*                        hTmpExtTimeline_Any     = nullptr;
-      TH1I*                        hTmpSumTimeline         = nullptr;
-      TLegend*                     hTmpTimelineLegend      = nullptr;
+      TH1I*                      hTmpBh1Timeline         = nullptr;
+      TH1I*                      hTmpBh2Timeline         = nullptr;
+      TH1I*                      hTmpTc1Timeline         = nullptr;
+      TH1I*                      hTmpTc2Timeline         = nullptr;
+      std::vector<TH1I*>         hTmpExtTimeline;
+      TH1I*                      hTmpExtTimeline_Any     = nullptr;
+      TH1I*                      hTmpSumTimeline         = nullptr;
+      TLegend*                   hTmpTimelineLegend      = nullptr;
 
-      TH1D*                        hCoinTlTdcInSync        = nullptr;
-      TH2D*                        hCoinTlMountain         = nullptr;
-      TH1D*                        hCoinExtTdcInSync       = nullptr;
-      TH2D*                        hCoinExtMountain        = nullptr;
+      TH1D*                      hCoinTlTdcInSync        = nullptr;
+      TH2D*                      hCoinTlMountain         = nullptr;
+      TH1D*                      hCoinExtTdcInSync       = nullptr;
+      TH2D*                      hCoinExtMountain        = nullptr;
 
-      TH1*                         hEfficiencyFrame        = nullptr;
-      TEfficiency*                 hEfficiency             = nullptr;
+      TH1*                       hEfficiencyFrame        = nullptr;
+      TEfficiency*               hEfficiency             = nullptr;
 
-      TFile*                       fCoinFile               = nullptr;
-      TTree*                       fCoinTree               = nullptr;
-      TCanvas*                     fTimelineCanvas         = nullptr;
-      TCanvas*                     fHitMapCanvas           = nullptr;
+      TFile*                     fCoinFile               = nullptr;
+      TTree*                     fCoinTree               = nullptr;
 
-      TH2*                         fExtHitMap              = nullptr;
-      TList*                       fExtBorderLine          = nullptr;
+      TFile*                     fSpillFile              = nullptr;
+      TTree*                     fSpillTree              = nullptr;
 
-      // TFile*                       fSpillFile              = nullptr;
-      // TTree*                       fSpillTree              = nullptr;
+      TCanvas*                   fTimelineCanvas         = nullptr;
+      TCanvas*                   fHitMapCanvas           = nullptr;
 
-      // Long64_t                     fSpillCount             = 0;
+      TH2*                       fExtHitMap              = nullptr;
+      TList*                     fExtBorderLine          = nullptr;
 
-      Bool_t                       fCoincidenceTargetBh1;
-      Bool_t                       fCoincidenceTargetBh2;
-      Bool_t                       fCoincidenceTargetHod;
-      Bool_t                       fCoincidenceTargetExt;
-      Bool_t                       fCoincidenceTargetTc1;
-      Bool_t                       fCoincidenceTargetTc2;
+      Bool_t                     fCoincidenceTargetBh1;
+      Bool_t                     fCoincidenceTargetBh2;
+      Bool_t                     fCoincidenceTargetHod;
+      Bool_t                     fCoincidenceTargetExt;
+      Bool_t                     fCoincidenceTargetTc1;
+      Bool_t                     fCoincidenceTargetTc2;
 
-      Bool_t                       fEfficiencyTargetBh1;
-      Bool_t                       fEfficiencyTargetBh2;
-      Bool_t                       fEfficiencyTargetHod;
-      Bool_t                       fEfficiencyTargetExt;
-      Bool_t                       fEfficiencyTargetTc1;
-      Bool_t                       fEfficiencyTargetTc2;
-      
-      Double_t                     fCoinTimeWidth          =  50.0 * nsec;
+      Bool_t                     fEfficiencyTargetBh1;
+      Bool_t                     fEfficiencyTargetBh2;
+      Bool_t                     fEfficiencyTargetHod;
+      Bool_t                     fEfficiencyTargetExt;
+      Bool_t                     fEfficiencyTargetTc1;
+      Bool_t                     fEfficiencyTargetTc2;
+
+      Long64_t                   fCoinTdcWidth;
 
       // Coincidence data
-      Long64_t                   fDate;
-      Long64_t                   fEMCount;
+      ULong64_t                  fDate;
+      Int_t                      fEMCount;
       UInt_t                     fCoinTarget;
       Int_t                      fMrSyncCount;
-      Long64_t                   fTdc;
       Long64_t                   fTdcFromMrSync;
       Int_t                      fBlurWidth;
       Int_t                      fCoinWidth;
       Int_t                      fNofHits;
-      Int_t                      fHitChannels      [ExtinctionDetector::NofChannels];
-      Int_t                      fHitMrSyncCounts  [ExtinctionDetector::NofChannels];
-      Long64_t                   fHitTdcFromMrSyncs[ExtinctionDetector::NofChannels];
-      Int_t                      fHitTots          [ExtinctionDetector::NofChannels];
+      Int_t                      fHitChannels      [Detectors::NofChannels];
+   // Int_t                      fHitMrSyncCounts  [Detectors::NofChannels];
+      Long64_t                   fHitTdcFromMrSyncs[Detectors::NofChannels];
+      Int_t                      fHitTots          [Detectors::NofChannels];
+
+      Int_t                      fBunchEdgeMargin;
+      CoinSpillData              fSpillData;
+
+      TGraph*                    fBunchRange             = nullptr;
 
       void InitializeCoinData() {
         fDate        = 0;
@@ -192,13 +196,12 @@ namespace Extinction {
       }
 
       void ClearCoinEvent() {
-        fTdc           = 0;
         fTdcFromMrSync = 0;
         fBlurWidth     = 0;
         fCoinWidth     = 0;
         fNofHits       = 0;
         std::memset(fHitChannels      , 0, sizeof(fHitChannels      ));
-        std::memset(fHitMrSyncCounts  , 0, sizeof(fHitMrSyncCounts  ));
+     // std::memset(fHitMrSyncCounts  , 0, sizeof(fHitMrSyncCounts  ));
         std::memset(fHitTdcFromMrSyncs, 0, sizeof(fHitTdcFromMrSyncs));
         std::memset(fHitTots          , 0, sizeof(fHitTots          ));
       }
@@ -228,17 +231,28 @@ namespace Extinction {
       }
 
       inline void          SetCoinTimeWidth(Double_t width) {
-        std::cout << "SetCoinTimeWidth ... " << width / nsec << " nsec" << std::endl;
-        fCoinTimeWidth = width;
+        std::cout << "SetCoinTimeWidth ... " << width / nsec << " nsec";
+        fCoinTdcWidth = TMath::Nint(width / fProvider->GetTimePerTdc());
+        std::cout << " (" << fCoinTdcWidth << " count)" << std::endl;
       }
-      inline Double_t      GetCoinTimeWidth() const { return fCoinTimeWidth; }
+      inline Long64_t      GetCoinTdcWidth() const { return fCoinTdcWidth; }
 
+      inline void          SetBunchEdgeMargin(Double_t margin) {
+        std::cout << "SetBunchEdgeMargin ... " << margin / nsec << " nsec";
+        fBunchEdgeMargin = TMath::Nint(margin / fProvider->GetTimePerTdc());
+        std::cout << " (" << fBunchEdgeMargin << " count)" << std::endl;
+      }
+      inline Long64_t      GetBunchEdgeMargin() const { return fBunchEdgeMargin; }
+
+      Int_t                ReadPlots(const std::string& ifilename);
       void                 InitializePlots(const PlotsProfiles& profile);
       void                 InitializeCoinTree(const std::string& filename, const std::string& treename = "ctree");
-
+      void                 InitializeSpillSummary(const std::string& filename, const std::string& treename = "cspill");
       void                 DrawPlots(const std::string& ofilename);
       void                 WritePlots(const std::string& ofilename);
       void                 WriteCoinTree();
+      void                 WriteSpillSummary();
+      void                 WriteBunchProfile(const std::string& ofilename);
 
       Int_t                GenerateEfficiency(MargedReader*                  reader,
                                               BoardMap_t<ITdcDataProvider*>  providers,
@@ -248,6 +262,8 @@ namespace Extinction {
       Int_t                GeneratePlots(MargedReader* reader,
                                          Bool_t        drawCoinTimeline = false,
                                          Int_t         mscountSelection = -1);
+
+      void                 CalcBunchProfile();
 
     private:
       void                 ClearLastSpill(Bool_t clearHists);
@@ -264,9 +280,55 @@ namespace Extinction {
       fEfficiencyTargetTc1 = false;
       fEfficiencyTargetTc2 = false;
       InitializeCoinData();
+
+      fBunchRange = new TGraph();
+      fBunchRange->SetFillStyle(1001);
+      fBunchRange->SetFillColorAlpha(kYellow, 0.5);
     }
 
     TimelineCoincidence::~TimelineCoincidence() {
+    }
+
+    Int_t TimelineCoincidence::ReadPlots(const std::string& ifilename) {
+      TFile* file = new TFile(ifilename.data(), "READ");
+      if (!file->IsOpen()) {
+        std::cout << "[error] input file is not opened, " << ifilename << std::endl;
+        return 1;
+      }
+      file->ls();
+
+      auto getFromFile =
+        [&](const std::string& filename) {
+          std::cout << "  - " << filename << std::endl;
+          return file->Get(filename.data());
+        };
+
+      {
+        fSpillData.SetDate((UInt_t)Tron::ObjectHelper::ReadValue<Long64_t>("Time"));
+      }
+
+      {
+        hCoinTlTdcInSync  = dynamic_cast<TH1D*>(getFromFile("hCoinTlTdcInSync" ));
+        hCoinTlMountain   = dynamic_cast<TH2D*>(getFromFile("hCoinTlMountain"  ));
+        hCoinExtTdcInSync = dynamic_cast<TH1D*>(getFromFile("hCoinExtTdcInSync"));
+        hCoinExtMountain  = dynamic_cast<TH2D*>(getFromFile("hCoinExtMountain" ));
+        hCoinTlTdcInSync ->SetDirectory(nullptr);
+        hCoinTlMountain  ->SetDirectory(nullptr);
+        hCoinExtTdcInSync->SetDirectory(nullptr);
+        hCoinExtMountain ->SetDirectory(nullptr);
+      }
+
+      {
+        hEfficiencyFrame = dynamic_cast<TH1*>(getFromFile("hEfficiencyFrame"));
+        hEfficiencyFrame->SetDirectory(nullptr);
+
+        hEfficiency = dynamic_cast<TEfficiency*>(getFromFile("hEfficiency"));
+        hEfficiency->SetDirectory(nullptr);
+      }
+
+      file->Close();
+
+      return 0;
     }
 
     void TimelineCoincidence::InitializePlots(const PlotsProfiles& profile) {
@@ -295,13 +357,14 @@ namespace Extinction {
       fExtBorderLine = ExtinctionDetector::CreateBorderLine();
 
       // Timeline
-      fBh1Timeline.Resize(xbinsTmpTimeline);
-      fBh2Timeline.Resize(xbinsTmpTimeline);
-      fTc1Timeline.Resize(xbinsTmpTimeline);
-      fTc2Timeline.Resize(xbinsTmpTimeline);
+      fBh1Timeline.Resize(xbinsTmpTimeline); fBh1Timeline.fChannel = 0 + BeamlineHodoscope::GlobalChannelOffset;
+      fBh2Timeline.Resize(xbinsTmpTimeline); fBh2Timeline.fChannel = 1 + BeamlineHodoscope::GlobalChannelOffset;
+      fTc1Timeline.Resize(xbinsTmpTimeline); fTc1Timeline.fChannel = 0 + TimingCounter    ::GlobalChannelOffset;
+      fTc2Timeline.Resize(xbinsTmpTimeline); fTc2Timeline.fChannel = 1 + TimingCounter    ::GlobalChannelOffset;
       fExtTimeline.resize(ExtinctionDetector::NofChannels);
       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
         fExtTimeline[ch].Resize(xbinsTmpTimeline);
+        fExtTimeline[ch].fChannel = ch + ExtinctionDetector::GlobalChannelOffset;
       }
 
       // Timeline
@@ -422,13 +485,12 @@ namespace Extinction {
         return;
       }
 
-      fCoinTree = new TTree(treename.data(), "Coincidence resuld of residuals");
+      fCoinTree = new TTree(treename.data(), "Coincidence results of residuals");
 
-      fCoinTree->Branch("date"    , &fDate             , "date"           "/I");
+      fCoinTree->Branch("date"    , &fDate             , "date"           "/l");
       fCoinTree->Branch("emcount" , &fEMCount          , "emcount"        "/I");
-      fCoinTree->Branch("ctarget" , &fCoinTarget       , "ctarget"        "/I");
+      fCoinTree->Branch("ctarget" , &fCoinTarget       , "ctarget"        "/i");
       fCoinTree->Branch("mscount" , &fMrSyncCount      , "mscount"        "/I");
-      fCoinTree->Branch("tdc"     , &fTdc              , "tdc"            "/L");
       fCoinTree->Branch("dtdc"    , &fTdcFromMrSync    , "dtdc"           "/L");
       fCoinTree->Branch("bwidth"  , &fBlurWidth        , "bwidth"         "/I");
       fCoinTree->Branch("cwidth"  , &fCoinWidth        , "cwidth"         "/I");
@@ -439,6 +501,19 @@ namespace Extinction {
       fCoinTree->Branch("tots"    ,  fHitTots          , "tots"  "[nofhits]/I");
 
       fCoinTree->AutoSave();
+    }
+
+    void TimelineCoincidence::InitializeSpillSummary(const std::string& filename, const std::string& treename) {
+      std::cout << "Initialize spill tree" << std::endl;
+
+      fSpillFile = new TFile(filename.data(), "RECREATE");
+      if (!fSpillFile->IsOpen()) {
+        std::cout << "[error] spill file is not opened, " << filename << std::endl;
+        return;
+      }
+
+      fSpillTree = new TTree(treename.data(), "Spill summary");
+      fSpillData.CreateBranch(fSpillTree);
     }
 
     void TimelineCoincidence::DrawPlots(const std::string& ofilename) {
@@ -458,6 +533,28 @@ namespace Extinction {
         hCoinTlTdcInSync->Draw("hist");
         hCoinTlTdcInSync->SetMinimum(0.2);
         gPad->Print(ofilename.data());
+
+        const Double_t miny = TMath::Power(10., gPad->GetUymin());
+        const Double_t maxy = TMath::Power(10., gPad->GetUymax());
+        fBunchRange->Set(0);
+        fBunchRange->SetMinimum(miny);
+        fBunchRange->SetMaximum(maxy);
+        for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+          if (fSpillData.BunchMinEdges[bunch] && fSpillData.BunchMaxEdges[bunch]) {
+            fBunchRange->SetPoint(fBunchRange->GetN(), fSpillData.BunchMinEdges[bunch], miny);
+            fBunchRange->SetPoint(fBunchRange->GetN(), fSpillData.BunchMinEdges[bunch], maxy);
+            fBunchRange->SetPoint(fBunchRange->GetN(), fSpillData.BunchMaxEdges[bunch], maxy);
+            fBunchRange->SetPoint(fBunchRange->GetN(), fSpillData.BunchMaxEdges[bunch], miny);
+          }
+        }
+
+        if (fBunchRange->GetN()) {
+          fBunchRange->Draw("AF");
+          gPad->Update();
+          fBunchRange->GetXaxis()->SetLimits(hCoinTlTdcInSync->GetXaxis()->GetXmin(), hCoinTlTdcInSync->GetXaxis()->GetXmax());
+          hCoinTlTdcInSync->Draw("histsame");
+          gPad->Print(ofilename.data());
+        }
       }
       gPad->SetLogy(false);
 
@@ -506,13 +603,21 @@ namespace Extinction {
         return;
       }
 
-      hCoinTlTdcInSync ->Write();
-      hCoinTlMountain  ->Write();
-      hCoinExtTdcInSync->Write();
-      hCoinExtMountain ->Write();
+      {
+        Tron::ObjectHelper::WriteValue<Long64_t>(fSpillData.Date.Convert(), "Time");
+      }
 
-      hEfficiencyFrame ->Write();
-      hEfficiency      ->Write();
+      {
+        hCoinTlTdcInSync ->Write();
+        hCoinTlMountain  ->Write();
+        hCoinExtTdcInSync->Write();
+        hCoinExtMountain ->Write();
+      }
+
+      {
+        hEfficiencyFrame ->Write();
+        hEfficiency      ->Write();
+      }
 
       file->Close();
     }
@@ -531,7 +636,46 @@ namespace Extinction {
       fCoinFile->Close();
     }
 
+    void TimelineCoincidence::WriteSpillSummary() {
+      std::cout << "Write spill summary" << std::endl;
+      if (!fSpillFile) {
+        std::cout << "[warning] spill file is not initialized" << std::endl;
+        return;
+      }
+
+      if (!fSpillTree) {
+        std::cout << "[warning] spill tree is not initialized" << std::endl;
+        return;
+      }
+
+      fSpillFile->cd();
+      fSpillTree->Write();
+    }
+
+    void TimelineCoincidence::WriteBunchProfile(const std::string &ofilename) {
+      std::cout << "Write bunch profile" << std::endl;
+      std::ofstream ofile(ofilename);
+      if (!ofile) {
+        std::cerr << "[error] output file is not opened, " << ofilename << std::endl;
+        return;
+      }
+
+      for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+        ofile << bunch << "\t"
+              << Form("%23.15e", fSpillData.BunchCenters [bunch]) << "\t"
+              << Form("%23.15e", fSpillData.BunchWidths  [bunch]) << "\t"
+              << Form("%lld", fSpillData.BunchMinEdges[bunch]) << "\t"
+              << Form("%lld", fSpillData.BunchMaxEdges[bunch]) << std::endl;
+      }
+
+      ofile.close();
+
+      std::cerr << "Info in <TimelineCoincidence::WriteBunchProfile>: dat file " << ofilename << " has been created" << std::endl;
+    }
+
     void TimelineCoincidence::ClearLastSpill(Bool_t clearHists) {
+      fSpillData.Clear();
+      
       if (clearHists) {
         hCoinTlTdcInSync ->Reset();
         hCoinTlMountain  ->Reset();
@@ -588,6 +732,8 @@ namespace Extinction {
 
       fDate    = reader->GetDate();
       fEMCount = reader->GetEMCount();
+      fSpillData.SetDate(fDate);
+      fSpillData.EMCount = fEMCount;
 
       {
         Double_t mrSyncTime = 0.0;
@@ -602,8 +748,6 @@ namespace Extinction {
           fCoincidenceTargetTc2 *      1;
 
         Int_t dtdc = 0;
-        const Int_t coinTdcWidth = fCoinTimeWidth / fProvider->GetTimePerTdc();
-
         while (true) {
           for (; reader->Read(tdcDataInMrSync); tdcDataInMrSync.clear()) {
             fMrSyncCount = reader->GetMrSyncCount();
@@ -617,23 +761,23 @@ namespace Extinction {
                 // std::cout << "[debug] fill bh timeline" << std::endl;
                 const std::size_t bhCh = BeamlineHodoscope::GetChannel(data.Channel);
                 if (bhCh == 0) {
-                  fBh1Timeline.FillHit(data, coinTdcWidth);
+                  fBh1Timeline.FillHit(data, fCoinTdcWidth);
                 } else {
-                  fBh2Timeline.FillHit(data, coinTdcWidth);
+                  fBh2Timeline.FillHit(data, fCoinTdcWidth);
                 }
 
               } else if (ExtinctionDetector::Contains(data.Channel)) {
                 // std::cout << "[debug] fill ext timeline" << std::endl;
                 const std::size_t extCh = ExtinctionDetector::GetChannel(data.Channel);
-                fExtTimeline[extCh].FillHit(data, coinTdcWidth);
+                fExtTimeline[extCh].FillHit(data, fCoinTdcWidth);
 
               } else if (TimingCounter::Contains(data.Channel)) {
                 // std::cout << "[debug] fill tc timeline" << std::endl;
                 const std::size_t tcCh = TimingCounter::GetChannel(data.Channel);
                 if (tcCh == 0) {
-                  fTc1Timeline.FillHit(data, coinTdcWidth);
+                  fTc1Timeline.FillHit(data, fCoinTdcWidth);
                 } else {
-                  fTc2Timeline.FillHit(data, coinTdcWidth);
+                  fTc2Timeline.FillHit(data, fCoinTdcWidth);
                 }
 
               } else if (MrSync::Contains(data.Channel)) {
@@ -679,9 +823,10 @@ namespace Extinction {
                   fTdcFromMrSync = dtdc;
                   hCoinTlTdcInSync->Fill(dtdc);
                   hCoinTlMountain ->Fill(dtdc, mrSyncTime / msec);
+                  ++fSpillData.CoinCount;
 
                   if (drawCoinTimeline) {
-                    DrawTmpTimeline(dtdc, 2 * coinTdcWidth);
+                    DrawTmpTimeline(dtdc, 2 * fCoinTdcWidth);
                     gPad->WaitPrimitive();
                   }
 
@@ -689,23 +834,30 @@ namespace Extinction {
                   // Skip dead time
                   fCoinWidth = 0;
                   Bool_t filled = false;
-                  std::map<std::pair<Int_t, Long64_t>, Long64_t> hitmscounts;
-                  std::map<std::pair<Int_t, Long64_t>, Long64_t> hitdtdcs;
-                  std::map<std::pair<Int_t, Long64_t>, Long64_t> hittots;
+                  std::map<std::pair<Long64_t/*tdc*/, Int_t/*ch*/>, Long64_t> hitmscounts;
+                  std::map<std::pair<Long64_t/*tdc*/, Int_t/*ch*/>, Long64_t> hitdtdcs;
+                  std::map<std::pair<Long64_t/*tdc*/, Int_t/*ch*/>, Long64_t> hittots;
+                  auto fillCoincidenceData =
+                    [&] (Timeline_t& tl) {
+                      if (tl.HasHit(dtdc)) {
+                        const std::pair<Int_t, Long64_t> tag { tl.fTdcFromMrSyncs[dtdc], tl.fChannel };
+                        hitmscounts.emplace(tag, tl.fMrSyncCounts  [dtdc]);
+                        hitdtdcs   .emplace(tag, tl.fTdcFromMrSyncs[dtdc]);
+                        hittots    .emplace(tag, tl.fTots          [dtdc]);
+                      }
+                    };
                   for (; dtdc < xmax; ++dtdc) {
                     if (isCoincident(dtdc)) {
                       ++fCoinWidth;
 
                       // std::cout << "[debug] fill coincidence data" << std::endl;
                       for (std::size_t ch = 0; ch < ExtinctionDetector::NofChannels; ++ch) {
-                        auto& tl = fExtTimeline[ch];
-                        if (tl.HasHit(dtdc)) {
-                          std::pair<Int_t, Long64_t> tag { ch, tl.fTdcs[dtdc] };
-                          hitmscounts.emplace(tag, tl.fMrSyncCounts  [dtdc]);
-                          hitdtdcs   .emplace(tag, tl.fTdcFromMrSyncs[dtdc]);
-                          hittots    .emplace(tag, tl.fTots          [dtdc]);
-                        }
+                        fillCoincidenceData(fExtTimeline[ch]);
                       }
+                      fillCoincidenceData(fTc1Timeline);
+                      fillCoincidenceData(fTc2Timeline);
+                      fillCoincidenceData(fBh1Timeline);
+                      fillCoincidenceData(fBh2Timeline);
 
                       if (fEfficiencyTargetBh1 && hitBh1 && !filled) { hEfficiency->Fill(true, 0); filled = true; }
                       if (fEfficiencyTargetBh2 && hitBh2 && !filled) { hEfficiency->Fill(true, 1); filled = true; }
@@ -713,6 +865,7 @@ namespace Extinction {
                       if (fEfficiencyTargetExt && hitExt && !filled) { hEfficiency->Fill(true, 3); filled = true; }
                       if (fEfficiencyTargetTc1 && hitTc1 && !filled) { hEfficiency->Fill(true, 4); filled = true; }
                       if (fEfficiencyTargetTc2 && hitTc2 && !filled) { hEfficiency->Fill(true, 5); filled = true; }
+
                     } else {
                       if (fEfficiencyTargetBh1 && !filled) { hEfficiency->Fill(false, 0); }
                       if (fEfficiencyTargetBh2 && !filled) { hEfficiency->Fill(false, 1); }
@@ -720,30 +873,63 @@ namespace Extinction {
                       if (fEfficiencyTargetExt && !filled) { hEfficiency->Fill(false, 3); }
                       if (fEfficiencyTargetTc1 && !filled) { hEfficiency->Fill(false, 4); }
                       if (fEfficiencyTargetTc2 && !filled) { hEfficiency->Fill(false, 5); }
+
                       break;
+                    }
+                  }
+
+                  fBlurWidth = fTdcFromMrSync - hitdtdcs.begin()->first.first;
+
+                  for (auto&& pair : hitmscounts) {
+                    auto& tag = pair.first;
+                    auto& gch = tag.second;
+
+                    if        (ExtinctionDetector::Contains(gch)) {
+                      hCoinExtTdcInSync->Fill(hitdtdcs[tag]);
+                      hCoinExtMountain ->Fill(hitdtdcs[tag], mrSyncTime / msec);
+                      ++fSpillData.ExtEntries;
+                    } else if (BeamlineHodoscope::Contains(gch)) {
+                      const Int_t bhch = BeamlineHodoscope::GetChannel(gch);
+                      if (bhch == 0) {
+                        ++fSpillData.Bh1Entries;
+                      } else {
+                        ++fSpillData.Bh2Entries;
+                      }
+                    } else if (TimingCounter::Contains(gch)) {
+                      const Int_t tcch = TimingCounter::GetChannel(gch);
+                      if (tcch == 0) {
+                        ++fSpillData.Tc1Entries;
+                      } else {
+                        ++fSpillData.Tc2Entries;
+                      }
                     }
                   }
 
                   for (auto&& pair : hitmscounts) {
                     auto& tag = pair.first;
-                    auto& ch  = tag.first;
-
-                    hCoinExtTdcInSync->Fill(hitdtdcs[tag]);
-                    hCoinExtMountain ->Fill(hitdtdcs[tag], mrSyncTime / msec);
+                    auto& ch  = tag.second;
 
                     fHitChannels      [fNofHits] = ch;
-                    fHitMrSyncCounts  [fNofHits] = pair.second;
+                 // fHitMrSyncCounts  [fNofHits] = pair.second;
                     fHitTdcFromMrSyncs[fNofHits] = hitdtdcs[tag];
                     fHitTots          [fNofHits] = hittots [tag];
                     fNofHits++;
 
-                    if (fNofHits == ExtinctionDetector::NofChannels) {
-                      std::cerr << "[warning] too many multiple hit, mr sync count = " << fMrSyncCount << std::endl;
+                    if (fNofHits == Detectors::NofChannels) {
+                      std::cerr << "[warning] coincidence of too many multiple hit" << std::endl
+                                << "  # of hits    \t" << hitmscounts.size() << std::endl
+                                << "  begin of dtdc\t" << dtdc - fCoinWidth  << std::endl
+                                << "  end   of dtdc\t" << dtdc - 1           << std::endl
+                                << "  coin width   \t" << fCoinWidth         << std::endl
+                                << "  mr sync count\t" << fMrSyncCount       << std::endl;
+                      Int_t ipair = 0;
+                      for (auto&& pair2 : hitmscounts) {
+                        std::cerr << (ipair++ == 0 ?  "  dtdc ch      \t" : "               \t") << std::setw(8) << pair2.first.first << "\t" << std::setw(3) << pair2.first.second << std::endl;
+                      }
                       break;
                     }
                   }
 
-                  fBlurWidth = coinTdcWidth - fCoinWidth + 1;
                   if (fCoinTree) {
                     fCoinTree->Fill();
                   }
@@ -772,6 +958,17 @@ namespace Extinction {
           // std::cout << "[debug] check end of spill" << std::endl;
           // Check end of spill
           if (reader->IsSpillEnded()) {
+            std::cout << "[info] end of spill" << std::endl;
+            // Calc spill summary
+            CalcBunchProfile();
+
+            // Fill spill summary
+            if (fSpillTree) {
+              fSpillTree->Fill();
+            }
+
+            ClearLastSpill(false);
+
             reader->ClearLastSpill();
             // std::cout << "[debug] Throw away first mr sync" << std::endl;
             // Throw away first mr sync
@@ -780,11 +977,14 @@ namespace Extinction {
 
             fDate        = reader->GetDate();
             fEMCount     = reader->GetEMCount();
+            fSpillData.SetDate(fDate);
+            fSpillData.EMCount = fEMCount;
           }
 
           // std::cout << "[debug] check end of file" << std::endl;
           // Check end of file
           if (reader->IsFileEnded()) {
+            std::cout << "[info] end of file" << std::endl;
             break;
           }
         }
@@ -799,6 +999,11 @@ namespace Extinction {
     void TimelineCoincidence::DrawTmpTimeline(Int_t dtdc, Int_t range) {
       std::cout << "DrawTmpTimeline: MR Sync Count = " << fMrSyncCount << std::endl;
 
+      if (!fTimelineCanvas || !fHitMapCanvas) {
+        std::cout << "[error] timelines is not initialized" << std::endl;
+        return;
+      }
+      
       // Timeline
       fTimelineCanvas->cd();
 
@@ -808,6 +1013,8 @@ namespace Extinction {
       hTmpTc2Timeline    ->Reset();
       hTmpExtTimeline_Any->Reset();
       hTmpSumTimeline    ->Reset();
+
+      hTmpBh1Timeline->SetTitle(Form("%s, Coincidence Timeline, MS %d", fProvider->GetName().data(), fMrSyncCount));
 
       auto setTimeline =
         [&] (Timeline_t& tl, TH1I* tmpTl) {
@@ -880,7 +1087,76 @@ namespace Extinction {
       fHitMapCanvas->Modified();
       fHitMapCanvas->Update();
     }
-    
+
+    void TimelineCoincidence::CalcBunchProfile() {
+      std::cout << "_____ Bunch Profile _____" << std::endl;
+      {
+        TH1D* hTdcInSync = hCoinTlTdcInSync;
+
+        for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+          fSpillData.BunchCenters [bunch] = 0.0;
+          fSpillData.BunchWidths  [bunch] = 0.0;
+          fSpillData.BunchMinEdges[bunch] = 0.0;
+          fSpillData.BunchMaxEdges[bunch] = 0.0;
+        }
+
+        Int_t xbin = 1, nbinsx = hTdcInSync->GetNbinsX();
+        const Double_t ymax = hTdcInSync->GetBinContent(hTdcInSync->GetMaximumBin());
+        for (std::size_t bunch = 0; bunch < kNofBunches; ++bunch) {
+          Int_t xbin1 = xbin, xbin2 = xbin;
+          // std::cout << "... search start edge" << std::endl;
+          for (; xbin <= nbinsx && hTdcInSync->GetBinContent(xbin) < ymax * 0.10; ++xbin) {
+            // std::cout << xbin << "\t" << hTdcInSync->GetBinContent(xbin) << "\t" << ymax * 0.10 << std::endl;
+            xbin1 = xbin;
+          }
+          // std::cout << "... search end edge" << std::endl;
+          for (; xbin <= nbinsx && hTdcInSync->GetBinContent(xbin) > ymax * 0.01; ++xbin) {
+            // std::cout << xbin << "\t" << hTdcInSync->GetBinContent(xbin) << "\t" << ymax * 0.01 << std::endl;
+            xbin2 = xbin;
+          }
+          // std::cout << "xbin1 = " << xbin1 << "\txbin2 = " << xbin2 << std::endl;
+
+          if (xbin2 <= xbin1) {
+            std::cout << "[warning] " << (bunch == 0 ? "1st" :
+                                          bunch == 1 ? "2nd" :
+                                          bunch == 2 ? "3rd" :
+                                          Form("%ldth", bunch + 1)) << " bunch was not found" << std::endl;
+            break;
+          }
+
+          // Get bunch center
+          const Long64_t maxbin = TMath::LocMax(xbin2 - xbin1 + 1, hTdcInSync->GetArray() + xbin1);
+          fSpillData.BunchCenters[bunch] = hTdcInSync->GetBinCenter(xbin1 + maxbin);
+
+          // Get bunch min/max edge
+          for (Int_t edge = xbin1; edge > 0; --edge) {
+            if (hTdcInSync->GetBinContent(edge) == 0) {
+              fSpillData.BunchMinEdges[bunch] = hTdcInSync->GetBinCenter(edge) - fBunchEdgeMargin;
+              break;
+            }
+          }
+          if (fSpillData.BunchMinEdges[bunch] == 0.0) {
+            std::cout << "[warning] bunch min edge reach underflow" << std::endl;
+          }
+
+          for (Int_t& edge = xbin2; edge <= nbinsx; ++edge) {
+            if (hTdcInSync->GetBinContent(edge) == 0) {
+              fSpillData.BunchMaxEdges[bunch] = hTdcInSync->GetBinCenter(edge) + fBunchEdgeMargin;
+              break;
+            }
+          }
+          if (fSpillData.BunchMaxEdges[bunch] == 0.0) {
+            std::cout << "[warning] bunch max edge reach overflow" << std::endl;
+          }
+
+          // Get bunch width
+          if (fSpillData.BunchMinEdges[bunch] && fSpillData.BunchMaxEdges[bunch]) {
+            fSpillData.BunchWidths[bunch] = fSpillData.BunchMaxEdges[bunch] - fSpillData.BunchMinEdges[bunch] + 1;
+          }
+        }
+      }
+    }
+
   }
 
 }

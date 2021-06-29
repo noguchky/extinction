@@ -212,10 +212,11 @@ namespace Extinction {
 
       std::basic_istream<char>& Read(std::basic_istream<char>& file,
                                      Packet_t* packet = nullptr) {
-        Type    = DataType::None;
-        Channel = 0;
-        Tdc     = 0;
-        Tot     = 0;
+        Type          = DataType::None;
+        Channel       = 0;
+        Tdc           = 0;
+        Tot           = 0;
+        TdcFromMrSync = 0;
 
         Packet1_t buff1;
         auto& ret1 = file.read((char*)&buff1, sizeof(Packet1_t));
@@ -342,7 +343,6 @@ namespace Extinction {
         datum.EMCount         = EMCount;
         datum.Board           = board;
         datum.TimePerTdc      = GetTimePerTdc();
-        datum.RawChannel      = Channel;
         datum.Tdc             = GetTdc2();
         datum.Time            = GetTime();
         datum.Tot             = Tot;
@@ -356,24 +356,31 @@ namespace Extinction {
                    (itr2 = itr1->second.begin()      ) != itr1->second.end()) {
           datum.MrSyncChannel = itr2->second + MrSync::GlobalChannelOffset;
         }
-        if        ((itr1 = Ext         .find(board  )) != Ext         .end() &&
-                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
-          datum.Channel     = itr2->second + ExtinctionDetector::GlobalChannelOffset;
-        } else if ((itr1 = Hod         .find(board  )) != Hod         .end() &&
-                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
-          datum.Channel     = itr2->second + Hodoscope         ::GlobalChannelOffset;
-        } else if ((itr1 = Tc          .find(board  )) != Tc          .end() &&
-                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
-          datum.Channel     = itr2->second + TimingCounter     ::GlobalChannelOffset;
-        } else if ((itr1 = Bh          .find(board  )) != Bh          .end() &&
-                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
-          datum.Channel     = itr2->second + BeamlineHodoscope ::GlobalChannelOffset;
-        } else if ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
-                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
-          datum.Channel     = itr2->second + MrSync            ::GlobalChannelOffset;
-        } else if ((itr1 = Evm         .find(board  )) != Evm         .end() &&
-                   (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
-          datum.Channel     = itr2->second + EventMatch        ::GlobalChannelOffset;
+
+        if (!IsData()) {
+          datum.RawChannel    = -1;
+          datum.Channel       = -1;
+        } else {
+          datum.RawChannel      = Channel;
+          if        ((itr1 = Ext         .find(board  )) != Ext         .end() &&
+                     (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+            datum.Channel     = itr2->second + ExtinctionDetector::GlobalChannelOffset;
+          } else if ((itr1 = Hod         .find(board  )) != Hod         .end() &&
+                     (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+            datum.Channel     = itr2->second + Hodoscope         ::GlobalChannelOffset;
+          } else if ((itr1 = Tc          .find(board  )) != Tc          .end() &&
+                     (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+            datum.Channel     = itr2->second + TimingCounter     ::GlobalChannelOffset;
+          } else if ((itr1 = Bh          .find(board  )) != Bh          .end() &&
+                     (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+            datum.Channel     = itr2->second + BeamlineHodoscope ::GlobalChannelOffset;
+          } else if ((itr1 = MrSync      .find(board  )) != MrSync      .end() &&
+                     (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+            datum.Channel     = itr2->second + MrSync            ::GlobalChannelOffset;
+          } else if ((itr1 = Evm         .find(board  )) != Evm         .end() &&
+                     (itr2 = itr1->second.find(Channel)) != itr1->second.end()) {
+            datum.Channel     = itr2->second + EventMatch        ::GlobalChannelOffset;
+          }
         }
         return { datum };
       }
@@ -394,10 +401,10 @@ namespace Extinction {
         tree->Branch("ch"       , &Channel      , "ch"     "/s");
         tree->Branch("tdc"      , &Tdc          , "tdc"    "/i");
         tree->Branch("heartbeat", &Heartbeat    , "heartbeat/s");
-        tree->Branch("tot"      , &Tot          , "tot"    "/i");
-     // tree->Branch("mscount"  , &MrSyncCount  , "mscount""/I");
-     // tree->Branch("mstdc"    , &MrSyncTdc    , "mstdc"  "/I");
-        tree->Branch("dtdc"     , &TdcFromMrSync, "dtdc"   "/I");
+        tree->Branch("tot"      , &Tot          , "tot"    "/s");
+        tree->Branch("mscount"  , &MrSyncCount  , "mscount""/I");
+     // tree->Branch("mstdc"    , &MrSyncTdc    , "mstdc"  "/L");
+        tree->Branch("dtdc"     , &TdcFromMrSync, "dtdc"   "/L");
         tree->SetAlias("tdc2", "tdc + 0x80000 * heartbeat");
       }
       inline TBranch* AddEMBranch(TTree* tree) {
@@ -414,7 +421,7 @@ namespace Extinction {
         tree->SetBranchAddress("tdc"      , &Tdc      );
         tree->SetBranchAddress("heartbeat", &Heartbeat);
         tree->SetBranchAddress("tot"      , &Tot      );
-     // tree->SetBranchAddress("mscount"  , &MrSyncCount  );
+        tree->SetBranchAddress("mscount"  , &MrSyncCount  );
      // tree->SetBranchAddress("mstdc"    , &MrSyncTdc    );
         tree->SetBranchAddress("dtdc"     , &TdcFromMrSync);
       }
